@@ -66,6 +66,7 @@ if LITE_MODE:
     from lite_engine import (  # noqa: E402
         answer_lite,
         iter_deepseek_stream,
+        lite_prelude,
         lite_ready,
         retrieve,
         template_answer,
@@ -498,7 +499,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 "engine": "lite" if LITE_MODE else "dify",
                 "streaming": True,
                 "agent": True,
-                "features": features + (["lite_faq", "deepseek_optional"] if LITE_MODE else []),
+                "features": features + (["lite_faq", "deepseek_optional", "assistant_intro"] if LITE_MODE else []),
                 "lite_mode": LITE_MODE,
             }
             if LITE_MODE:
@@ -787,6 +788,15 @@ class PortalHandler(SimpleHTTPRequestHandler):
         # Keep a stable demo conversation id for the portal history UI.
         if not conversation_id:
             conversation_id = "lite-" + str(abs(hash(upstream.get("user") or "u")) % 10_000_000)
+
+        # Greetings and hard off-topic are decided before retrieval. The UI
+        # defaults to SSE, so this must run on the streaming path too.
+        early = lite_prelude(query)
+        if early is not None:
+            early["conversation_id"] = conversation_id
+            early["message_id"] = ""
+            early["rewrite"] = rewrite_meta
+            return self._emit_local_agent_reply(early, stream)
 
         if not stream:
             shaped = answer_lite(query, stream=False)

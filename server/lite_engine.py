@@ -27,6 +27,79 @@ DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 
 SECTION_RE = re.compile(r"^##\s+(\d+)\.\s*(.+?)\s*$", re.MULTILINE)
 TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[A-Za-z0-9]+")
+# Leading hello / hi only. A real question after the greeting still goes to retrieval.
+_GREET_PREFIX = re.compile(
+    r"^(?:(?:"
+    r"你好|您好|嗨|哈喽|哈啰|在吗|在么|早上好|下午好|晚上好|早安|晚安|"
+    r"hi|hello|hey"
+    r")[呀啊哦哟！!。.~～，,\s]*)+",
+    re.IGNORECASE,
+)
+_INTRO = re.compile(
+    r"(?:"
+    r"介绍一下你自己|介绍一下自己|介绍下你自己|介绍下自己|自我介绍|"
+    r"你是谁|你叫什么|你能做什么|你能干什么|你会什么|你可以做什么|"
+    r"你是做什么的|你是干什么的|你能帮(?:我)?什么|你能帮我做什么|"
+    r"who are you|what can you do|introduce yourself"
+    r")",
+    re.IGNORECASE,
+)
+_TOPIC = re.compile(
+    r"(保修|质保|退换|退货|换货|退款|物流|快递|发货|运费|发票|支付|付款|"
+    r"账号|绑定|解绑|密码|电池|充电|清洗|保温|温度|指示灯|订单|售后|寄修|"
+    r"漏水|容量|材质|蓝牙|密封|异味|开机|App|app|CloudCup|水杯|杯子)"
+)
+# Clearly outside the demo catalog. Checked before retrieval so a stray
+# keyword (发票 / 订单) cannot turn them into a cited answer.
+_OFFTOPIC = re.compile(
+    r"(火星|月球|外太空|写一首诗|写首诗|今天天气|天气怎么样|股票怎么|彩票|"
+    r"比特币|帮我写代码|黑客攻击|破解密码)"
+)
+_KEY_PHRASES = (
+    "保修",
+    "质保",
+    "退换",
+    "退货",
+    "换货",
+    "退款",
+    "清洗",
+    "充电",
+    "指示灯",
+    "绑定",
+    "解绑",
+    "保温",
+    "温度",
+    "饮水",
+    "物流",
+    "发货",
+    "快递",
+    "运费",
+    "发票",
+    "支付",
+    "付款",
+    "账号",
+    "密码",
+    "电池",
+    "续航",
+    "售后",
+    "寄修",
+    "漏水",
+    "容量",
+    "材质",
+    "蓝牙",
+    "密封",
+    "异味",
+    "开机",
+    "颜色",
+    "规格",
+    "序列号",
+)
+INTRO_ANSWER = (
+    "你好，我是星云助手。\n\n"
+    "我是 CloudCup Pro 的私有知识库智能客服，可以回答保修、退换、物流、账号绑定、"
+    "支付与发票、售后和常见故障。\n\n"
+    "直接说出具体问题即可，我会附上知识库依据。"
+)
 
 
 @dataclass
@@ -109,8 +182,9 @@ def score_chunk(query: str, chunk: Chunk) -> float:
     body_hits = len(q_set & body_set)
     # Bonus for whole-substring overlap on key phrases
     bonus = 0.0
-    for phrase in ("保修", "退换", "清洗", "充电", "指示灯", "绑定", "保温", "温度", "饮水", "人工"):
-        if phrase in query and phrase in (chunk.question + chunk.answer):
+    hay = chunk.question + chunk.answer
+    for phrase in _KEY_PHRASES:
+        if phrase in query and phrase in hay:
             bonus += 2.0
     raw = title_hits * 3.0 + body_hits * 1.0 + bonus
     # Normalize loosely by query size
@@ -284,8 +358,60 @@ def iter_deepseek_stream(query: str, hits: list[tuple[Chunk, float]]) -> Iterato
             pass
 
 
+def _strip_punct(text: str) -> str:
+    return text.strip("，,。.!！?？~～、 \t")
+
+
+def _is_social(text: str) -> bool:
+    """Pure greeting or self-intro, with no product question left over."""
+    rest = _strip_punct(_GREET_PREFIX.sub("", text))
+    if not rest:
+        return True
+    if not _INTRO.search(rest) and not _INTRO.search(text):
+        return False
+    stripped = _strip_punct(_INTRO.sub(" ", rest))
+    if _TOPIC.search(stripped):
+        return False
+    return True
+
+
+def lite_prelude(query: str) -> dict | None:
+    """Greeting / self-intro, or a hard out-of-scope refuse. None → retrieve.
+
+    Greetings must not look like an empty-KB miss. Off-topic requests are
+    refused before retrieval so a shared word like 发票 cannot cite an FAQ.
+    """
+    text = (query or "").strip()
+    if not text:
+        return None
+    if _OFFTOPIC.search(text):
+        return {
+            "answer": template_answer(text, []),
+            "citations": [],
+            "refuse": True,
+            "agent_action": "knowledge_qa",
+            "engine": "lite",
+            "generator": "refuse",
+            "streamed": False,
+        }
+    if not _is_social(text):
+        return None
+    return {
+        "answer": INTRO_ANSWER,
+        "citations": [],
+        "refuse": False,
+        "agent_action": "assistant_intro",
+        "engine": "lite",
+        "generator": "intro",
+        "streamed": False,
+    }
+
+
 def answer_lite(query: str, stream: bool = False) -> dict:
     """Blocking-shaped result used by proxy (stream handled separately)."""
+    early = lite_prelude(query)
+    if early is not None:
+        return early
     hits = retrieve(query)
     citations = citations_from(hits)
     if not hits:
