@@ -1,0 +1,14 @@
+{
+  "score": 93,
+  "verdict": "pass",
+  "category_match": true,
+  "differences": [
+    "Lounge frame removed; soft champagne fills",
+    "Composer underline input; minimal borders",
+    "Citation as left hairline column without box"
+  ],
+  "suggestions": [
+    "Ensure refuse CTA remains obvious without heavy chrome"
+  ],
+  "reasoning": "Airier night variant; still luxury ink, not a new direction letter."
+}

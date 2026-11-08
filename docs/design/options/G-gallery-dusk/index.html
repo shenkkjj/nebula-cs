@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>方案 G: 美术馆黄昏 / 星云客服</title>
+<meta name="description" content="星云客服方案 G 美术馆黄昏静态原型，炭灰象牙墙与展签式引用。" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* Hallmark · v2.0.0 · theme: custom (by request) · shape: app screen · genre: editorial · posture: quiet gallery · surface: museum wall · hero: settled · nav: top wall label · footer: none · job: answer · signature: citations as wall labels under spotlights · axes: charcoal + ivory dusk */
+/* Hallmark · waive 26b · prototype static controls · design option mock has no disabled forms yet */
+/* Hallmark · answered F3 · text-wrap balance added on display heads */
+/* Hallmark · answered F23 · meta description added */
+:root {
+  --charcoal: #2a2c2e;
+  --charcoal-deep: #1e2022;
+  --wall: #ece7df;
+  --wall-2: #e3ddd3;
+  --ivory: #f7f3ec;
+  --ink: #242628;
+  --mute: #6a6660;
+  --spot: rgba(255, 248, 235, 0.55);
+  --spot-soft: rgba(255, 250, 240, 0.18);
+  --label-rule: #c8c0b4;
+  --accent: #5c6b73;
+  --refuse: #8a5a52;
+  --veil-deep: rgba(0, 0, 0, 0.35);
+  --line-soft: rgba(236, 231, 223, 0.18);
+  --ivory-62: rgba(247, 243, 236, 0.62);
+  --ivory-35: rgba(247, 243, 236, 0.35);
+  --ivory-70: rgba(247, 243, 236, 0.7);
+  --ivory-22: rgba(247, 243, 236, 0.22);
+  --ivory-72: rgba(247, 243, 236, 0.72);
+  --ivory-18: rgba(247, 243, 236, 0.18);
+  --ivory-50: rgba(247, 243, 236, 0.5);
+  --ivory-06: rgba(247, 243, 236, 0.06);
+  --ink-18: rgba(0, 0, 0, 0.18);
+  --wall-glow: rgba(255, 250, 240, 0.35);
+  --labels-line: rgba(236, 231, 223, 0.12);
+  --label-edge: rgba(0, 0, 0, 0.08);
+  --label-shadow: rgba(0, 0, 0, 0.18);
+  --label-wash: rgba(255, 248, 235, 0.25);
+  --font-display: "Libre Baskerville", "Noto Serif SC", "Songti SC", serif;
+  --font-body: "Source Sans 3", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --space: 8px;
+  --max: 1080px;
+  --radius: 0;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; overflow-x: clip; }
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--charcoal-deep);
+  line-height: 1.55;
+}
+body::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 42% 36% at 28% 18%, var(--spot-soft), transparent 70%),
+    radial-gradient(ellipse 38% 32% at 72% 22%, var(--spot-soft), transparent 68%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, var(--veil-deep), transparent 60%);
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+button:active { filter: brightness(0.94); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.frame {
+  position: relative; z-index: 1;
+  max-width: var(--max); margin: 0 auto;
+  min-height: 100vh;
+  padding: calc(var(--space) * 3);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: calc(var(--space) * 2);
+}
+.mast {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: calc(var(--space) * 2);
+  padding-bottom: calc(var(--space) * 2);
+  border-bottom: 1px solid var(--line-soft);
+}
+.brand h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.9rem, 3.2vw, 2.6rem);
+  color: var(--ivory);
+  letter-spacing: 0;
+  overflow-wrap: break-word; min-width: 0;
+  text-wrap: balance;
+}
+.brand p {
+  margin: 10px 0 0;
+  font-size: 0.84rem;
+  color: var(--ivory-62);
+}
+.top-actions {
+  display: flex; gap: calc(var(--space) * 1.25); align-items: center; flex-wrap: wrap;
+}
+.ghost, .solid {
+  font: inherit; font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; border-radius: var(--radius);
+  padding: 0.55rem 1rem;
+  transition: border-color .2s ease, background-color .2s ease, color .2s ease;
+}
+.ghost {
+  background: transparent; color: var(--ivory);
+  border: 1px solid var(--ivory-35);
+}
+.ghost:hover { border-color: var(--ivory); }
+.solid {
+  background: var(--ivory); color: var(--charcoal);
+  border: 1px solid var(--ivory);
+}
+.solid:hover { background: var(--wall); }
+.meta {
+  font-size: 0.78rem; color: var(--ivory-70);
+  border: 1px solid var(--ivory-22);
+  padding: 0.4rem 0.7rem;
+}
+.faq {
+  display: flex; flex-wrap: wrap; gap: calc(var(--space) * 1);
+}
+.faq button {
+  font: inherit; font-size: 0.8rem; cursor: pointer;
+  background: transparent; color: var(--ivory-72);
+  border: 1px solid var(--ivory-18);
+  padding: 0.4rem 0.75rem;
+}
+.faq button:hover, .faq button.active {
+  color: var(--ivory);
+  border-color: var(--ivory-50);
+  background: var(--ivory-06);
+}
+.gallery {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.75fr);
+  gap: calc(var(--space) * 2.5);
+  min-height: 0;
+}
+.wall {
+  background: var(--wall);
+  border: 1px solid var(--ink-18);
+  position: relative;
+  padding: calc(var(--space) * 3.5) calc(var(--space) * 3);
+  display: flex; flex-direction: column; gap: calc(var(--space) * 2.5);
+  min-width: 0;
+  box-shadow: inset 0 0 80px var(--wall-glow);
+}
+.wall::before, .wall::after {
+  content: "";
+  position: absolute; pointer-events: none;
+  width: 180px; height: 180px;
+  background: radial-gradient(circle, var(--spot), transparent 70%);
+  opacity: 0.9;
+}
+.wall::before { top: -20px; left: 18%; }
+.wall::after { top: -30px; right: 12%; width: 220px; height: 220px; }
+.plaque {
+  position: relative; z-index: 1;
+  max-width: 92%;
+}
+.plaque.user { align-self: flex-end; text-align: right; }
+.plaque .who {
+  font-size: 0.72rem; color: var(--mute); margin-bottom: 6px;
+}
+.plaque .title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--ink);
+  margin: 0 0 8px;
+  overflow-wrap: break-word; min-width: 0;
+  text-wrap: balance;
+}
+.plaque .body {
+  font-size: 0.95rem;
+  color: var(--ink);
+  border-left: 2px solid var(--label-rule);
+  padding-left: 14px;
+}
+.plaque.user .body {
+  border-left: none;
+  border-right: 2px solid var(--accent);
+  padding-left: 0;
+  padding-right: 14px;
+}
+.plaque .body strong { font-weight: 700; }
+.plaque.refuse .body { border-left-color: var(--refuse); }
+.composer {
+  position: relative; z-index: 1;
+  margin-top: auto;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: calc(var(--space) * 1);
+  padding-top: calc(var(--space) * 1.5);
+  border-top: 1px solid var(--label-rule);
+}
+.composer input {
+  font: inherit; color: var(--ink);
+  background: var(--ivory);
+  border: 1px solid var(--label-rule);
+  padding: 0.75rem 1rem; min-width: 0;
+}
+.composer input::placeholder { color: var(--mute); }
+.composer button {
+  font: inherit; font-weight: 700; cursor: pointer;
+  background: var(--charcoal); color: var(--ivory);
+  border: 1px solid var(--charcoal);
+  padding: 0 1.25rem;
+}
+.labels {
+  background: var(--charcoal);
+  border: 1px solid var(--labels-line);
+  padding: calc(var(--space) * 2.5);
+  display: flex; flex-direction: column; gap: calc(var(--space) * 2);
+  min-width: 0;
+}
+.labels h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--ivory);
+  overflow-wrap: break-word; min-width: 0;
+  text-wrap: balance;
+}
+.wall-label {
+  background: var(--ivory);
+  color: var(--ink);
+  padding: calc(var(--space) * 1.75) calc(var(--space) * 1.75);
+  border: 1px solid var(--label-edge);
+  box-shadow: 0 10px 28px var(--ink-18);
+  position: relative;
+}
+.wall-label::before {
+  content: "";
+  position: absolute; left: 12px; right: 12px; top: -10px; height: 10px;
+  background: linear-gradient(to bottom, transparent, var(--label-wash));
+  pointer-events: none;
+}
+.wall-label .t {
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.wall-label .s { font-size: 0.8rem; color: var(--mute); margin: 0; }
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  background: var(--charcoal); color: var(--ivory);
+  border: 1px solid var(--ivory-35);
+  padding: 8px 16px; font-size: 0.85rem;
+  opacity: 0; transition: opacity .2s ease; z-index: 5; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+@media (max-width: 860px) {
+  .gallery { grid-template-columns: 1fr; }
+  .mast { flex-direction: column; align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ghost, .solid, .toast { transition: none; }
+}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <header class="mast">
+      <div class="brand">
+        <h1>星云客服</h1>
+        <p>美术馆黄昏 / CloudCup Pro / 方案 G / 模拟<br />沈凯杰、王瑞康</p>
+      </div>
+      <div class="top-actions">
+        <span class="meta">知识库在线</span>
+        <button type="button" class="ghost" id="btnTicket">转人工</button>
+      </div>
+    </header>
+    <div class="faq" id="faq" role="group" aria-label="快捷问题">
+      <button type="button" class="active" data-q="保修政策是怎样的？">保修政策是怎样的？</button>
+      <button type="button" data-q="如何清洗水杯内胆？">如何清洗水杯内胆？</button>
+      <button type="button" data-q="指示灯颜色代表什么？">指示灯颜色代表什么？</button>
+      <button type="button" data-q="七天无理由怎么退？">七天无理由怎么退？</button>
+    </div>
+    <div class="gallery">
+      <section class="wall" aria-label="对话展墙">
+        <div class="plaque user">
+          <div class="who">访客</div>
+          <h3 class="title">提问</h3>
+          <div class="body">保修政策是怎样的？</div>
+        </div>
+        <div class="plaque bot">
+          <div class="who">星云客服</div>
+          <h3 class="title">答复</h3>
+          <div class="body">
+            CloudCup Pro <strong>整机保修 12 个月</strong>；<strong>电池与密封圈保修 6 个月</strong>。人为损坏、进液腐蚀、未经授权拆修不在保修范围。寄修前请保留购机凭证。
+          </div>
+        </div>
+        <div class="plaque refuse">
+          <div class="who">星云客服</div>
+          <h3 class="title">未能展出</h3>
+          <div class="body">
+            知识库未覆盖该问题，找不到可引用依据，已拒答。建议转人工坐席。
+            <div style="margin-top:12px">
+              <button type="button" class="solid" id="btnTicket2">转人工坐席</button>
+            </div>
+          </div>
+        </div>
+        <form class="composer" id="composer" onsubmit="return false;">
+          <input id="q" type="text" placeholder="在展墙上提问：保修、清洗、退换货…" autocomplete="off" />
+          <button type="submit">发送</button>
+        </form>
+      </section>
+      <aside class="labels" aria-label="展签出处">
+        <h2>展签</h2>
+        <div class="wall-label">
+          <p class="t">客服样例FAQ.md / 相关度 0.86</p>
+          <p class="s">「整机保修期为自购买日起 12 个月；电池与密封圈等耗材保修期为 6 个月。」</p>
+        </div>
+        <div class="wall-label">
+          <p class="t">模拟说明</p>
+          <p class="s">本页为静态原型，对话与引用不请求业务引擎。</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+  <div class="toast" id="toast">模拟交互</div>
+  <script>
+    const toast = document.getElementById('toast');
+    function ping(m){ toast.textContent=m; toast.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>toast.classList.remove('show'),1600); }
+    document.getElementById('faq').addEventListener('click', e => {
+      const b = e.target.closest('button[data-q]'); if(!b) return;
+      document.querySelectorAll('#faq button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); document.getElementById('q').value=b.dataset.q; ping('已选快捷问题（模拟）');
+    });
+    document.getElementById('composer').onsubmit = () => ping('发送为模拟，未请求引擎');
+    document.getElementById('btnTicket').onclick = () => ping('转人工演示（模拟）');
+    document.getElementById('btnTicket2').onclick = () => ping('转人工演示（模拟）');
+  </script>
+</body>
+</html>

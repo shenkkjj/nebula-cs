@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>方案 E3: 密席贵宾厅 / 星云客服</title>
+<meta name="description" content="星云客服方案 E3：偏暖炭灰、更密的贵宾厅排版，出处抽屉字阶加强。" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* Hallmark · v2.0.0 · theme: custom (by request) · shape: app screen · genre: atmospheric · posture: dense · surface: absolute · hero: settled · nav: top meta · footer: none · job: answer · signature: warm charcoal citation type · axes: warm ink + brass */
+/* Hallmark · waive 26b · prototype static controls · design option mock has no disabled forms yet */
+/* Hallmark · answered F3 · text-wrap balance on display heads */
+/* Hallmark · answered F23 · meta description added */
+:root {
+  --ink: #100e0c;
+  --ink-2: #1a1714;
+  --ink-3: #221e19;
+  --champagne: #eddcc0;
+  --champagne-soft: #d0b98f;
+  --gold: #c4a56a;
+  --gold-line: rgba(196, 165, 106, 0.32);
+  --gold-line-strong: rgba(196, 165, 106, 0.55);
+  --text: #f5ecdf;
+  --mute: #a09482;
+  --danger: #d08978;
+  --danger-fill: rgba(208, 137, 120, 0.1);
+  --font-display: "Cormorant Garamond", "Noto Serif SC", serif;
+  --font-body: "Manrope", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --space: 8px;
+  --max: 1140px;
+  --radius: 3px;
+  --glow: rgba(196, 165, 106, 0.06);
+  --card-fill: rgba(237, 220, 192, 0.055);
+  --user-fill: rgba(196, 165, 106, 0.11);
+  --user-line: rgba(196, 165, 106, 0.42);
+  --cite-rule: rgba(196, 165, 106, 0.2);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; overflow-x: clip; }
+body {
+  font-family: var(--font-body);
+  color: var(--text);
+  background: var(--ink);
+  line-height: 1.5;
+}
+body::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 45% at 10% 5%, var(--glow), transparent 55%),
+    radial-gradient(ellipse 40% 35% at 95% 90%, rgba(237, 220, 192, 0.03), transparent 50%);
+}
+:focus-visible { outline: 1px solid var(--gold); outline-offset: 3px; }
+button:active, .solid:active, .ghost:active, .composer button:active { filter: brightness(0.94); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.frame {
+  position: relative; z-index: 1;
+  max-width: var(--max); margin: 0 auto;
+  min-height: 100vh;
+  padding: calc(var(--space) * 2.5) calc(var(--space) * 2.75);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: calc(var(--space) * 1.5);
+}
+.top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: calc(var(--space) * 1.5);
+  align-items: end;
+  padding-bottom: calc(var(--space) * 1.5);
+  border-bottom: 1px solid var(--gold-line);
+}
+.brand h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.85rem, 3vw, 2.35rem);
+  color: var(--champagne);
+  line-height: 1.08;
+  overflow-wrap: break-word; min-width: 0;
+  text-wrap: balance;
+}
+.brand p {
+  margin: 6px 0 0;
+  font-size: 0.76rem;
+  color: var(--mute);
+}
+.top-actions {
+  display: flex; gap: calc(var(--space) * 1); align-items: center; flex-wrap: wrap;
+}
+.ghost, .solid {
+  font: inherit; font-size: 0.76rem; font-weight: 600;
+  cursor: pointer; border-radius: var(--radius);
+  padding: 0.42rem 0.85rem;
+  transition: border-color .2s ease, background-color .2s ease, color .2s ease;
+}
+.ghost {
+  background: transparent; color: var(--champagne-soft);
+  border: 1px solid var(--gold-line);
+}
+.ghost:hover { border-color: var(--gold-line-strong); color: var(--champagne); }
+.solid {
+  background: var(--champagne); color: var(--ink);
+  border: 1px solid var(--champagne);
+}
+.solid:hover { background: var(--champagne-soft); }
+.meta {
+  font-size: 0.7rem; color: var(--mute);
+  border: 1px solid var(--gold-line);
+  padding: 0.3rem 0.55rem; border-radius: var(--radius);
+}
+.faq {
+  display: flex; flex-wrap: wrap; gap: calc(var(--space) * 0.75);
+}
+.faq button {
+  font: inherit; font-size: 0.74rem; cursor: pointer;
+  background: rgba(237, 220, 192, 0.04);
+  color: var(--champagne-soft);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.7rem;
+}
+.faq button:hover, .faq button.active {
+  color: var(--champagne);
+  border-color: var(--gold-line-strong);
+  background: rgba(196, 165, 106, 0.1);
+}
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.95fr);
+  gap: calc(var(--space) * 1.75);
+  min-height: 0;
+}
+.lounge {
+  background: var(--ink-2);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius);
+  padding: calc(var(--space) * 2) calc(var(--space) * 2.25);
+  display: flex; flex-direction: column; gap: calc(var(--space) * 1.5);
+  min-width: 0;
+}
+.msg { max-width: 92%; }
+.msg.user { align-self: flex-end; }
+.msg .who {
+  font-size: 0.66rem; color: var(--mute); margin-bottom: 4px;
+}
+.msg.user .who { text-align: right; }
+.card {
+  background: var(--card-fill);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius);
+  padding: calc(var(--space) * 1.4) calc(var(--space) * 1.65);
+  color: var(--text);
+  font-size: 0.88rem;
+}
+.msg.user .card {
+  background: var(--user-fill);
+  border-color: var(--user-line);
+}
+.card strong { color: var(--champagne); font-weight: 700; }
+.card.refuse {
+  background: var(--danger-fill);
+  border-color: rgba(208, 137, 120, 0.45);
+}
+.refuse-title {
+  margin: 0 0 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--danger);
+}
+.refuse-actions { margin-top: 10px; }
+.silk {
+  background: var(--ink-3);
+  border: 1px solid var(--gold-line-strong);
+  border-radius: var(--radius);
+  padding: calc(var(--space) * 2) calc(var(--space) * 2.15);
+  display: flex; flex-direction: column; gap: calc(var(--space) * 1.25);
+  min-width: 0;
+}
+.silk-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+}
+.silk h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.55rem;
+  color: var(--champagne);
+  line-height: 1.1;
+  overflow-wrap: break-word; min-width: 0;
+  text-wrap: balance;
+}
+.silk .count {
+  font-size: 0.7rem; color: var(--mute); white-space: nowrap;
+}
+.silk .lead {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--champagne-soft);
+  line-height: 1.35;
+}
+.silk .rule {
+  height: 1px; background: var(--gold-line); border: none; margin: 2px 0;
+}
+.cite {
+  padding: calc(var(--space) * 1.15) 0;
+  border-bottom: 1px solid var(--cite-rule);
+}
+.cite:last-of-type { border-bottom: none; }
+.cite .t {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--champagne);
+  line-height: 1.25;
+}
+.cite .meta-line {
+  margin-top: 4px;
+  font-size: 0.7rem;
+  color: var(--mute);
+}
+.cite .s {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--text);
+  line-height: 1.55;
+  background: rgba(237, 220, 192, 0.04);
+  border-left: 2px solid var(--gold-line-strong);
+  padding: 8px 10px;
+}
+.composer {
+  margin-top: auto;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: calc(var(--space) * 0.85);
+  padding-top: calc(var(--space) * 1.25);
+  border-top: 1px solid var(--gold-line);
+}
+.composer input {
+  font: inherit; color: var(--text);
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius);
+  padding: 0.62rem 0.85rem; min-width: 0;
+  font-size: 0.86rem;
+}
+.composer input::placeholder { color: var(--mute); }
+.composer button {
+  font: inherit; font-weight: 700; cursor: pointer; font-size: 0.82rem;
+  background: var(--champagne); color: var(--ink);
+  border: 1px solid var(--champagne);
+  border-radius: var(--radius);
+  padding: 0 1.05rem;
+}
+.toast {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+  background: var(--ink-3); color: var(--champagne);
+  border: 1px solid var(--gold-line-strong);
+  padding: 7px 14px; font-size: 0.8rem;
+  opacity: 0; transition: opacity .2s ease; z-index: 5; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+@media (max-width: 860px) {
+  .workspace { grid-template-columns: 1fr; }
+  .top { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ghost, .solid, .toast { transition: none; }
+}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <header class="top">
+      <div class="brand">
+        <h1>星云客服</h1>
+        <p>密席贵宾厅 / CloudCup Pro / 方案 E3 · 模拟 · 沈凯杰、王瑞康</p>
+      </div>
+      <div class="top-actions">
+        <span class="meta">知识库在线</span>
+        <button type="button" class="ghost" id="btnTicket">转人工</button>
+      </div>
+    </header>
+    <div class="faq" id="faq" role="group" aria-label="快捷问题">
+      <button type="button" class="active" data-q="保修政策是怎样的？">保修政策是怎样的？</button>
+      <button type="button" data-q="如何清洗水杯内胆？">如何清洗水杯内胆？</button>
+      <button type="button" data-q="指示灯颜色代表什么？">指示灯颜色代表什么？</button>
+      <button type="button" data-q="七天无理由怎么退？">七天无理由怎么退？</button>
+    </div>
+    <div class="workspace">
+      <section class="lounge" aria-label="对话区">
+        <div class="msg user">
+          <div class="who">访客</div>
+          <div class="card">保修政策是怎样的？</div>
+        </div>
+        <div class="msg bot">
+          <div class="who">星云客服</div>
+          <div class="card">
+            CloudCup Pro <strong>整机保修 12 个月</strong>；<strong>电池与密封圈保修 6 个月</strong>。人为损坏、进液腐蚀、未经授权拆修不在保修范围。寄修前请保留购机凭证。
+          </div>
+        </div>
+        <div class="msg bot">
+          <div class="who">星云客服</div>
+          <div class="card refuse">
+            <p class="refuse-title">拒答 · 无引用依据</p>
+            知识库未覆盖该问题。订单、投诉或库外事项请转人工。
+            <div class="refuse-actions">
+              <button type="button" class="solid" id="btnTicket2">转人工坐席</button>
+            </div>
+          </div>
+        </div>
+        <form class="composer" id="composer" onsubmit="return false;">
+          <input id="q" type="text" placeholder="提问：保修、清洗、退换货…" autocomplete="off" />
+          <button type="submit">发送</button>
+        </form>
+      </section>
+      <aside class="silk" aria-label="引用来源">
+        <div class="silk-head">
+          <h2>出处</h2>
+          <span class="count">2 条依据</span>
+        </div>
+        <p class="lead">右侧抽屉加粗字阶，方便答辩时对照引用。</p>
+        <hr class="rule" />
+        <div class="cite">
+          <div class="t">客服样例FAQ.md</div>
+          <div class="meta-line">相关度 0.86 · 保修条款</div>
+          <div class="s">整机保修期为自购买日起 12 个月；电池与密封圈等耗材保修期为 6 个月。</div>
+        </div>
+        <div class="cite">
+          <div class="t">模拟说明</div>
+          <div class="meta-line">原型标注</div>
+          <div class="s">本页为静态原型，对话与引用不请求业务引擎。</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+  <div class="toast" id="toast">模拟交互</div>
+  <script>
+    const toast = document.getElementById('toast');
+    function ping(m){ toast.textContent=m; toast.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>toast.classList.remove('show'),1600); }
+    document.getElementById('faq').addEventListener('click', e => {
+      const b = e.target.closest('button[data-q]'); if(!b) return;
+      document.querySelectorAll('#faq button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); document.getElementById('q').value=b.dataset.q; ping('已选快捷问题（模拟）');
+    });
+    document.getElementById('composer').onsubmit = () => ping('发送为模拟，未请求引擎');
+    document.getElementById('btnTicket').onclick = () => ping('转人工演示（模拟）');
+    document.getElementById('btnTicket2').onclick = () => ping('转人工演示（模拟）');
+  </script>
+</body>
+</html>

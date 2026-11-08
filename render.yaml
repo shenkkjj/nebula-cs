@@ -1,0 +1,20 @@
+# Render Blueprint — single Free web service (no card required for Free tier signup).
+# Full Dify Docker will NOT fit on Free (~512MB). This deploys LITE_MODE only.
+services:
+  - type: web
+    name: nebula-cs
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /api/health
+    envVars:
+      - key: LITE_MODE
+        value: "1"
+      - key: PORTAL_HOST
+        value: "0.0.0.0"
+      # Optional: paste in Render dashboard for LLM-polished answers.
+      # Without it, template answers from FAQ snippets still work.
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: DEEPSEEK_MODEL
+        value: deepseek-chat

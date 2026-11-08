@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>星云客服 · CloudCup 智能客服助手</title>
+  <meta name="description" content="星云客服助手 · 夜间贵宾席 E5 · CloudCup Pro 私有知识库智能客服 Agent（沈凯杰、王瑞康）" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230b0c0e'/%3E%3Cpath d='M18 40c6-14 22-14 28 0' stroke='%23e8dcc4' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='24' r='5' fill='%23b89b5e'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="frame">
+    <header class="top">
+      <div class="brand">
+        <h1>星云客服</h1>
+        <p>智能客服助手 · CloudCup Pro · 私有知识库 Agent<br />沈凯杰、王瑞康</p>
+      </div>
+      <div class="top-actions">
+        <span class="meta" id="onlinePill">助手在线</span>
+        <button type="button" class="ghost" id="btnNewChat">新对话</button>
+        <button type="button" class="ghost" id="btnTicketTop">转人工</button>
+      </div>
+    </header>
+
+    <div class="faq" id="faqChips" role="group" aria-label="快捷问题"></div>
+
+    <div class="workspace">
+      <section class="lounge" aria-label="对话区">
+        <div class="messages" id="messages" role="log" aria-live="polite"></div>
+        <form class="composer" id="composer">
+          <textarea
+            id="queryInput"
+            rows="1"
+            maxlength="2000"
+            placeholder="轻声提问：保修、清洗、退换货，或说「转人工」…"
+            autocomplete="off"
+          ></textarea>
+          <button type="button" class="stop-btn" id="btnStop" hidden>停止生成</button>
+          <button type="submit" id="btnSend">发送</button>
+        </form>
+      </section>
+
+      <aside class="silk" aria-label="会话与出处">
+        <div class="silk-block">
+          <h2>会话</h2>
+          <hr class="rule" />
+          <div class="session-list" id="sessionList" aria-label="历史会话"></div>
+        </div>
+        <div class="silk-block silk-cites">
+          <h2>出处</h2>
+          <hr class="rule" />
+          <div class="cite-list" id="citeList"></div>
+        </div>
+        <p class="status-foot" id="statusText">就绪 · 流式经本地代理转发，密钥不进入浏览器</p>
+      </aside>
+    </div>
+  </div>
+
+  <button type="button" class="linkish" id="btnToggleFaq" hidden>问题列表</button>
+
+  <div class="modal-backdrop" id="ticketModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ticketTitle">
+      <header>
+        <h3 id="ticketTitle">转人工坐席</h3>
+        <button type="button" class="icon-btn" id="btnCloseTicket" aria-label="关闭">×</button>
+      </header>
+      <p class="modal-desc">智能客服助手将为您登记演示工单（本地存根，不会真正派单）。也可在对话中直接说「转人工」。</p>
+      <form id="ticketForm">
+        <label>主题
+          <input type="text" name="subject" required maxlength="80" placeholder="例如：保修寄修地址咨询" />
+        </label>
+        <label>问题描述
+          <textarea name="detail" rows="4" maxlength="800" placeholder="补充订单号、现象等…"></textarea>
+        </label>
+        <label>联系方式（选填）
+          <input type="text" name="contact" maxlength="80" placeholder="手机 / 邮箱" />
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="ghost" id="btnCancelTicket">取消</button>
+          <button type="submit" class="solid">提交工单</button>
+        </div>
+      </form>
+      <p class="ticket-result" id="ticketResult" hidden></p>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

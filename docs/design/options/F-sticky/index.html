@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>方案 F: 便利贴看板 / 星云客服</title>
+<meta name="description" content="星云客服方案 F 便利贴看板静态原型，软木板与钉住出处。" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+/* Hallmark · v2.0.0 · theme: custom (by request) · shape: app screen · genre: playful · posture: committed · surface: absolute · hero: settled · nav: mast board · footer: none · job: answer · signature: tilted FAQ notes + pinned citations · axes: cork board sticky metaphor */
+/* Hallmark · waive 26b · prototype static controls · design option mock has no disabled forms yet */
+/* Hallmark · answered F3 · text-wrap balance added on display heads */
+/* Hallmark · answered F23 · meta description added */
+:root {
+  --cork: #c4a574;
+  --cork-deep: #a88452;
+  --paper: #f7f1e3;
+  --ink: #2b241c;
+  --mute: #6b5c4a;
+  --yellow: #ffe566;
+  --yellow-2: #ffd23a;
+  --mint: #d7efc5;
+  --blush: #ffd4c4;
+  --sky: #d5e8f7;
+  --white: #fffdf7;
+  --pin: #c0392b;
+  --font-hand: "Patrick Hand", "Segoe Print", cursive;
+  --font-body: "Source Sans 3", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --space: 8px;
+  --max: 1080px;
+  --radius: 4px;
+  --dust-a: rgba(0, 0, 0, 0.06);
+  --dust-b: rgba(0, 0, 0, 0.05);
+  --dust-c: rgba(255, 255, 255, 0.08);
+  --shade-18: rgba(43, 36, 28, 0.18);
+  --shade-16: rgba(43, 36, 28, 0.16);
+  --shade-15: rgba(43, 36, 28, 0.15);
+  --shade-14: rgba(43, 36, 28, 0.14);
+  --shade-12: rgba(43, 36, 28, 0.12);
+  --panel-wash: rgba(247, 241, 227, 0.55);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; overflow-x: clip; }
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--cork);
+  line-height: 1.45;
+}
+body::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    radial-gradient(circle at 20% 30%, var(--dust-a) 1px, transparent 1.5px),
+    radial-gradient(circle at 70% 60%, var(--dust-b) 1px, transparent 1.5px),
+    radial-gradient(circle at 40% 80%, var(--dust-c) 1px, transparent 1.5px);
+  background-size: 42px 42px, 53px 53px, 37px 37px;
+  opacity: 0.9;
+}
+:focus-visible {
+  outline: 3px solid var(--pin);
+  outline-offset: 2px;
+}
+button:active, .chip:active, .composer button:active { filter: brightness(0.94); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.board {
+  position: relative; z-index: 1;
+  max-width: var(--max); margin: 0 auto;
+  min-height: 100vh;
+  padding: calc(var(--space) * 3);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: calc(var(--space) * 2.5);
+}
+.mast {
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--shade-18);
+  padding: calc(var(--space) * 2) calc(var(--space) * 2.5);
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+}
+.mast h1 {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  font-weight: 400;
+  overflow-wrap: break-word; min-width: 0;
+  text-wrap: balance;
+}
+.mast p { margin: 4px 0 0; font-size: 0.85rem; color: var(--mute); }
+.mast .actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.chip {
+  font: inherit; font-weight: 700; font-size: 0.82rem; cursor: pointer;
+  background: var(--white); border: 2px solid var(--ink);
+  padding: 0.4rem 0.85rem; border-radius: var(--radius);
+  box-shadow: 2px 2px 0 var(--shade-15);
+}
+.chip.solid { background: var(--yellow-2); }
+.tag {
+  font-size: 0.78rem; font-weight: 700;
+  background: var(--mint); border: 2px solid var(--ink);
+  padding: 0.3rem 0.6rem; border-radius: var(--radius);
+}
+.notes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: calc(var(--space) * 1.5);
+}
+.note {
+  position: relative;
+  font-family: var(--font-hand);
+  font-size: 1.15rem;
+  text-align: left;
+  cursor: pointer;
+  border: 2px solid var(--ink);
+  padding: calc(var(--space) * 2.5) calc(var(--space) * 1.5) calc(var(--space) * 1.5);
+  min-height: 96px;
+  box-shadow: 3px 3px 0 var(--shade-16);
+  transition: transform .15s ease;
+}
+.note:nth-child(1) { background: var(--yellow); transform: rotate(-2.5deg); }
+.note:nth-child(2) { background: var(--mint); transform: rotate(1.8deg); }
+.note:nth-child(3) { background: var(--sky); transform: rotate(-1.2deg); }
+.note:nth-child(4) { background: var(--blush); transform: rotate(2.2deg); }
+.note.active { outline: 3px solid var(--pin); z-index: 2; }
+.note:hover { transform: rotate(0deg) translateY(-2px); }
+.note .pin {
+  position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--pin); border: 2px solid var(--ink);
+}
+.stack-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.85fr);
+  gap: calc(var(--space) * 2);
+  min-height: 0;
+}
+.stack {
+  position: relative;
+  min-height: 360px;
+}
+.sticky {
+  position: relative;
+  border: 2px solid var(--ink);
+  padding: calc(var(--space) * 2);
+  margin-bottom: calc(var(--space) * 1.5);
+  box-shadow: 4px 4px 0 var(--shade-14);
+  font-size: 0.95rem;
+  max-width: 92%;
+}
+.sticky.user {
+  background: var(--sky);
+  margin-left: auto;
+  transform: rotate(1deg);
+}
+.sticky.bot {
+  background: var(--white);
+  transform: rotate(-0.8deg);
+}
+.sticky.refuse {
+  background: var(--blush);
+  transform: rotate(0.6deg);
+}
+.sticky strong {
+  background: var(--yellow);
+  padding: 0 4px;
+}
+.pins-col {
+  background: var(--panel-wash);
+  border: 2px dashed var(--ink);
+  padding: calc(var(--space) * 2);
+  min-width: 0;
+}
+.pins-col h2 {
+  margin: 0 0 calc(var(--space) * 1.5);
+  font-family: var(--font-hand);
+  font-size: 1.5rem;
+  font-weight: 400;
+  overflow-wrap: break-word; min-width: 0;
+  text-wrap: balance;
+}
+.pin-card {
+  position: relative;
+  background: var(--yellow);
+  border: 2px solid var(--ink);
+  padding: calc(var(--space) * 2) calc(var(--space) * 1.5) calc(var(--space) * 1.5);
+  margin-bottom: calc(var(--space) * 1.5);
+  box-shadow: 3px 3px 0 var(--shade-12);
+  transform: rotate(-1.5deg);
+}
+.pin-card:nth-child(odd) { transform: rotate(1.2deg); }
+.pin-card .dot {
+  position: absolute; top: -7px; left: 16px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--pin); border: 2px solid var(--ink);
+}
+.pin-card .t { font-weight: 700; font-size: 0.88rem; }
+.pin-card .s { margin-top: 8px; font-size: 0.8rem; color: var(--mute); }
+.composer {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: calc(var(--space) * 1);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  padding: calc(var(--space) * 1.25);
+  box-shadow: 4px 4px 0 var(--shade-15);
+}
+.composer input {
+  font: inherit; border: 2px solid var(--ink);
+  background: var(--white); padding: 0.7rem 0.9rem; min-width: 0;
+  border-radius: var(--radius);
+}
+.composer button {
+  font: inherit; font-weight: 700; cursor: pointer;
+  background: var(--yellow-2); border: 2px solid var(--ink);
+  padding: 0 1.2rem; border-radius: var(--radius);
+  box-shadow: 2px 2px 0 var(--shade-15);
+}
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  background: var(--ink); color: var(--yellow);
+  border: 2px solid var(--yellow-2);
+  padding: 8px 16px; font-size: 0.85rem; font-weight: 700;
+  opacity: 0; transition: opacity .2s ease; z-index: 5; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+@media (max-width: 860px) {
+  .notes, .stack-wrap { grid-template-columns: 1fr; }
+  .note { transform: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .note, .toast { transition: none; }
+  .note:hover { transform: none; }
+}
+</style>
+</head>
+<body>
+  <div class="board">
+    <header class="mast">
+      <div>
+        <h1>星云客服: 便利贴看板</h1>
+        <p>CloudCup Pro / 方案 F / 模拟<br />沈凯杰、王瑞康</p>
+      </div>
+      <div class="actions">
+        <span class="tag">知识库在线</span>
+        <button type="button" class="chip" id="btnTicket">转人工</button>
+      </div>
+    </header>
+    <div class="notes" id="faq" role="group" aria-label="快捷问题">
+      <button type="button" class="note active" data-q="保修政策是怎样的？"><span class="pin" aria-hidden="true"></span>保修政策是怎样的？</button>
+      <button type="button" class="note" data-q="如何清洗水杯内胆？"><span class="pin" aria-hidden="true"></span>如何清洗水杯内胆？</button>
+      <button type="button" class="note" data-q="指示灯颜色代表什么？"><span class="pin" aria-hidden="true"></span>指示灯颜色代表什么？</button>
+      <button type="button" class="note" data-q="七天无理由怎么退？"><span class="pin" aria-hidden="true"></span>七天无理由怎么退？</button>
+    </div>
+    <div class="stack-wrap">
+      <section class="stack" aria-label="对话区">
+        <div class="sticky user">保修政策是怎样的？</div>
+        <div class="sticky bot">
+          CloudCup Pro <strong>整机保修 12 个月</strong>；<strong>电池与密封圈 6 个月</strong>。人为损坏、进液、私拆不在保修范围。寄修请带购机凭证。
+        </div>
+        <div class="sticky refuse">
+          知识库里没有可引用依据，已拒答。需要的话转人工继续。
+          <div style="margin-top:10px">
+            <button type="button" class="chip solid" id="btnTicket2">转人工</button>
+          </div>
+        </div>
+      </section>
+      <aside class="pins-col" aria-label="引用来源">
+        <h2>钉住的出处</h2>
+        <div class="pin-card">
+          <span class="dot" aria-hidden="true"></span>
+          <div class="t">客服样例FAQ.md / 0.86</div>
+          <div class="s">「整机保修期为自购买日起 12 个月；电池与密封圈等耗材保修期为 6 个月。」</div>
+        </div>
+        <div class="pin-card">
+          <span class="dot" aria-hidden="true"></span>
+          <div class="t">模拟说明</div>
+          <div class="s">本页是静态原型，不请求业务引擎。</div>
+        </div>
+      </aside>
+    </div>
+    <form class="composer" id="composer" onsubmit="return false;">
+      <input id="q" type="text" placeholder="在便利贴上写问题…" autocomplete="off" />
+      <button type="submit">贴上去</button>
+    </form>
+  </div>
+  <div class="toast" id="toast">模拟交互</div>
+  <script>
+    const toast = document.getElementById('toast');
+    function ping(m){ toast.textContent=m; toast.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>toast.classList.remove('show'),1600); }
+    document.getElementById('faq').addEventListener('click', e => {
+      const b = e.target.closest('button[data-q]'); if(!b) return;
+      document.querySelectorAll('#faq button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); document.getElementById('q').value=b.dataset.q; ping('已选快捷问题（模拟）');
+    });
+    document.getElementById('composer').onsubmit = () => ping('发送为模拟，未请求引擎');
+    document.getElementById('btnTicket').onclick = () => ping('转人工演示（模拟）');
+    document.getElementById('btnTicket2').onclick = () => ping('转人工演示（模拟）');
+  </script>
+</body>
+</html>

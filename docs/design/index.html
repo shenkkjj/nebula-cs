@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>星云客服 · 设计方案预览（未定稿）</title>
+<style>
+  :root {
+    --bg:#0f1419; --card:#1a222c; --text:#e8eef4; --mute:#8b9aab; --line:#2a3542;
+    --a:#c45c26; --b:#f0b429; --c:#2a9d8f; --d:#e30613; --e:#b89b5e; --f:#c4a574;
+    --g:#9aa3a8; --h:#1f3a5f; --i:#1aa6b0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; overflow-x: clip; }
+  body { font-family: "PingFang SC","Microsoft YaHei",system-ui,sans-serif; background:var(--bg); color:var(--text); line-height:1.55; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.25rem 3rem; }
+  h1 { font-size: 1.65rem; margin: 0 0 .4rem; }
+  .lead { color: var(--mute); margin: 0 0 1.25rem; }
+  .banner {
+    border: 1px dashed var(--line); border-radius: 12px; padding: .85rem 1rem;
+    color: var(--mute); font-size: .9rem; margin-bottom: 1.5rem; background: #141b22;
+  }
+  .banner strong { color: #f0d9a0; }
+  .pref { margin: 0 0 1.5rem; font-size: .9rem; color: #c5d0dc; }
+  .pref em { color: var(--e); font-style: normal; font-weight: 700; }
+  .grid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+  @media (min-width: 720px) { .grid { grid-template-columns: 1fr 1fr 1fr; } }
+  a.card {
+    display: flex; flex-direction: column; gap: .55rem;
+    text-decoration: none; color: inherit;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 1.1rem 1.15rem;
+    transition: border-color .15s ease, transform .15s ease;
+    min-height: 210px;
+  }
+  a.card:hover { transform: translateY(-2px); }
+  a.card:focus-visible { outline: 2px solid #f0d9a0; outline-offset: 2px; }
+  a.card.A:hover { border-color: var(--a); }
+  a.card.B:hover { border-color: var(--b); }
+  a.card.C:hover { border-color: var(--c); }
+  a.card.D:hover { border-color: var(--d); }
+  a.card.E:hover { border-color: var(--e); }
+  a.card.F:hover { border-color: var(--f); }
+  a.card.G:hover { border-color: var(--g); }
+  a.card.H:hover { border-color: var(--h); }
+  a.card.I:hover { border-color: var(--i); }
+  a.card.rejected { opacity: 0.55; }
+  a.card.rejected:hover { transform: none; }
+  .tag { font-size: 11px; font-weight: 700; }
+  .A .tag { color: var(--a); }
+  .B .tag { color: var(--b); }
+  .C .tag { color: var(--c); }
+  .D .tag { color: var(--d); }
+  .E .tag { color: var(--e); }
+  .F .tag { color: var(--f); }
+  .G .tag { color: var(--g); }
+  .H .tag { color: #7ea0c8; }
+  .I .tag { color: var(--i); }
+  .card h2 { margin: 0; font-size: 1.1rem; }
+  .card p { margin: 0; color: var(--mute); font-size: .86rem; flex: 1; }
+  .card .diff { font-size: .8rem; color: #c5d0dc; border-top: 1px solid var(--line); padding-top: .65rem; }
+  .badge {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    background: rgba(184,155,94,.2); color: var(--e);
+    border: 1px solid rgba(184,155,94,.45); border-radius: 999px;
+    padding: 1px 8px; margin-left: 6px; vertical-align: middle;
+  }
+  .badge.bad {
+    background: rgba(227,6,19,.15); color: #ff8a8a;
+    border-color: rgba(227,6,19,.4);
+  }
+  .badge.soft {
+    background: rgba(42,157,143,.15); color: var(--c);
+    border-color: rgba(42,157,143,.35);
+  }
+  .foot { margin-top: 2rem; font-size: .82rem; color: var(--mute); }
+  code { background: #243040; padding: .1rem .35rem; border-radius: 4px; font-size: .85em; }
+  @media (prefers-reduced-motion: reduce) { a.card { transition: none; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>星云客服 · 设计方案预览</h1>
+    <p class="lead">vibe design 选款阶段 · A–I + E 精修（E2–E5）· <strong>尚未确认定稿</strong></p>
+    <div class="banner">
+      <strong>说明：</strong>以下为可打开的静态 HTML 原型，对话与引用均为<strong>模拟数据</strong>，不接业务 API。
+      选定前不会替换生产门户 <code>web/</code>。方向锁定 E；用户反馈 E2–E4 不如原 E，已出 <strong>E5</strong>（原 E 黑金 + 苹果 R 角）。请比较后明确选定。沉默不算确认。
+    </div>
+    <p class="pref">目前已确认：<em>E5</em>（原 E 黑金贵宾席 + 苹果连续柔和 R 角）· E2/E3/E4 反馈不如原 E · D/F 否决 · <strong>无一款已确认</strong></p>
+    <div class="grid">
+      <a class="card A" href="options/A-editorial/index.html">
+        <span class="tag">OPTION A</span>
+        <h2>报纸责编台</h2>
+        <p>Editorial console：衬线+无衬线、不对称三栏、纸墨底与焦橙强调，问答像版面审稿。</p>
+        <div class="diff">差异：杂志/编辑台信息层级，出处栏独立成「栏」</div>
+      </a>
+      <a class="card B" href="options/B-industrial/index.html">
+        <span class="tag">OPTION B</span>
+        <h2>值班台</h2>
+        <p>Industrial dock：等宽标签、密网格、状态灯、左树+主会话+资源条，琥珀打在炭灰上。</p>
+        <div class="diff">差异：运维值班台密度与树形 FAQ，状态条常驻</div>
+      </a>
+      <a class="card C" href="options/C-organic/index.html">
+        <span class="tag">OPTION C<span class="badge soft">曾已确认</span></span>
+        <h2>品牌展厅客服</h2>
+        <p>Soft organic lounge：圆角、柔光色块、大气泡单栏，青绿/奶油，引用嵌在气泡里。</p>
+        <div class="diff">差异：单栏展厅聊天，FAQ 为顶部柔芯片</div>
+      </a>
+      <a class="card D rejected" href="options/D-bauhaus/index.html">
+        <span class="tag">OPTION D<span class="badge bad">否决·太丑</span></span>
+        <h2>构成主义工作台</h2>
+        <p>Geometric Bauhaus：红蓝黄色块、重网格、左图标轨 + 中会话，引用为编号盖章。</p>
+        <div class="diff">差异：左轨导航 + 出处盖章栏（用户反馈太丑，不迭代）</div>
+      </a>
+      <a class="card E" href="options/E-luxury/index.html">
+        <span class="tag">OPTION E<span class="badge">方向锁定</span></span>
+        <h2>夜间贵宾席</h2>
+        <p>Luxury ink night：近黑底、细金线、衬线品牌名、香槟卡片，右侧丝缎出处抽屉。</p>
+        <div class="diff">差异：稀疏贵宾席 + 右侧独立出处抽屉（保留对照）</div>
+      </a>
+      <a class="card E" href="options/E2-luxury-refined/index.html">
+        <span class="tag">OPTION E2<span class="badge">精修</span></span>
+        <h2>贵宾席 · 层级收敛</h2>
+        <p>E 增量：抬标题层级、金线更细更少、对话/出处分区标签、拒答左边线更清晰。</p>
+        <div class="diff">相对 E：更静的金、更可读出处摘录、拒答标题</div>
+      </a>
+      <a class="card E" href="options/E3-vip-dense/index.html">
+        <span class="tag">OPTION E3<span class="badge">精修</span></span>
+        <h2>密席贵宾厅</h2>
+        <p>偏暖炭灰、FAQ 成小框、出处抽屉衬线字阶加粗，密度略高。</p>
+        <div class="diff">相对 E：暖炭 + 出处大字阶 + 紧凑间距</div>
+      </a>
+      <a class="card E" href="options/E4-air-night/index.html">
+        <span class="tag">OPTION E4<span class="badge">精修</span></span>
+        <h2>疏夜贵宾席</h2>
+        <p>留白加大、描边极简、香槟表面更轻，输入区改成底线。</p>
+        <div class="diff">相对 E：空气感 + 最小 chrome</div>
+      </a>
+      <a class="card E" href="options/E5-luxury-apple-r/index.html">
+        <span class="tag">OPTION E5<span class="badge">已确认精修</span></span>
+        <h2>贵宾席 · 苹果 R 角</h2>
+        <p>忠实原版 E：近黑底、细金线、香槟卡片与右侧出处抽屉；仅把直角换成连续柔和苹果 R 角与弥散阴影。</p>
+        <div class="diff">相对 E：圆角 + 软阴影，不做层级/密度/留白大改</div>
+      </a>
+      <a class="card F rejected" href="options/F-sticky/index.html">
+        <span class="tag">OPTION F<span class="badge bad">否决·太丑</span></span>
+        <h2>便利贴看板</h2>
+        <p>Playful sticky board：软木板、倾斜 FAQ 便签、叠放便利贴回复，出处为钉住的黄条。</p>
+        <div class="diff">差异：看板隐喻（用户反馈太丑，不迭代）</div>
+      </a>
+      <a class="card G" href="options/G-gallery-dusk/index.html">
+        <span class="tag">OPTION G</span>
+        <h2>美术馆黄昏</h2>
+        <p>Gallery dusk：展墙象牙底、柔聚光、大衬线标题，出处做成墙下展签，炭灰/象牙而非金线。</p>
+        <div class="diff">差异：展墙问答 + 展签出处，博物馆信息层级</div>
+      </a>
+      <a class="card H" href="options/H-paper-telescope/index.html">
+        <span class="tag">OPTION H</span>
+        <h2>折纸望远镜</h2>
+        <p>Paper telescope：牛皮纸手风琴三折、靛蓝墨水，对话为信笺叠页，区别于 A 的报头编辑台。</p>
+        <div class="diff">差异：三折面板（提问 / 回信 / 出处），折缝阴影</div>
+      </a>
+      <a class="card I" href="options/I-glass-atrium/index.html">
+        <span class="tag">OPTION I</span>
+        <h2>玻璃中庭</h2>
+        <p>Glass atrium：雾白日光、克制毛玻璃面板、青色细线强调，不做 iOS 果冻光斑。</p>
+        <div class="diff">差异：半透明双栏中庭 + 青色发丝线</div>
+      </a>
+    </div>
+    <p class="foot">
+      打开方式：门户代理 <code>http://127.0.0.1:8787/design/</code>，或在本目录执行
+      <code>python3 -m http.server 8790</code> 后访问 <code>http://127.0.0.1:8790/</code>。<br />
+      文档：<code>docs/DESIGN.md</code> · <code>docs/PRD.md</code> · <code>docs/STATUS.md</code>
+    </p>
+  </div>
+</body>
+</html>

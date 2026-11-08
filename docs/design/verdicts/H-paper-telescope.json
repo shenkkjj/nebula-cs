@@ -1,0 +1,14 @@
+{
+  "score": 91,
+  "verdict": "pass",
+  "category_match": true,
+  "differences": [
+    "Accordion folds read as three panels with soft inset shadows rather than literal origami creases",
+    "Refuse letter shares the left fold with the visitor letter"
+  ],
+  "suggestions": [
+    "Optional: deepen fold gutters by 2–4px shadow if telescope metaphor needs punch",
+    "Keep kraft + indigo; avoid newspaper masthead of A"
+  ],
+  "reasoning": "Matches Paper telescope brief: kraft accordion + indigo ink letter sheets, layout distinct from A editorial."
+}

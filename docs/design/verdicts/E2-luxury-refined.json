@@ -1,0 +1,14 @@
+{
+  "score": 94,
+  "verdict": "pass",
+  "category_match": true,
+  "differences": [
+    "Quieter gold (lower opacity rules, no silk sheen overlay)",
+    "Panel label 对话 + refuse title with left accent bar",
+    "Citation excerpts use left rule for readability"
+  ],
+  "suggestions": [
+    "If chosen, keep gold accents thin; avoid re-adding sheen"
+  ],
+  "reasoning": "Incremental polish on E luxury ink night: hierarchy and quieter chrome match brief."
+}

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>方案 B · 值班台 — 星云客服</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #12151a;
+    --panel: #1a1f27;
+    --panel-2: #222833;
+    --border: #2e3644;
+    --text: #e6e9ef;
+    --mute: #8b93a7;
+    --amber: #f0b429;
+    --amber-dim: #a67c1a;
+    --green: #3dd68c;
+    --red: #ff6b6b;
+    --cyan: #5ec8f0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; flex-direction: column; min-height: 100vh;
+    font-size: 13.5px;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .sim-badge {
+    display: inline-block; font-family: "IBM Plex Mono", monospace;
+    font-size: 10px; letter-spacing: 0.06em; color: var(--amber);
+    border: 1px solid var(--amber-dim); padding: 0 5px; margin-left: 6px;
+  }
+
+  /* Top ops bar */
+  .opsbar {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.45rem 0.85rem;
+    background: #0d1014; border-bottom: 1px solid var(--border);
+    font-family: "IBM Plex Mono", monospace; font-size: 12px;
+  }
+  .opsbar .brand { font-weight: 600; color: var(--amber); letter-spacing: 0.04em; }
+  .opsbar .sep { color: var(--border); }
+  .led {
+    display: inline-flex; align-items: center; gap: 0.35rem; color: var(--mute);
+  }
+  .led i {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--green);
+    box-shadow: 0 0 6px var(--green); display: inline-block;
+  }
+  .led.warn i { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .opsbar .spacer { flex: 1; }
+  .opsbar button {
+    font-family: inherit; font-size: 12px; cursor: pointer;
+    background: var(--panel-2); color: var(--amber);
+    border: 1px solid var(--amber-dim); padding: 0.28rem 0.7rem;
+  }
+  .opsbar button:hover { background: #2a3140; }
+
+  /* Dense dock layout: left rail + main + cite strip */
+  .dock {
+    flex: 1; display: grid;
+    grid-template-columns: 240px minmax(0, 1fr) 280px;
+    min-height: 0;
+  }
+  @media (max-width: 960px) {
+    .dock { grid-template-columns: 1fr; }
+    .rail, .cite { max-height: 220px; overflow: auto; }
+  }
+
+  .rail {
+    background: var(--panel); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .rail-h {
+    padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border);
+    font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    color: var(--mute); letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .tree { padding: 0.4rem 0; overflow: auto; flex: 1; }
+  .tree .node {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px;
+    padding: 0.2rem 0.75rem; color: var(--mute);
+  }
+  .tree .node.folder::before { content: "▾ "; color: var(--amber-dim); }
+  .tree button {
+    display: block; width: 100%; text-align: left;
+    font-family: "IBM Plex Mono", monospace; font-size: 12px;
+    background: transparent; border: none; color: var(--text);
+    padding: 0.35rem 0.75rem 0.35rem 1.4rem; cursor: pointer;
+    border-left: 2px solid transparent;
+  }
+  .tree button:hover, .tree button.active {
+    background: var(--panel-2); border-left-color: var(--amber); color: var(--amber);
+  }
+  .tree button::before { content: "› "; color: var(--mute); }
+
+  .main {
+    display: flex; flex-direction: column; min-height: 0; background: #151922;
+  }
+  .main-h {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.5rem 0.9rem; border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .main-h h1 {
+    margin: 0; font-size: 13px; font-weight: 600;
+    font-family: "IBM Plex Mono", monospace; letter-spacing: 0.04em;
+  }
+  .tag {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px;
+    border: 1px solid var(--border); color: var(--mute); padding: 1px 6px;
+  }
+  .msgs {
+    flex: 1; overflow: auto; padding: 0.85rem 1rem;
+    display: flex; flex-direction: column; gap: 0.65rem;
+  }
+  .row { display: flex; flex-direction: column; gap: 0.2rem; max-width: 720px; }
+  .row.user { align-self: flex-end; align-items: flex-end; }
+  .row .who {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px;
+    color: var(--mute); letter-spacing: 0.06em;
+  }
+  .bubble {
+    border: 1px solid var(--border); background: var(--panel);
+    padding: 0.55rem 0.75rem; max-width: 100%;
+  }
+  .row.user .bubble {
+    background: #1e2430; border-color: #3a4558;
+  }
+  .row.bot .bubble { border-left: 2px solid var(--amber); }
+  .row.refuse .bubble {
+    border-left: 2px solid var(--red); background: #241a1a;
+  }
+  .bubble strong { color: var(--amber); }
+  .bubble .cite-inline {
+    margin-top: 0.45rem; font-family: "IBM Plex Mono", monospace;
+    font-size: 11px; color: var(--cyan);
+  }
+
+  .composer {
+    border-top: 1px solid var(--border); background: var(--panel);
+    padding: 0.55rem 0.75rem; display: grid;
+    grid-template-columns: 1fr auto; gap: 0.5rem;
+  }
+  .composer textarea {
+    font-family: "IBM Plex Mono", monospace; font-size: 12.5px;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    padding: 0.5rem 0.6rem; resize: none; min-height: 44px;
+  }
+  .composer button {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px;
+    background: var(--amber); color: #1a1408; border: none;
+    padding: 0 1rem; font-weight: 600; cursor: pointer;
+  }
+
+  .cite {
+    background: var(--panel); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .cite-body { padding: 0.65rem 0.75rem; overflow: auto; flex: 1; }
+  .res-card {
+    border: 1px solid var(--border); background: var(--panel-2);
+    padding: 0.55rem 0.65rem; margin-bottom: 0.55rem;
+  }
+  .res-card .id {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--amber);
+  }
+  .res-card .name { font-weight: 600; margin: 0.2rem 0; font-size: 13px; }
+  .res-card .meta {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--mute);
+  }
+  .res-card .snip {
+    margin-top: 0.45rem; font-size: 12px; color: var(--mute);
+    border-top: 1px dashed var(--border); padding-top: 0.4rem;
+  }
+  .statusbar {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    background: #0d1014; border-top: 1px solid var(--border);
+    padding: 0.3rem 0.85rem; color: var(--mute);
+    display: flex; gap: 1rem; flex-wrap: wrap;
+  }
+  .statusbar b { color: var(--text); font-weight: 500; }
+  .toast {
+    position: fixed; right: 1rem; bottom: 2.2rem;
+    background: var(--panel-2); border: 1px solid var(--amber-dim);
+    color: var(--amber); padding: 0.45rem 0.75rem;
+    font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    opacity: 0; transition: opacity .2s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+  <div class="opsbar">
+    <span class="brand">NEBULA.CS // DOCK</span>
+    <span class="sep">|</span>
+    <span class="led"><i></i> KB_ONLINE</span>
+    <span class="led"><i></i> PROXY_OK</span>
+    <span class="led warn"><i></i> DESIGN_B</span>
+    <span class="spacer"></span>
+    <span class="mono" style="color:var(--mute)">TEAM: 沈凯杰 / 王瑞康</span>
+    <button type="button" id="btnTicket">ESCALATE › 转人工</button>
+  </div>
+
+  <div class="dock">
+    <aside class="rail">
+      <div class="rail-h">FAQ / TREE</div>
+      <div class="tree">
+        <div class="node folder">cloudcup_pro</div>
+        <div class="node folder" style="padding-left:1.1rem">policy</div>
+        <button type="button" class="active" data-q="保修政策是怎样的？">保修政策是怎样的？</button>
+        <button type="button" class="" data-q="如何清洗水杯内胆？">如何清洗水杯内胆？</button>
+        <button type="button" class="" data-q="指示灯颜色代表什么？">指示灯颜色代表什么？</button>
+        <button type="button" class="" data-q="七天无理由怎么退？">七天无理由怎么退？</button>
+        <div class="node folder" style="margin-top:.5rem">ops</div>
+        <div class="node" style="padding-left:1.4rem;color:var(--mute)">ticket_stub</div>
+        <div class="node" style="padding-left:1.4rem;color:var(--mute)">refuse_gate</div>
+      </div>
+    </aside>
+
+    <section class="main">
+      <div class="main-h">
+        <h1>SESSION · CS-8842</h1>
+        <span class="tag">CHANNEL · WEB</span>
+        <span class="tag">MODE · RAG</span>
+        <span class="sim-badge">模拟</span>
+      </div>
+      <div class="msgs" id="msgs">
+        <div class="row user">
+          <span class="who">USER · 20:12:04</span>
+          <div class="bubble">保修政策是怎样的？</div>
+        </div>
+        <div class="row bot">
+          <span class="who">BOT · CITED · OK</span>
+          <div class="bubble">根据知识库，CloudCup Pro <strong>整机保修 12 个月</strong>；<strong>电池与密封圈保修 6 个月</strong>。人为损坏、进液腐蚀、未经授权拆修不在保修范围。寄修前请保留购机凭证。
+            <div class="cite-inline">↳ REF[0] 客服样例FAQ.md · score=0.86</div>
+          </div>
+        </div>
+        <div class="row refuse">
+          <span class="who">BOT · REFUSE · NO_HIT</span>
+          <div class="bubble">知识库未覆盖该问题，未找到可引用依据。为避免误导，已拒答。建议转人工坐席继续处理。
+            <div style="margin-top:.5rem">
+              <button type="button" id="btnTicket2" style="font-family:IBM Plex Mono,monospace;font-size:11px;background:transparent;color:var(--red);border:1px solid var(--red);padding:.25rem .55rem;cursor:pointer;">HANDOFF › 转人工</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <form class="composer" id="composer" onsubmit="return false;">
+        <textarea id="q" rows="2" placeholder="// 输入查询 · 原型不发送引擎"></textarea>
+        <button type="submit">SEND</button>
+      </form>
+    </section>
+
+    <aside class="cite">
+      <div class="rail-h">RETRIEVER_RESOURCES</div>
+      <div class="cite-body">
+        <div class="res-card">
+          <div class="id">SEG · 0xA1</div>
+          <div class="name">客服样例FAQ.md</div>
+          <div class="meta">score=0.86 · dataset=cloudcup_faq</div>
+          <div class="snip">整机保修期为自购买日起 12 个月；电池与密封圈等耗材保修期为 6 个月。…</div>
+        </div>
+        <p style="font-size:11px;color:var(--mute);font-family:IBM Plex Mono,monospace;line-height:1.45">
+          DENSE OPS VIEW · 引用强制可见。<br />数据标记：模拟 · 非生产。
+        </p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="statusbar">
+    <span>HOST <b>127.0.0.1:8787</b></span>
+    <span>ENGINE <b>DIFY</b></span>
+    <span>GATE <b>EMPTY→REFUSE</b></span>
+    <span>OPTION <b>B-INDUSTRIAL</b></span>
+  </div>
+  <div class="toast" id="toast">模拟交互</div>
+  <script>
+    const toast = document.getElementById('toast');
+    function ping(m){ toast.textContent=m; toast.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>toast.classList.remove('show'),1600); }
+    document.querySelector('.tree').addEventListener('click', e => {
+      const b = e.target.closest('button[data-q]'); if(!b) return;
+      document.querySelectorAll('.tree button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); document.getElementById('q').value=b.dataset.q; ping('FAQ_LOAD · 模拟');
+    });
+    document.getElementById('composer').onsubmit = () => ping('SEND · 未接 API（模拟）');
+    document.getElementById('btnTicket').onclick = () => ping('TICKET_STUB · 模拟');
+    document.getElementById('btnTicket2').onclick = () => ping('TICKET_STUB · 模拟');
+  </script>
+</body>
+</html>
