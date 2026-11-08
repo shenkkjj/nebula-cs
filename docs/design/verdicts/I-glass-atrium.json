@@ -1,0 +1,14 @@
+{
+  "score": 93,
+  "verdict": "pass",
+  "category_match": true,
+  "differences": [
+    "Glass blur is restrained; cyan hairline is present but thin",
+    "FAQ pills use bottom cyan underline rather than full cyan border weight"
+  ],
+  "suggestions": [
+    "Keep mist white + cyan line; avoid colorful blob soup",
+    "Optional: slightly increase cyan hairline opacity if atrium reading is soft on projectors"
+  ],
+  "reasoning": "Matches Glass atrium brief: translucent daylight panels, mist white, cyan accents, no iOS blob soup."
+}

@@ -1,0 +1,2 @@
+本项目完整演示引擎部署于 /workspace/dify （Dify 1.19.0 Docker）。门户不修改引擎源码。
+Render Free / 无卡部署请用 LITE_MODE=1（本地 sample-kb FAQ + 可选 DeepSeek），见 DEPLOY-RENDER.md。

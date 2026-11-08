@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>方案 H: 折纸望远镜 / 星云客服</title>
+<meta name="description" content="星云客服方案 H 折纸望远镜静态原型，牛皮纸手风琴面板与靛蓝墨水信笺对话。" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* Hallmark · v2.0.0 · theme: custom (by request) · shape: app screen · genre: editorial · posture: folded paper · surface: kraft accordion · hero: settled · nav: top fold rail · footer: none · job: answer · signature: chat as letter sheets in accordion panels · axes: kraft + indigo ink */
+/* Hallmark · waive 26b · prototype static controls · design option mock has no disabled forms yet */
+/* Hallmark · answered F3 · text-wrap balance added on display heads */
+/* Hallmark · answered F23 · meta description added */
+:root {
+  --kraft: #c4a574;
+  --kraft-deep: #a88858;
+  --kraft-soft: #e8d7b8;
+  --paper: #f4ead6;
+  --sheet: #fff8ea;
+  --indigo: #1f3a5f;
+  --indigo-ink: #243f66;
+  --indigo-soft: #3d5a80;
+  --mute: #6e6048;
+  --refuse: #8b4a3c;
+  --fold: rgba(31, 58, 95, 0.12);
+  --wash-warm: rgba(255, 248, 234, 0.18);
+  --wash-indigo: rgba(31, 58, 95, 0.12);
+  --indigo-18: rgba(31, 58, 95, 0.18);
+  --indigo-35: rgba(31, 58, 95, 0.35);
+  --indigo-20: rgba(31, 58, 95, 0.2);
+  --indigo-14: rgba(31, 58, 95, 0.14);
+  --indigo-05: rgba(31, 58, 95, 0.05);
+  --indigo-04: rgba(31, 58, 95, 0.04);
+  --indigo-16: rgba(31, 58, 95, 0.16);
+  --indigo-06: rgba(31, 58, 95, 0.06);
+  --indigo-28: rgba(31, 58, 95, 0.28);
+  --indigo-25: rgba(31, 58, 95, 0.25);
+  --user-sheet: #eef3f8;
+  --refuse-line: rgba(139, 74, 60, 0.45);
+  --font-display: "Newsreader", "Noto Serif SC", serif;
+  --font-body: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --space: 8px;
+  --max: 1100px;
+  --radius: 4px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; overflow-x: clip; }
+body {
+  font-family: var(--font-body);
+  color: var(--indigo);
+  background:
+    repeating-linear-gradient(90deg, var(--kraft) 0 28px, var(--kraft-deep) 28px 30px),
+    var(--kraft);
+  line-height: 1.55;
+}
+body::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 10% 0%, var(--wash-warm), transparent 60%),
+    radial-gradient(ellipse 50% 45% at 90% 100%, var(--wash-indigo), transparent 55%);
+}
+:focus-visible {
+  outline: 2px solid var(--indigo);
+  outline-offset: 3px;
+}
+button:active { filter: brightness(0.94); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.frame {
+  position: relative; z-index: 1;
+  max-width: var(--max); margin: 0 auto;
+  min-height: 100vh;
+  padding: calc(var(--space) * 3);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: calc(var(--space) * 2);
+}
+.rail {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: calc(var(--space) * 2);
+  background: var(--paper);
+  border: 1px solid var(--indigo-18);
+  border-radius: var(--radius);
+  padding: calc(var(--space) * 2) calc(var(--space) * 2.5);
+  box-shadow: 6px 0 0 var(--fold), -6px 0 0 var(--fold);
+}
+.brand h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.85rem, 3vw, 2.45rem);
+  color: var(--indigo);
+  overflow-wrap: break-word; min-width: 0;
+  text-wrap: balance;
+}
+.brand p {
+  margin: 8px 0 0;
+  font-size: 0.84rem;
+  color: var(--mute);
+}
+.top-actions {
+  display: flex; gap: calc(var(--space) * 1.25); align-items: center; flex-wrap: wrap;
+}
+.ghost, .solid {
+  font: inherit; font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; border-radius: var(--radius);
+  padding: 0.55rem 1rem;
+  transition: border-color .2s ease, background-color .2s ease, color .2s ease;
+}
+.ghost {
+  background: transparent; color: var(--indigo);
+  border: 1px solid var(--indigo-35);
+}
+.ghost:hover { border-color: var(--indigo); }
+.solid {
+  background: var(--indigo); color: var(--sheet);
+  border: 1px solid var(--indigo);
+}
+.solid:hover { background: var(--indigo-soft); }
+.meta {
+  font-size: 0.78rem; color: var(--mute);
+  border: 1px solid var(--indigo-20);
+  padding: 0.4rem 0.7rem; border-radius: var(--radius);
+  background: var(--kraft-soft);
+}
+.faq {
+  display: flex; flex-wrap: wrap; gap: calc(var(--space) * 1);
+}
+.faq button {
+  font: inherit; font-size: 0.8rem; cursor: pointer;
+  background: var(--kraft-soft); color: var(--indigo-ink);
+  border: 1px dashed var(--indigo-35);
+  padding: 0.4rem 0.75rem; border-radius: var(--radius);
+}
+.faq button:hover, .faq button.active {
+  background: var(--sheet);
+  border-style: solid;
+  border-color: var(--indigo);
+}
+.telescope {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 0.85fr);
+  gap: 0;
+  min-height: 0;
+  border-radius: var(--radius);
+  overflow: clip;
+  box-shadow: 0 18px 40px var(--indigo-18);
+}
+.panel {
+  background: var(--paper);
+  border-right: 1px solid var(--indigo-14);
+  padding: calc(var(--space) * 2.5);
+  min-width: 0;
+  position: relative;
+}
+.panel:last-child { border-right: none; }
+.panel.fold-a {
+  background: linear-gradient(90deg, var(--kraft-soft), var(--paper) 18%);
+  box-shadow: inset -10px 0 18px var(--indigo-05);
+}
+.panel.fold-b {
+  background: linear-gradient(90deg, var(--indigo-04), transparent 20%), var(--sheet);
+  box-shadow: inset 12px 0 20px var(--indigo-04), inset -12px 0 20px var(--indigo-04);
+}
+.panel.fold-c {
+  background: linear-gradient(270deg, var(--kraft-soft), var(--paper) 22%);
+  box-shadow: inset 10px 0 18px var(--indigo-05);
+}
+.panel h2 {
+  margin: 0 0 calc(var(--space) * 1.5);
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--indigo);
+  overflow-wrap: break-word; min-width: 0;
+  text-wrap: balance;
+}
+.panel .hint {
+  margin: 0 0 calc(var(--space) * 2);
+  font-size: 0.78rem; color: var(--mute);
+}
+.letter {
+  background: var(--sheet);
+  border: 1px solid var(--indigo-16);
+  border-radius: 2px;
+  padding: calc(var(--space) * 2);
+  margin-bottom: calc(var(--space) * 1.5);
+  box-shadow: 0 1px 0 var(--indigo-06);
+  position: relative;
+}
+.letter::after {
+  content: "";
+  position: absolute; right: 10px; top: 10px;
+  width: 18px; height: 18px;
+  border: 1px solid var(--indigo-20);
+  border-radius: 50%;
+  opacity: 0.5;
+}
+.letter.user {
+  background: var(--user-sheet);
+  border-color: var(--indigo-28);
+}
+.letter.refuse { border-color: var(--refuse-line); }
+.letter .who {
+  font-size: 0.72rem; color: var(--mute); margin-bottom: 8px;
+}
+.letter .body { font-size: 0.92rem; color: var(--indigo-ink); }
+.letter .body strong { color: var(--indigo); font-weight: 700; }
+.composer {
+  margin-top: auto;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: calc(var(--space) * 1);
+  padding-top: calc(var(--space) * 1.5);
+}
+.composer input {
+  font: inherit; color: var(--indigo);
+  background: var(--sheet);
+  border: 1px solid var(--indigo-25);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem; min-width: 0;
+}
+.composer input::placeholder { color: var(--mute); }
+.composer button {
+  font: inherit; font-weight: 700; cursor: pointer;
+  background: var(--indigo); color: var(--sheet);
+  border: 1px solid var(--indigo);
+  border-radius: var(--radius);
+  padding: 0 1.15rem;
+}
+.cite {
+  border-top: 1px dashed var(--indigo-25);
+  padding-top: calc(var(--space) * 1.5);
+  margin-top: calc(var(--space) * 1.5);
+}
+.cite:first-of-type { margin-top: 0; border-top: none; padding-top: 0; }
+.cite .t { font-size: 0.86rem; font-weight: 700; color: var(--indigo); }
+.cite .s { margin-top: 8px; font-size: 0.8rem; color: var(--mute); }
+.stack {
+  display: flex; flex-direction: column; gap: calc(var(--space) * 1.5);
+  min-height: 0;
+}
+.stack .composer { margin-top: calc(var(--space) * 1); }
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  background: var(--indigo); color: var(--sheet);
+  border: 1px solid var(--indigo-soft);
+  padding: 8px 16px; font-size: 0.85rem;
+  opacity: 0; transition: opacity .2s ease; z-index: 5; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+@media (max-width: 960px) {
+  .telescope { grid-template-columns: 1fr; }
+  .panel { border-right: none; border-bottom: 1px solid var(--indigo-14); }
+  .rail { flex-direction: column; align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ghost, .solid, .toast { transition: none; }
+}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <header class="rail">
+      <div class="brand">
+        <h1>星云客服</h1>
+        <p>折纸望远镜 / 校园办事 / 方案 H / 模拟<br />沈凯杰、王瑞康</p>
+      </div>
+      <div class="top-actions">
+        <span class="meta">知识库在线</span>
+        <button type="button" class="ghost" id="btnTicket">转人工</button>
+      </div>
+    </header>
+    <div class="faq" id="faq" role="group" aria-label="快捷问题">
+      <button type="button" class="active" data-q="在读证明如何办理？">在读证明如何办理？</button>
+      <button type="button" data-q="图书馆开放时间是什么？">图书馆开放时间是什么？</button>
+      <button type="button" data-q="校园网如何认证登录？">校园网如何认证登录？</button>
+      <button type="button" data-q="宿舍报修怎么提交？">宿舍报修怎么提交？</button>
+    </div>
+    <div class="telescope" aria-label="折纸三折面板">
+      <aside class="panel fold-a">
+        <h2>折页 · 提问</h2>
+        <p class="hint">左侧折叠，记下同学来信</p>
+        <div class="letter user">
+          <div class="who">同学来信</div>
+          <div class="body">在读证明如何办理？</div>
+        </div>
+        <div class="letter refuse">
+          <div class="who">拒答草稿</div>
+          <div class="body">
+            知识库未覆盖该问题，找不到可引用依据，已拒答。建议转人工坐席。
+            <div style="margin-top:12px">
+              <button type="button" class="solid" id="btnTicket2">转人工坐席</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+      <section class="panel fold-b">
+        <h2>中折 · 回信</h2>
+        <p class="hint">信笺正文，靛蓝墨水</p>
+        <div class="stack">
+          <div class="letter">
+            <div class="who">星云客服回信</div>
+            <div class="body">
+              在读证明可在<strong>一网通办</strong>提交，<strong>3 个工作日</strong>办结；也可到教务处窗口领取。请携带校园卡，代办需书面委托。
+            </div>
+          </div>
+          <form class="composer" id="composer" onsubmit="return false;">
+            <input id="q" type="text" placeholder="写下一封信：在读证明、图书馆、校园网…" autocomplete="off" />
+            <button type="submit">投递</button>
+          </form>
+        </div>
+      </section>
+      <aside class="panel fold-c" aria-label="出处折页">
+        <h2>右折 · 出处</h2>
+        <p class="hint">钉在折缝旁的摘录</p>
+        <div class="cite">
+          <div class="t">客服样例FAQ.md / 相关度 0.86</div>
+          <div class="s">「在读证明可通过一网通办提交，3 个工作日办结；窗口领取请带校园卡。」</div>
+        </div>
+        <div class="cite">
+          <div class="t">模拟说明</div>
+          <div class="s">本页为静态原型，对话与引用不请求业务引擎。</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+  <div class="toast" id="toast">模拟交互</div>
+  <script>
+    const toast = document.getElementById('toast');
+    function ping(m){ toast.textContent=m; toast.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>toast.classList.remove('show'),1600); }
+    document.getElementById('faq').addEventListener('click', e => {
+      const b = e.target.closest('button[data-q]'); if(!b) return;
+      document.querySelectorAll('#faq button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); document.getElementById('q').value=b.dataset.q; ping('已选快捷问题（模拟）');
+    });
+    document.getElementById('composer').onsubmit = () => ping('发送为模拟，未请求引擎');
+    document.getElementById('btnTicket').onclick = () => ping('转人工演示（模拟）');
+    document.getElementById('btnTicket2').onclick = () => ping('转人工演示（模拟）');
+  </script>
+</body>
+</html>

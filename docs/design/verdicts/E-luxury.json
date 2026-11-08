@@ -1,0 +1,14 @@
+{
+  "score": 93,
+  "verdict": "pass",
+  "category_match": true,
+  "differences": [
+    "Silk drawer is a right panel with sheen overlay rather than a sliding drawer animation",
+    "FAQ uses underline links instead of chips (intentional sparse hierarchy)"
+  ],
+  "suggestions": [
+    "If selected, optional soft open animation on citation panel (transform/opacity only)",
+    "Keep champagne cards sparse; avoid filling empty night field with extra widgets"
+  ],
+  "reasoning": "Matches luxury ink night brief: near-black, thin gold rules, serif brand, right citation silk panel. POV '夜间贵宾席' is clear."
+}

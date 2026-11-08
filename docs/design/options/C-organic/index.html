@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>方案 C · 品牌展厅客服 — 星云客服</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --cream: #f7f1e8;
+    --cream-2: #fffaf3;
+    --ink: #243038;
+    --mute: #5f717a;
+    --teal: #2a9d8f;
+    --teal-deep: #1d7a6f;
+    --teal-soft: #d4efe9;
+    --sand: #e9dcc8;
+    --coral: #e07a5f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: "Nunito", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink); background: var(--cream);
+    min-height: 100vh; position: relative; overflow-x: hidden;
+  }
+  .blob {
+    position: fixed; border-radius: 50%; filter: blur(40px);
+    opacity: 0.55; pointer-events: none; z-index: 0;
+  }
+  .blob.a { width: 420px; height: 420px; background: #b8e0d8; top: -80px; right: -60px; }
+  .blob.b { width: 360px; height: 360px; background: #f0d5c0; bottom: 10%; left: -100px; }
+  .blob.c { width: 280px; height: 280px; background: #d5e8f5; bottom: -40px; right: 20%; }
+
+  .sim-badge {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    background: var(--sand); color: var(--mute); border-radius: 999px;
+    padding: 2px 10px; margin-left: 8px; vertical-align: middle;
+  }
+
+  .wrap {
+    position: relative; z-index: 1;
+    max-width: 720px; margin: 0 auto;
+    padding: 1.5rem 1.25rem 2.5rem;
+    display: flex; flex-direction: column; min-height: 100vh;
+  }
+
+  header.hero {
+    text-align: center; padding: 1.25rem 0 1rem;
+  }
+  .logo-mark {
+    width: 56px; height: 56px; margin: 0 auto 0.75rem;
+    border-radius: 22px; background: linear-gradient(145deg, var(--teal), #4ecdc4);
+    display: grid; place-items: center;
+    box-shadow: 0 12px 28px rgba(42,157,143,.28);
+  }
+  .logo-mark svg { width: 30px; height: 30px; }
+  header h1 {
+    font-family: "Fraunces", "Noto Serif SC", serif;
+    font-weight: 700; font-size: 1.85rem; margin: 0;
+    letter-spacing: 0.02em;
+  }
+  header .sub {
+    margin: 0.4rem 0 0; color: var(--mute); font-size: 0.95rem;
+  }
+  .top-actions {
+    margin-top: 1rem; display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap;
+  }
+  .pill-btn {
+    font: inherit; font-weight: 700; font-size: 0.88rem; cursor: pointer;
+    border: none; border-radius: 999px; padding: 0.45rem 1rem;
+  }
+  .pill-btn.ghost {
+    background: rgba(255,255,255,.7); color: var(--ink);
+    border: 1px solid var(--sand);
+  }
+  .pill-btn.solid {
+    background: var(--teal); color: #fff;
+    box-shadow: 0 6px 16px rgba(42,157,143,.25);
+  }
+  .status-dot {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    font-size: 0.82rem; color: var(--teal-deep); font-weight: 700;
+  }
+  .status-dot i {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--teal);
+  }
+
+  /* FAQ soft chips — horizontal lounge strip */
+  .chips {
+    display: flex; flex-wrap: wrap; gap: 0.45rem; justify-content: center;
+    margin: 0.5rem 0 1.1rem;
+  }
+  .chips button {
+    font: inherit; font-size: 0.86rem; cursor: pointer;
+    background: var(--cream-2); border: 1px solid transparent;
+    border-radius: 999px; padding: 0.4rem 0.9rem; color: var(--ink);
+    box-shadow: 0 2px 8px rgba(36,48,56,.04);
+  }
+  .chips button:hover, .chips button.active {
+    border-color: var(--teal); background: var(--teal-soft); color: var(--teal-deep);
+  }
+
+  /* Large bubble lounge */
+  .lounge {
+    flex: 1; background: rgba(255,250,243,.72);
+    border-radius: 28px; padding: 1.15rem 1rem 1rem;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 20px 50px rgba(36,48,56,.06);
+    display: flex; flex-direction: column; gap: 0.85rem;
+    border: 1px solid rgba(233,220,200,.8);
+  }
+  .msg { display: flex; gap: 0.55rem; max-width: 92%; }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 14px; flex-shrink: 0;
+    display: grid; place-items: center; font-size: 0.75rem; font-weight: 700;
+  }
+  .msg.bot .avatar { background: var(--teal-soft); color: var(--teal-deep); }
+  .msg.user .avatar { background: var(--sand); color: var(--mute); }
+  .bubble {
+    border-radius: 22px; padding: 0.85rem 1.05rem; line-height: 1.55;
+    font-size: 0.98rem;
+  }
+  .msg.bot .bubble {
+    background: #fff; border-bottom-left-radius: 8px;
+    box-shadow: 0 4px 14px rgba(36,48,56,.05);
+  }
+  .msg.user .bubble {
+    background: var(--teal); color: #fff; border-bottom-right-radius: 8px;
+  }
+  .msg.refuse .bubble {
+    background: #fff5f2; border: 1px solid #f0c4b8;
+    border-bottom-left-radius: 8px;
+  }
+  .bubble strong { color: var(--teal-deep); }
+  .msg.user .bubble strong { color: #fff; }
+  .cite-soft {
+    margin-top: 0.65rem; padding: 0.65rem 0.75rem;
+    background: var(--teal-soft); border-radius: 14px; font-size: 0.82rem;
+  }
+  .cite-soft .t { font-weight: 700; color: var(--teal-deep); margin-bottom: 0.2rem; }
+  .cite-soft .s { color: var(--mute); }
+  .refuse-actions { margin-top: 0.65rem; }
+
+  .composer {
+    margin-top: 0.85rem; display: flex; gap: 0.5rem; align-items: flex-end;
+    background: #fff; border-radius: 22px; padding: 0.45rem 0.45rem 0.45rem 1rem;
+    box-shadow: 0 8px 24px rgba(36,48,56,.06); border: 1px solid var(--sand);
+  }
+  .composer textarea {
+    flex: 1; border: none; resize: none; font: inherit; min-height: 44px;
+    padding: 0.55rem 0; background: transparent; outline: none;
+  }
+  .composer button {
+    width: 48px; height: 48px; border: none; border-radius: 18px;
+    background: var(--teal); color: #fff; cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .composer button:hover { background: var(--teal-deep); }
+
+  footer.note {
+    text-align: center; margin-top: 1rem; font-size: 0.78rem; color: var(--mute);
+  }
+  .toast {
+    position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%);
+    background: var(--ink); color: #fff; border-radius: 999px;
+    padding: 0.55rem 1.1rem; font-size: 0.85rem; font-weight: 600;
+    opacity: 0; transition: opacity .25s; z-index: 5; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+  <div class="blob a" aria-hidden="true"></div>
+  <div class="blob b" aria-hidden="true"></div>
+  <div class="blob c" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <header class="hero">
+      <div class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none"><path d="M14 30c5-12 15-12 20 0" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="18" r="4.5" fill="#fff"/></svg>
+      </div>
+      <h1>星云客服</h1>
+      <p class="sub">校园办事展厅助手 · 方案 C<span class="sim-badge">模拟</span></p>
+      <div class="top-actions">
+        <span class="status-dot"><i></i>知识库在线</span>
+        <button type="button" class="pill-btn ghost" id="btnTicket">转人工</button>
+      </div>
+      <p class="sub" style="margin-top:.55rem;font-size:.8rem">团队 沈凯杰 · 王瑞康</p>
+    </header>
+
+    <div class="chips" id="faq">
+      <button type="button" class="active" data-q="在读证明如何办理？">在读证明如何办理？</button>
+      <button type="button" class="" data-q="图书馆开放时间是什么？">图书馆开放时间是什么？</button>
+      <button type="button" class="" data-q="校园网如何认证登录？">校园网如何认证登录？</button>
+      <button type="button" class="" data-q="宿舍报修怎么提交？">宿舍报修怎么提交？</button>
+    </div>
+
+    <div class="lounge" aria-label="对话区">
+      <div class="msg user">
+        <div class="avatar">你</div>
+        <div class="bubble">在读证明如何办理？</div>
+      </div>
+      <div class="msg bot">
+        <div class="avatar">云</div>
+        <div class="bubble">
+          根据知识库，在读证明可在<strong>一网通办</strong>提交，<strong>3 个工作日</strong>办结；也可到教务处窗口领取。请携带校园卡，代办需书面委托。
+          <div class="cite-soft">
+            <div class="t">引用来源 · 客服样例FAQ.md · 相关度 0.86</div>
+            <div class="s">「在读证明可通过一网通办提交，3 个工作日办结；窗口领取请带校园卡。…」</div>
+          </div>
+        </div>
+      </div>
+      <div class="msg refuse bot">
+        <div class="avatar">云</div>
+        <div class="bubble">
+          知识库未覆盖该问题，未找到可引用依据。为避免误导，已拒答。建议转人工坐席继续处理。
+          <div class="refuse-actions">
+            <button type="button" class="pill-btn solid" id="btnTicket2">转人工坐席</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <form class="composer" id="composer" onsubmit="return false;">
+      <textarea id="q" rows="1" placeholder="慢慢说，例如在读证明、图书馆、校园网…"></textarea>
+      <button type="submit" aria-label="发送">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 12h12M13 6l6 6-6 6" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </form>
+    <footer class="note">展厅式单栏布局 · 引用嵌在气泡内 · 数据均为模拟 · 非正式定稿</footer>
+  </div>
+  <div class="toast" id="toast">模拟交互</div>
+  <script>
+    const toast = document.getElementById('toast');
+    function ping(m){ toast.textContent=m; toast.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>toast.classList.remove('show'),1700); }
+    document.getElementById('faq').addEventListener('click', e => {
+      const b = e.target.closest('button[data-q]'); if(!b) return;
+      document.querySelectorAll('#faq button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); document.getElementById('q').value=b.dataset.q; ping('已选择快捷问题（模拟）');
+    });
+    document.getElementById('composer').onsubmit = () => ping('发送为模拟，未请求引擎');
+    document.getElementById('btnTicket').onclick = () => ping('转人工演示（模拟）');
+    document.getElementById('btnTicket2').onclick = () => ping('转人工演示（模拟）');
+  </script>
+</body>
+</html>

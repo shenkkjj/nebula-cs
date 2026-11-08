@@ -1,0 +1,4 @@
+# Lite / Render Free: stdlib-only runtime (urllib + http.server).
+# Keep this file so Render's native Python build detects a Python service.
+# No heavy deps — fits ~512MB free instances.
+

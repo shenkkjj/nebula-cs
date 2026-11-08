@@ -1,0 +1,13 @@
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.git
+**/.gitignore
+docs/design/shots
+docs/design/options
+docs/design/verdicts
+server/*.bak*
+server/__pycache__
+*.md
+!README.md
+!DEPLOY-RENDER.md

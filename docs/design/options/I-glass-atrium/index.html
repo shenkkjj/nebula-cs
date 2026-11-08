@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>方案 I: 玻璃中庭 / 星云客服</title>
+<meta name="description" content="星云客服方案 I 玻璃中庭静态原型，雾白日光玻璃面板与青色细线强调。" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Literata:opsz,wght@7..72,500;7..72,700&display=swap" rel="stylesheet" />
+<style>
+/* Hallmark · v2.0.0 · theme: custom (by request) · shape: app screen · genre: modern-minimal · posture: daylight atrium · surface: restrained glass · hero: settled · nav: top glass bar · footer: none · job: answer · signature: translucent panels with cyan hairlines · axes: mist white + cyan line */
+/* Hallmark · waive 26b · prototype static controls · design option mock has no disabled forms yet */
+/* Hallmark · answered F3 · text-wrap balance added on display heads */
+/* Hallmark · answered F23 · meta description added */
+:root {
+  --mist: #f3f6f8;
+  --mist-2: #e8eef3;
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-strong: rgba(255, 255, 255, 0.78);
+  --glass-line: rgba(15, 55, 70, 0.12);
+  --cyan: #1aa6b0;
+  --cyan-deep: #0e7f88;
+  --cyan-line: rgba(26, 166, 176, 0.55);
+  --ink: #1c2a32;
+  --mute: #5b6b75;
+  --refuse: #b15a4e;
+  --sky: #d7e8ef;
+  --on-cyan: #f3fbfc;
+  --cyan-wash: rgba(26, 166, 176, 0.12);
+  --cool-wash: rgba(120, 160, 180, 0.14);
+  --shade-05: rgba(28, 42, 50, 0.05);
+  --shade-06: rgba(28, 42, 50, 0.06);
+  --user-fill: rgba(26, 166, 176, 0.08);
+  --user-line: rgba(26, 166, 176, 0.28);
+  --refuse-line: rgba(177, 90, 78, 0.4);
+  --input-fill: rgba(255, 255, 255, 0.7);
+  --toast-bg: rgba(28, 42, 50, 0.92);
+  --toast-line: rgba(26, 166, 176, 0.45);
+  --font-display: "Literata", "Noto Serif SC", serif;
+  --font-body: "Outfit", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --space: 8px;
+  --max: 1120px;
+  --radius: 14px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; overflow-x: clip; }
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--mist);
+  line-height: 1.55;
+}
+body::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    linear-gradient(165deg, var(--sky) 0%, transparent 42%),
+    radial-gradient(ellipse 55% 45% at 80% 10%, var(--cyan-wash), transparent 60%),
+    radial-gradient(ellipse 45% 40% at 15% 85%, var(--cool-wash), transparent 55%);
+}
+:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+button:active { filter: brightness(0.94); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.frame {
+  position: relative; z-index: 1;
+  max-width: var(--max); margin: 0 auto;
+  min-height: 100vh;
+  padding: calc(var(--space) * 3);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: calc(var(--space) * 2);
+}
+.glass-bar {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: calc(var(--space) * 2);
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  border-top: 2px solid var(--cyan-line);
+  border-radius: var(--radius);
+  padding: calc(var(--space) * 2) calc(var(--space) * 2.5);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 10px 30px var(--shade-05);
+}
+.brand h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.85rem, 3vw, 2.5rem);
+  color: var(--ink);
+  overflow-wrap: break-word; min-width: 0;
+  text-wrap: balance;
+}
+.brand p {
+  margin: 8px 0 0;
+  font-size: 0.84rem;
+  color: var(--mute);
+}
+.top-actions {
+  display: flex; gap: calc(var(--space) * 1.25); align-items: center; flex-wrap: wrap;
+}
+.ghost, .solid {
+  font: inherit; font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; border-radius: 999px;
+  padding: 0.55rem 1.05rem;
+  transition: border-color .2s ease, background-color .2s ease, color .2s ease;
+}
+.ghost {
+  background: transparent; color: var(--ink);
+  border: 1px solid var(--glass-line);
+}
+.ghost:hover { border-color: var(--cyan); color: var(--cyan-deep); }
+.solid {
+  background: var(--cyan); color: var(--on-cyan);
+  border: 1px solid var(--cyan);
+}
+.solid:hover { background: var(--cyan-deep); border-color: var(--cyan-deep); }
+.meta {
+  font-size: 0.78rem; color: var(--mute);
+  border: 1px solid var(--glass-line);
+  padding: 0.4rem 0.7rem; border-radius: 999px;
+  background: var(--glass-strong);
+}
+.faq {
+  display: flex; flex-wrap: wrap; gap: calc(var(--space) * 1);
+}
+.faq button {
+  font: inherit; font-size: 0.8rem; cursor: pointer;
+  background: var(--glass);
+  color: var(--ink);
+  border: 1px solid var(--glass-line);
+  border-bottom: 2px solid transparent;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.faq button:hover, .faq button.active {
+  border-bottom-color: var(--cyan);
+  color: var(--cyan-deep);
+}
+.atrium {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.8fr);
+  gap: calc(var(--space) * 2);
+  min-height: 0;
+}
+.pane {
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius);
+  padding: calc(var(--space) * 2.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 12px 36px var(--shade-06);
+  display: flex; flex-direction: column; gap: calc(var(--space) * 2);
+  min-width: 0;
+  position: relative;
+}
+.pane::before {
+  content: "";
+  position: absolute; left: 18px; right: 18px; top: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan-line), transparent);
+  border-radius: 2px;
+}
+.bubble {
+  max-width: 90%;
+  padding: calc(var(--space) * 1.75) calc(var(--space) * 2);
+  border-radius: 12px;
+  border: 1px solid var(--glass-line);
+  background: var(--glass-strong);
+  font-size: 0.94rem;
+}
+.bubble.user {
+  align-self: flex-end;
+  background: var(--user-fill);
+  border-color: var(--user-line);
+}
+.bubble .who {
+  font-size: 0.72rem; color: var(--mute); margin-bottom: 6px;
+}
+.bubble.user .who { text-align: right; }
+.bubble strong { color: var(--cyan-deep); font-weight: 700; }
+.bubble.refuse {
+  border-color: var(--refuse-line);
+}
+.composer {
+  margin-top: auto;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: calc(var(--space) * 1);
+  padding-top: calc(var(--space) * 1.5);
+  border-top: 1px solid var(--glass-line);
+}
+.composer input {
+  font: inherit; color: var(--ink);
+  background: var(--input-fill);
+  border: 1px solid var(--glass-line);
+  border-radius: 999px;
+  padding: 0.75rem 1.1rem; min-width: 0;
+}
+.composer input::placeholder { color: var(--mute); }
+.composer button {
+  font: inherit; font-weight: 700; cursor: pointer;
+  background: var(--cyan); color: var(--on-cyan);
+  border: 1px solid var(--cyan);
+  border-radius: 999px;
+  padding: 0 1.25rem;
+}
+.cite-pane h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: break-word; min-width: 0;
+  text-wrap: balance;
+}
+.cite {
+  padding: calc(var(--space) * 1.5) 0;
+  border-bottom: 1px solid var(--glass-line);
+  border-left: 2px solid var(--cyan-line);
+  padding-left: 12px;
+}
+.cite:last-child { border-bottom: none; }
+.cite .t { font-size: 0.88rem; font-weight: 600; color: var(--ink); }
+.cite .s { margin-top: 8px; font-size: 0.8rem; color: var(--mute); }
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  background: var(--toast-bg); color: var(--on-cyan);
+  border: 1px solid var(--toast-line);
+  padding: 8px 16px; font-size: 0.85rem;
+  border-radius: 999px;
+  opacity: 0; transition: opacity .2s ease; z-index: 5; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+@media (max-width: 860px) {
+  .atrium { grid-template-columns: 1fr; }
+  .glass-bar { flex-direction: column; align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ghost, .solid, .toast { transition: none; }
+}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <header class="glass-bar">
+      <div class="brand">
+        <h1>星云客服</h1>
+        <p>玻璃中庭 / 校园办事 / 方案 I / 模拟<br />沈凯杰、王瑞康</p>
+      </div>
+      <div class="top-actions">
+        <span class="meta">知识库在线</span>
+        <button type="button" class="ghost" id="btnTicket">转人工</button>
+      </div>
+    </header>
+    <div class="faq" id="faq" role="group" aria-label="快捷问题">
+      <button type="button" class="active" data-q="在读证明如何办理？">在读证明如何办理？</button>
+      <button type="button" data-q="图书馆开放时间是什么？">图书馆开放时间是什么？</button>
+      <button type="button" data-q="校园网如何认证登录？">校园网如何认证登录？</button>
+      <button type="button" data-q="宿舍报修怎么提交？">宿舍报修怎么提交？</button>
+    </div>
+    <div class="atrium">
+      <section class="pane" aria-label="对话区">
+        <div class="bubble user">
+          <div class="who">同学</div>
+          在读证明如何办理？
+        </div>
+        <div class="bubble bot">
+          <div class="who">星云客服</div>
+          在读证明可在<strong>一网通办</strong>提交，<strong>3 个工作日</strong>办结；也可到教务处窗口领取。请携带校园卡，代办需书面委托。
+        </div>
+        <div class="bubble refuse">
+          <div class="who">星云客服</div>
+          知识库未覆盖该问题，找不到可引用依据，已拒答。建议转人工坐席。
+          <div style="margin-top:12px">
+            <button type="button" class="solid" id="btnTicket2">转人工坐席</button>
+          </div>
+        </div>
+        <form class="composer" id="composer" onsubmit="return false;">
+          <input id="q" type="text" placeholder="透过玻璃提问：在读证明、图书馆、校园网…" autocomplete="off" />
+          <button type="submit">发送</button>
+        </form>
+      </section>
+      <aside class="pane cite-pane" aria-label="引用来源">
+        <h2>出处</h2>
+        <div class="cite">
+          <div class="t">客服样例FAQ.md / 相关度 0.86</div>
+          <div class="s">「在读证明可通过一网通办提交，3 个工作日办结；窗口领取请带校园卡。」</div>
+        </div>
+        <div class="cite">
+          <div class="t">模拟说明</div>
+          <div class="s">本页为静态原型，对话与引用不请求业务引擎。</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+  <div class="toast" id="toast">模拟交互</div>
+  <script>
+    const toast = document.getElementById('toast');
+    function ping(m){ toast.textContent=m; toast.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>toast.classList.remove('show'),1600); }
+    document.getElementById('faq').addEventListener('click', e => {
+      const b = e.target.closest('button[data-q]'); if(!b) return;
+      document.querySelectorAll('#faq button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); document.getElementById('q').value=b.dataset.q; ping('已选快捷问题（模拟）');
+    });
+    document.getElementById('composer').onsubmit = () => ping('发送为模拟，未请求引擎');
+    document.getElementById('btnTicket').onclick = () => ping('转人工演示（模拟）');
+    document.getElementById('btnTicket2').onclick = () => ping('转人工演示（模拟）');
+  </script>
+</body>
+</html>
