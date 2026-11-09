@@ -46,11 +46,16 @@ _INTRO = re.compile(
 )
 _TOPIC = re.compile(
     r"(在读|成绩|证明|选课|缓考|补考|重修|转专业|休学|复学|毕业|辅修|"
-    r"图书馆|借书|续借|研讨|自习|图书|电子资源|"
-    r"宿舍|报修|空调|热水|门禁|晚归|调宿|留校|失物|"
-    r"校园网|认证|VPN|vpn|无线|有线|"
-    r"校园卡|一卡通|充值|挂失|补办|学费|奖助|"
-    r"校医院|医务|心理|快递|班车|体育馆|办事|学号|一网通办)"
+    r"学籍|绩点|GPA|退学|入伍|免修|创新学分|四六级|培养方案|课表|考场|退课|"
+    r"公选|体育课|复查|"
+    r"图书馆|借书|续借|研讨|自习|图书|电子资源|分馆|荐购|还书|学位论文|馆际|"
+    r"宿舍|报修|空调|热水|门禁|晚归|调宿|留校|失物|水电|访客|退宿|洗衣机|漏水|"
+    r"校园网|认证|VPN|vpn|无线|有线|eduroam|流量|"
+    r"校园卡|一卡通|充值|挂失|补办|学费|奖助|助学|贷款|勤工|绿色通道|困难|"
+    r"奖学金|补助|"
+    r"校医院|医务|心理|挂号|医保|转诊|快递|班车|体育馆|"
+    r"办事|学号|一网通办|催办|补正|"
+    r"假期|寒暑|节假日|食堂|教室|借用)"
 )
 # Clearly outside the demo catalog. Checked before retrieval so a stray
 # keyword (成绩 / 校园) cannot turn them into a cited answer.
@@ -102,11 +107,91 @@ _KEY_PHRASES = (
     "办事进度",
     "办事单号",
     "一网通办",
+    "学籍证明",
+    "成绩查询",
+    "成绩复查",
+    "学分绩点",
+    "GPA",
+    "学历证明",
+    "学位证明",
+    "退学",
+    "保留学籍",
+    "实习证明",
+    "免修",
+    "创新学分",
+    "学分认定",
+    "毕业证明",
+    "选课冲突",
+    "退课",
+    "人数已满",
+    "公选课",
+    "体育课",
+    "课表",
+    "考场",
+    "补考安排",
+    "四六级",
+    "培养方案",
+    "助学贷款",
+    "生源地",
+    "年度确认",
+    "励志奖学金",
+    "勤工助学",
+    "困难补助",
+    "困难认定",
+    "绿色通道",
+    "学费减免",
+    "助学金",
+    "分馆",
+    "图书预约",
+    "荐购",
+    "馆际互借",
+    "还书箱",
+    "学位论文",
+    "存包柜",
+    "借阅权限",
+    "水电费",
+    "门禁时间",
+    "访客",
+    "钥匙",
+    "漏水",
+    "洗衣机",
+    "退宿",
+    "停电",
+    "安全检查",
+    "认证页面",
+    "eduroam",
+    "流量",
+    "VPN 客户端",
+    "断网",
+    "上课平台",
+    "消费明细",
+    "圈存",
+    "消磁",
+    "临时校园卡",
+    "校园卡退费",
+    "付款码",
+    "预约挂号",
+    "医保",
+    "转诊",
+    "心理测评",
+    "取消或改期",
+    "心理危机",
+    "待受理",
+    "待补正",
+    "待取件",
+    "催办",
+    "寒暑假",
+    "法定节假日",
+    "教室借用",
+    "借教室",
+    "空闲教室",
+    "考试周",
 )
 INTRO_ANSWER = (
     "你好，我是星云助手。\n\n"
-    "我是校园私有知识库智能客服，可以回答教务办事、图书馆、宿舍后勤、"
-    "校园网和校园卡一类问题，也会标明知识库依据。\n\n"
+    "我是校园私有知识库智能客服，可以回答教务学籍、选课成绩、奖助贷、图书馆、"
+    "宿舍后勤、校园网、校园卡、校医院与心理预约、教室借用和假期作息一类问题，"
+    "也会标明知识库依据。\n\n"
     "直接说出具体问题即可。改分、代考等库外要求我会拒答，个人办件可以转人工。"
 )
 
@@ -197,7 +282,17 @@ def score_chunk(query: str, chunk: Chunk) -> float:
             bonus += 2.0
     raw = title_hits * 3.0 + body_hits * 1.0 + bonus
     # Normalize loosely by query size
-    return raw / max(3.0, float(len(q_set)))
+    score = raw / max(3.0, float(len(q_set)))
+    # A larger catalog has many near-duplicate titles (开放时间、如何办理).
+    # An exact question should stay a single cited answer.
+    q_norm = re.sub(r"[\s？?！!。.,，、]+", "", query or "")
+    t_norm = re.sub(r"[\s？?！!。.,，、]+", "", chunk.question or "")
+    if q_norm and t_norm:
+        if q_norm == t_norm:
+            score += 2.5
+        elif len(q_norm) >= 6 and (q_norm in t_norm or t_norm in q_norm):
+            score += 1.2
+    return score
 
 
 def retrieve(query: str, top_k: int = 3, min_score: float = 0.45) -> list[tuple[Chunk, float]]:
@@ -211,7 +306,8 @@ def retrieve(query: str, top_k: int = 3, min_score: float = 0.45) -> list[tuple[
         return []
     best = scored[0][1]
     # Drop weak near-misses so citations stay on-topic for demos.
-    scored = [x for x in scored if x[1] >= max(min_score, best * 0.55)]
+    # Keep citations on the leading entry once the catalog has near-duplicate titles.
+    scored = [x for x in scored if x[1] >= max(min_score, best * 0.72)]
     return scored[:top_k]
 
 

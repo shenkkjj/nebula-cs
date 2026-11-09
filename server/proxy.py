@@ -243,16 +243,26 @@ def rewrite_query_for_retrieval(query: str, history: list | None) -> tuple[str, 
 
     # 根据上一问主题拼检索友好问句
     focus = ""
-    if any(k in prev for k in ("证明", "成绩", "选课", "缓考", "学籍", "教务", "转专业", "辅修")):
+    if any(k in prev for k in ("证明", "成绩", "选课", "缓考", "学籍", "教务", "转专业", "辅修", "退课", "考试", "绩点", "四六级")):
         focus = "教务办事"
-    elif any(k in prev for k in ("图书馆", "借书", "续借", "研讨", "自习")):
+    elif any(k in prev for k in ("奖助", "助学", "贷款", "勤工", "奖学金", "困难补助", "绿色通道")):
+        focus = "奖助贷"
+    elif any(k in prev for k in ("图书馆", "借书", "续借", "研讨", "自习", "荐购", "还书")):
         focus = "图书馆"
-    elif any(k in prev for k in ("宿舍", "报修", "门禁", "晚归", "调宿", "留校")):
+    elif any(k in prev for k in ("宿舍", "报修", "门禁", "晚归", "调宿", "留校", "水电", "空调")):
         focus = "宿舍后勤"
-    elif any(k in prev for k in ("校园网", "认证", "VPN", "无线", "有线")):
+    elif any(k in prev for k in ("校园网", "认证", "VPN", "无线", "有线", "eduroam")):
         focus = "校园网"
-    elif any(k in prev for k in ("校园卡", "一卡通", "充值", "挂失", "补办")):
+    elif any(k in prev for k in ("校园卡", "一卡通", "充值", "挂失", "补办", "圈存")):
         focus = "校园卡"
+    elif any(k in prev for k in ("校医院", "医务", "心理", "挂号", "医保")):
+        focus = "医务心理"
+    elif any(k in prev for k in ("教室", "借用", "空闲教室")):
+        focus = "教室借用"
+    elif any(k in prev for k in ("假期", "寒暑", "节假日", "作息", "食堂")):
+        focus = "假期作息"
+    elif any(k in prev for k in ("办事", "进度", "一网通办", "催办", "补正")):
+        focus = "办事大厅"
 
     if topic and focus:
         rewritten = f"{topic}的{focus}政策是怎样的？{topic}{focus}多久？"
