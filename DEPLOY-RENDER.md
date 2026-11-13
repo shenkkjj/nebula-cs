@@ -1,4 +1,4 @@
-# Deploy 星云客服（Lite）to Render Free — no card
+# Deploy 校园客服（Lite）to Render Free — no card
 
 ## Why lite?
 

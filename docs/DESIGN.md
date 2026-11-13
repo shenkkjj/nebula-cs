@@ -1,4 +1,4 @@
-# 星云客服 · DESIGN（已确认）
+# 校园客服 · DESIGN（已确认）
 
 > 版本：2026-11-07 20:56 Asia/Shanghai（CST）  
 > **status = confirmed** · 选定方案：**E5**（`E5-luxury-apple-r`）  
