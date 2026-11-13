@@ -18,21 +18,11 @@ _ID_RE = re.compile(r"(?<!\d)\d{17}[\dXx](?!\d)")
 _BANK_RE = re.compile(r"(?<!\d)\d{16,19}(?!\d)")
 _MED_RE = re.compile(r"(病历|病例|化验单|出院小结|出院记录|诊断证明|诊断书)")
 
-_NONCAMPUS_RE = re.compile(r"(火星|月球|外太空|外星人)")
-_PARTY_RE = re.compile(r"(入党申请|入党志愿|思想汇报)")
-_UNSAFE_RE = re.compile(
-    r"(写作业|做作业|代写|写论文|写毕业论文|课程论文|代考|替考|改分|"
-    r"黑客|破解密码|入侵|攻击学校)"
-)
+_LIMIT_RE = re.compile(r"(代考|替考|改分|黑客|破解密码|入侵|攻击学校)")
 _PASSWORD_RE = re.compile(r"(密码对不对|试试这个密码|这个密码对吗|帮我试密码|试密码|猜密码)")
 _DIAG_RE = re.compile(r"(是不是得了|得了什么病|帮我诊断|诊断一下|开点药|吃什么药)")
-_SYMPTOM_RE = re.compile(r"(头疼|头痛|发烧|咳嗽|腹泻|失眠).{0,8}(怎么办|是不是|要不要)")
-_INVEST_RE = re.compile(r"(股票|基金怎么买|比特币|彩票|炒股|怎么投资)")
-_POEM_RE = re.compile(r"(写一首诗|写首诗|作一首诗|来首诗|作首诗)")
-_WEATHER_RE = re.compile(r"(天气|气温|下雨|降温|会不会下雪)")
-_MOVIE_RE = re.compile(r"推荐.{0,8}(电影|片子|影视|剧)")
-_FOOD_RE = re.compile(r"((今晚|今天|中午|早上|下午).{0,6}吃什么|吃啥|吃什么好)")
-_THANKS_RE = re.compile(r"^(谢谢|谢谢你|多谢|感谢|好的|知道了|嗯嗯)[了呀啊哦！!。.~～]*$")
+_WEATHER_RE = re.compile(r"(天气怎么样|天气如何|今天天气|气温多少|会不会下雨|会不会下雪|降温了吗)")
+_THANKS_RE = re.compile(r"^(谢谢|谢谢你|多谢|感谢)[了呀啊哦！!。.~～]*$")
 _POLISH_RE = re.compile(r"^(?:请|帮我|麻烦)?(?:润色|改通顺|顺一下|理顺)(?:一下)?(?:这句|这段)?[：:\s]*(.*)$")
 
 _CN_DIGITS = {
@@ -75,48 +65,6 @@ _GLOSSARY = (
     ("转人工", "transfer to a staff member"),
     ("奖学金", "scholarship"),
     ("学费", "tuition"),
-)
-
-_NEXT_CAMPUS = (
-    {"label": "在读证明", "query": "在读证明如何办理？"},
-    {"label": "助学贷款", "query": "国家助学贷款如何申请？"},
-    {"label": "转人工", "query": "转人工"},
-)
-_NEXT_WEATHER = (
-    {"label": "图书馆开放时间", "query": "图书馆开放时间是什么？"},
-    {"label": "假期作息", "query": "寒暑假校园作息怎么安排？"},
-    {"label": "办事窗口", "query": "办事窗口在哪里，办公时间是什么？"},
-)
-_NEXT_FOOD = (
-    {"label": "假期食堂", "query": "假期食堂开放时间是什么？"},
-    {"label": "节假日食堂", "query": "法定节假日食堂和办公怎么安排？"},
-)
-_NEXT_MOVIE = (
-    {"label": "图书馆开放时间", "query": "图书馆开放时间是什么？"},
-    {"label": "体育馆", "query": "体育馆如何预约？"},
-    {"label": "教室借用", "query": "教室借用怎么申请？"},
-)
-_NEXT_MEDICAL = (
-    {"label": "预约校医院", "query": "校医院如何预约挂号？"},
-    {"label": "夜间不适", "query": "夜间身体不适或心理危机找谁？"},
-    {"label": "转人工", "query": "转人工"},
-)
-_NEXT_PASSWORD = (
-    {"label": "门户密码和校园网", "query": "信息门户密码和校园网密码一样吗？"},
-    {"label": "账号锁定", "query": "校园网账号锁定怎么办？"},
-    {"label": "转人工", "query": "转人工"},
-)
-_NEXT_MONEY = (
-    {"label": "学费", "query": "学费如何缴纳？"},
-    {"label": "助学贷款", "query": "国家助学贷款如何申请？"},
-    {"label": "转人工", "query": "转人工"},
-)
-
-_POEM = (
-    "路灯沿着林荫道一盏盏亮起来，\n"
-    "自习室的窗还留着一小块暖光。\n"
-    "问题不必一次问完，\n"
-    "我在这里，听你把事情说清楚。"
 )
 
 _UNIT_FACTORS = {
@@ -376,92 +324,8 @@ def _try_math(query: str) -> dict | None:
             "generator": "skill",
         }
     return {
-        "answer": (
-            f"{shown} = {_fmt_num(value)}。\n\n"
-            "这是本地计算，不是校园规定，也没有知识库出处。"
-        ),
+        "answer": f"{shown} = {_fmt_num(value)}。",
         "intent": "math",
-        "refuse": False,
-        "suggestions": (),
-        "generator": "skill",
-    }
-
-
-def _translate_with_glossary(source: str, target: str) -> str:
-    text = source.strip()
-    if target in ("中文", "汉语"):
-        return (
-            "我这边没有在线翻译，本地词表是从校园用语译向英文，译不回任意中文。\n\n"
-            "可以把校园里的中文说法发我，例如「在读证明如何办理」。"
-        )
-    pieces: list[str] = []
-    known = 0
-    remaining = text
-    while remaining:
-        matched = False
-        for zh, en in _GLOSSARY:
-            if remaining.startswith(zh):
-                pieces.append(en)
-                known += len(zh)
-                remaining = remaining[len(zh) :]
-                matched = True
-                break
-        if matched:
-            continue
-        unknown: list[str] = []
-        while remaining and not any(remaining.startswith(zh) for zh, _en in _GLOSSARY):
-            ch = remaining[0]
-            remaining = remaining[1:]
-            if ch.strip() and ch not in "，。、？?！!：:；;「」\"“”":
-                unknown.append(ch)
-        if unknown:
-            pieces.append("〔" + "".join(unknown) + "〕")
-    if not text:
-        return "把要翻译的校园说法放在引号里，例如：把「在读证明如何办理」译成英文。"
-    if known == 0 or known / max(1, len(re.sub(r"\s+", "", text))) < 0.45:
-        partial = " ".join(pieces).strip()
-        extra = f"\n\n能对上词表的只有：{partial}" if known else ""
-        return (
-            "我没有在线翻译引擎，本地只有校园办事词表，这句话译不全。"
-            f"{extra}\n\n"
-            "可以缩短成「在读证明」「助学贷款」这种说法，或转人工。"
-        )
-    english = " ".join(pieces).strip()
-    return (
-        f"「{text}」可译为：{english}\n\n"
-        "这是本地校园词表的直译，不是在线翻译。办理规则仍以知识库中文说明为准。"
-    )
-
-
-def _try_translate(query: str) -> dict | None:
-    quoted = re.search(
-        r"(?:把|将)\s*[「\"“『](.+?)[」\"”』]\s*(?:译成|翻译成|翻成)\s*(英文|英语|中文|汉语)",
-        query,
-    )
-    plain = None
-    if quoted is None:
-        plain = re.search(
-            r"(?:把|将)\s*(.+?)\s*(?:译成|翻译成|翻成)\s*(英文|英语|中文|汉语)\s*$",
-            query.strip(),
-        )
-    hit = quoted or plain
-    if hit is None:
-        if re.fullmatch(r"(?:帮我)?翻译一下[：:\s]*.+", query.strip()) or query.strip() in ("翻译", "帮我翻译"):
-            return {
-                "answer": (
-                    "可以说：把「在读证明如何办理」译成英文。\n\n"
-                    "我没有在线翻译，只能用本地校园词表直译常见办事说法。"
-                ),
-                "intent": "translate",
-                "refuse": False,
-                "suggestions": ({"label": "译在读证明", "query": "把「在读证明如何办理」译成英文"},),
-                "generator": "skill",
-            }
-        return None
-    source, target = hit.group(1).strip(), hit.group(2)
-    return {
-        "answer": _translate_with_glossary(source, target),
-        "intent": "translate",
         "refuse": False,
         "suggestions": (),
         "generator": "skill",
@@ -496,7 +360,7 @@ def _try_unit(query: str) -> dict | None:
 
 def _unit_answer(line: str) -> dict:
     return {
-        "answer": line + "\n\n这是单位换算，不是校园规定。",
+        "answer": line,
         "intent": "unit",
         "refuse": False,
         "suggestions": (),
@@ -519,7 +383,7 @@ def _try_clock(query: str) -> dict | None:
     else:
         line = f"今天是北京时间 {now:%Y年%m月%d日}，星期{week}。"
     return {
-        "answer": line + "\n\n我只能报服务器上的北京时间，不能查看天气。",
+        "answer": line,
         "intent": "datetime",
         "refuse": False,
         "suggestions": (),
@@ -534,7 +398,7 @@ def _try_polish(query: str) -> dict | None:
     body = (hit.group(1) or "").strip()
     if not body:
         return {
-            "answer": "把要整理的句子发在后面，例如：润色：我明天去教务处取在读证明。我只整理标点和空白，不改写意思，也不代写申请。",
+            "answer": "把要整理的句子发在冒号后面，例如：润色：我明天去教务处取在读证明。",
             "intent": "polish",
             "refuse": False,
             "suggestions": (),
@@ -544,10 +408,7 @@ def _try_polish(query: str) -> dict | None:
     cleaned = cleaned.replace(",", "，").replace(".", "。")
     cleaned = re.sub(r"\s*\n\s*", "\n", cleaned).strip()
     return {
-        "answer": (
-            f"只整理了标点和空白，意思没有改：\n\n{cleaned}\n\n"
-            "我没有通用润色模型，不能替你重写内容。"
-        ),
+        "answer": f"我只整理了标点和空白：\n\n{cleaned}",
         "intent": "polish",
         "refuse": False,
         "suggestions": (),
@@ -555,85 +416,69 @@ def _try_polish(query: str) -> dict | None:
     }
 
 
-def _refuse(answer: str, intent: str, suggestions: tuple[dict, ...] = _NEXT_CAMPUS) -> dict:
+def _exact_gloss(source: str, target: str) -> str | None:
+    """Only phrases stored in the campus glossary. Anything else needs a model."""
+    phrase = (source or "").strip()
+    if target in ("中文", "汉语"):
+        for zh, en in _GLOSSARY:
+            if phrase.lower() == en.lower():
+                return zh
+        return None
+    for zh, en in _GLOSSARY:
+        if phrase == zh:
+            return en
+    return None
+
+
+def _try_translate(query: str) -> dict | None:
+    quoted = re.search(
+        r"(?:把|将)\s*[「\"“『](.+?)[」\"”』]\s*(?:译成|翻译成|翻成)\s*(英文|英语|中文|汉语)",
+        query,
+    )
+    plain = None
+    if quoted is None:
+        plain = re.search(
+            r"(?:把|将)\s*(.+?)\s*(?:译成|翻译成|翻成)\s*(英文|英语|中文|汉语)\s*$",
+            query.strip(),
+        )
+    hit = quoted or plain
+    if hit is None:
+        return None
+    rendered = _exact_gloss(hit.group(1).strip(), hit.group(2))
+    if rendered is None:
+        return None
+    return {
+        "answer": rendered,
+        "intent": "translate",
+        "refuse": False,
+        "suggestions": (),
+        "generator": "skill",
+    }
+
+
+def _skill(answer: str, intent: str) -> dict:
     return {
         "answer": answer,
         "intent": intent,
-        "refuse": True,
-        "suggestions": suggestions,
-        "generator": "refuse",
+        "refuse": False,
+        "suggestions": (),
+        "generator": "skill",
     }
 
 
 def try_skill(query: str) -> dict | None:
-    """Match a local skill or a narrow refusal. None means the FAQ router may run."""
+    """Deterministic helpers only. Open chat returns None so a model can take it."""
     q = (query or "").strip()
     if not q:
         return None
-    if _NONCAMPUS_RE.search(q):
-        return {
-            "answer": (
-                "这个不在校园客服能回答的范围内，我也没有相关依据。\n\n"
-                "校园办事、简单计算和校园用语短翻译可以继续问；需要工作人员就转人工。"
-            ),
-            "intent": "boundary",
-            "refuse": False,
-            "suggestions": _NEXT_CAMPUS,
-            "generator": "skill",
-        }
-    if _PARTY_RE.search(q):
-        return _refuse(
-            "我不能代写入党申请书或思想汇报，也不会把它说成已经有的办事说明。"
-            "知识库里没有这类文书，我不能编一份正式口径。\n\n"
-            "材料请按组织员或学院通知准备。我能继续查在读证明、奖助和宿舍；需要人处理就转人工。",
-            "refuse",
-        )
-    if _UNSAFE_RE.search(q):
-        return _refuse(
-            "这件事我不能做：代写作业或论文、改分、代考，以及任何攻击系统的要求，都不在客服范围内。\n\n"
-            "你可以问具体的校园办事，或把你自己写好的一句话发来，我只能做标点和空白整理。需要老师或工作人员时请转人工。",
-            "refuse",
-        )
-    if _PASSWORD_RE.search(q):
-        return _refuse(
-            "我不能帮你试密码，也不会判断对不对。请不要在对话里发送密码，我没有核对过任何口令。\n\n"
-            "如果是校园网或信息门户登录不上，可以看下面的说明，或转人工。",
-            "refuse",
-            _NEXT_PASSWORD,
-        )
-    if _DIAG_RE.search(q) or _SYMPTOM_RE.search(q):
-        return _refuse(
-            "我不能判断病情，也不能建议吃药。\n\n"
-            "需要就诊可以先看校医院怎么预约；紧急情况请联系校医院急诊或转人工。我这里没有诊断依据。",
-            "refuse",
-            _NEXT_MEDICAL,
-        )
-    if _INVEST_RE.search(q):
-        return _refuse(
-            "我不能提供股票、基金或彩票方面的投资建议。\n\n"
-            "和钱有关、我能按知识库回答的，是学费、奖助和助学贷款怎么办理，不是理财。需要工作人员就转人工。",
-            "refuse",
-            _NEXT_MONEY,
-        )
-    if _POEM_RE.search(q):
-        return {
-            "answer": "好，这是一段闲聊小诗，不是校园规定：\n\n" + _POEM,
-            "intent": "poem",
-            "refuse": False,
-            "suggestions": (),
-            "generator": "skill",
-        }
     if _WEATHER_RE.search(q):
-        return {
-            "answer": (
-                "我查不到实时天气，也不能编一个预报。\n\n"
-                "如果是要出门办事，我可以按知识库说明图书馆、食堂或窗口的开放安排。直接点下面的问题就行。"
-            ),
-            "intent": "weather",
-            "refuse": False,
-            "suggestions": _NEXT_WEATHER,
-            "generator": "skill",
-        }
+        return _skill("我看不到实时天气，没法告诉你今天怎么样。", "weather")
+    if _LIMIT_RE.search(q):
+        return _skill("改分、代考和攻击系统这些我做不了。", "limit")
+    if _PASSWORD_RE.search(q):
+        return _skill("我没法帮你对密码，也别把密码发在对话里。", "limit")
+    if _DIAG_RE.search(q):
+        return _skill("我判断不了你是不是生病了，也不能开药。", "limit")
     math_hit = _try_math(q)
     if math_hit is not None:
         return math_hit
@@ -649,34 +494,6 @@ def try_skill(query: str) -> dict | None:
     polished = _try_polish(q)
     if polished is not None:
         return polished
-    if _MOVIE_RE.search(q):
-        return {
-            "answer": (
-                "我没有影片库，不能认真推荐具体的一部电影。\n\n"
-                "想安排在学校里的时间，可以问图书馆、体育馆或教室借用，我按知识库回答。"
-            ),
-            "intent": "chitchat",
-            "refuse": False,
-            "suggestions": _NEXT_MOVIE,
-            "generator": "skill",
-        }
-    if _FOOD_RE.search(q):
-        return {
-            "answer": (
-                "我不能替你决定吃什么，也没有食堂菜单。\n\n"
-                "想查食堂什么时候开，点下面的问题，我按知识库说明。"
-            ),
-            "intent": "chitchat",
-            "refuse": False,
-            "suggestions": _NEXT_FOOD,
-            "generator": "skill",
-        }
     if _THANKS_RE.match(q):
-        return {
-            "answer": "不客气。还有办事问题可以直接问，或者说转人工。",
-            "intent": "chitchat",
-            "refuse": False,
-            "suggestions": _NEXT_CAMPUS[:2],
-            "generator": "skill",
-        }
+        return _skill("不客气。", "chitchat")
     return None

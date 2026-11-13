@@ -132,12 +132,12 @@ class RouterTest(unittest.TestCase):
 
     def test_party_application_is_not_the_lookalike_faq(self) -> None:
         result = answer_lite("帮我写一份入党申请书")
-        self.assertTrue(result["refuse"])
+        self.assertFalse(result["refuse"])
         self.assertEqual(result["citations"], [])
         self.assertNotIn("我的申请", result["answer"])
         self.assertNotIn("真实办件进度", result["answer"])
-        self.assertIn("转人工", result["answer"])
-        self.assertTrue(result["suggestions"])
+        self.assertIn("DEEPSEEK_API_KEY", result["answer"])
+        self.assertEqual(result["intent"], "needs_model")
 
     def test_math_translation_and_everyday_skills(self) -> None:
         math = answer_lite("15*24+8")
@@ -163,10 +163,11 @@ class RouterTest(unittest.TestCase):
 
     def test_poem_weather_and_light_chat_do_not_cite_a_faq(self) -> None:
         poem = answer_lite("写一首诗")
-        self.assertEqual(poem["intent"], "poem")
+        self.assertEqual(poem["intent"], "needs_model")
         self.assertFalse(poem["refuse"])
         self.assertEqual(poem["citations"], [])
-        self.assertIn("路灯", poem["answer"])
+        self.assertNotIn("路灯", poem["answer"])
+        self.assertIn("DEEPSEEK_API_KEY", poem["answer"])
         weather = answer_lite("今天天气怎么样")
         self.assertEqual(weather["intent"], "weather")
         self.assertIn("实时天气", weather["answer"])
@@ -175,20 +176,23 @@ class RouterTest(unittest.TestCase):
         movie = answer_lite("推荐一部电影")
         self.assertEqual(movie["citations"], [])
         self.assertNotIn("水电", movie["answer"])
+        self.assertEqual(movie["intent"], "needs_model")
         food = answer_lite("今晚吃什么")
         self.assertNotIn("门禁", food["answer"])
         self.assertEqual(food["citations"], [])
+        self.assertFalse(food["refuse"])
         stocks = answer_lite("怎么投资股票")
-        self.assertTrue(stocks["refuse"])
+        self.assertFalse(stocks["refuse"])
         self.assertEqual(stocks["citations"], [])
-        self.assertIn("转人工", stocks["answer"])
+        self.assertNotIn("休学", stocks["answer"])
         secret = answer_lite("试试这个密码对不对")
-        self.assertTrue(secret["refuse"])
+        self.assertFalse(secret["refuse"])
         self.assertEqual(secret["citations"], [])
-        self.assertIn("没有核对", secret["answer"])
+        self.assertIn("密码", secret["answer"])
         homework = answer_lite("帮我写作业")
-        self.assertTrue(homework["refuse"])
+        self.assertFalse(homework["refuse"])
         self.assertNotIn("毕业审核", homework["answer"])
+        self.assertEqual(homework["citations"], [])
 
     def test_greeting_introduces_the_named_assistant(self) -> None:
         result = answer_lite("你好")
@@ -232,6 +236,69 @@ class RouterTest(unittest.TestCase):
         restarted = answer_lite("重新开始")
         self.assertEqual(restarted["agent_action"], "restart")
         self.assertIn("校园助手", restarted["answer"])
+
+    def test_open_chat_needs_a_model_and_does_not_invent_policy(self) -> None:
+        original_key = lite_engine.deepseek_api_key
+        original_generate = lite_engine.generate_with_deepseek
+        seen: dict = {}
+
+        def fake_generate(query, hits, mode="faq", history=None):
+            seen["query"] = query
+            seen["mode"] = mode
+            seen["hits"] = hits
+            seen["history"] = history
+            if "入党" in query:
+                return "这是一份练习用的申请书草稿，不是学校的正式要求。"
+            return "我在。心情不好的话，可以慢慢说。"
+
+        try:
+            lite_engine.deepseek_api_key = lambda: ""
+            offline = answer_lite(
+                "还是有点闷",
+                history=[
+                    {"role": "user", "text": "今天心情不好"},
+                    {"role": "assistant", "text": "怎么了？"},
+                ],
+            )
+            self.assertEqual(offline["intent"], "needs_model")
+            self.assertEqual(offline["citations"], [])
+            self.assertNotIn("慢慢说", offline["answer"])
+            self.assertIn("DEEPSEEK_API_KEY", offline["answer"])
+
+            lite_engine.deepseek_api_key = lambda: "test-key-not-used"
+            lite_engine.generate_with_deepseek = fake_generate
+            chat = answer_lite(
+                "还是有点闷",
+                history=[
+                    {"role": "user", "text": "今天心情不好"},
+                    {"role": "assistant", "text": "怎么了？"},
+                    {"role": "user", "text": "还是有点闷"},
+                ],
+            )
+            self.assertIn("慢慢说", chat["answer"])
+            self.assertEqual(chat["generator"], "deepseek")
+            self.assertEqual(chat["citations"], [])
+            self.assertEqual(seen["mode"], "general")
+            self.assertTrue(any("心情不好" in (item.get("text") or item.get("content") or "") for item in seen["history"]))
+
+            draft = answer_lite("帮我写一份入党申请书")
+            self.assertIn("练习用的申请书草稿", draft["answer"])
+            self.assertEqual(draft["citations"], [])
+            self.assertNotIn("我的申请", draft["answer"])
+            self.assertEqual(seen["mode"], "general")
+            self.assertEqual(seen["hits"], [])
+
+            def explode(*_args, **_kwargs):
+                raise AssertionError("unknown campus policy must not be guessed")
+
+            lite_engine.generate_with_deepseek = explode
+            missing = answer_lite("校友返校住宿怎么收费")
+            self.assertEqual(missing["intent"], "unknown_policy")
+            self.assertEqual(missing["citations"], [])
+            self.assertIn("知识库", missing["answer"])
+        finally:
+            lite_engine.deepseek_api_key = original_key
+            lite_engine.generate_with_deepseek = original_generate
 
     def test_portal_intents_for_ticket_handoff_and_safety(self) -> None:
         self.assertEqual(classify_portal_intent("查询办事进度 SW20260001"), "ticket")

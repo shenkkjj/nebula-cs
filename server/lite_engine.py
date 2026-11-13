@@ -145,10 +145,9 @@ _PUNCT_RE = re.compile(r"[\s？?！!。.,，、；;：:（）()【】\[\]「」\
 
 INTRO_ANSWER = (
     "你好，我是校园助手。\n\n"
-    "我按虚构样例「星云大学」的知识库回答办事问题，并给出依据。"
-    "计算、单位换算、日期，以及词表里的校园用语短翻译也可以直接做；没有在线翻译引擎时，译不全我会直说。\n"
-    "没有依据的校规我不会编。需要工作人员时，说「转人工」。\n"
-    "追问会接着上一件事；说「重新开始」就换话题，说「返回上一个问题」可以回到上一件。"
+    "办事上的口径，我按虚构的星云大学知识库来说，并标上出处。"
+    "闲聊、写东西、讲个概念或者算道题，也可以。\n\n"
+    "你想说什么？"
 )
 RESTART_ANSWER = "好，之前的话题先放下。\n\n" + INTRO_ANSWER
 
@@ -177,18 +176,19 @@ K1 = 1.2
 B = 0.75
 
 FAQ_SYSTEM = (
-    "你是「校园助手」，服务虚构样例「星云大学」的校园客服。\n"
-    "校园政策、时限、金额、材料只根据下方知识库片段回答，不要编造校规，"
-    "也不要承诺改分、代考、代写或重置他人密码。\n"
-    "若片段不足以回答，明确说知识库未覆盖、未找到依据，并建议转人工。\n"
-    "先给一句结论，再补充细节。回答简洁、中文。不要输出 <think>。"
+    "你是「校园助手」，在虚构的星云大学里帮同学。语气自然、友好、简洁。\n"
+    "这一问已经检索到知识库片段。办事规定、时限、金额、材料只根据这些片段说，不要补充片段里没有的校规。\n"
+    "先用一句人话回答，再按需要补充片段里的细节，并让同学能看出依据来自知识库。\n"
+    "不要输出 <think>。"
 )
 GENERAL_SYSTEM = (
-    "你是「校园助手」，服务虚构样例「星云大学」。\n"
-    "校园政策只能来自用户消息里给出的知识库片段；没有片段就不要编造校规、金额或办件状态。\n"
-    "通用问题（计算、翻译、日常说明）可以简洁回答。\n"
-    "不能查看实时天气，不能诊断病情，不能代写正式申请文书，不能核实密码或私人记录。\n"
-    "不要输出 <think>。"
+    "你是「校园助手」，在虚构的星云大学里和同学说话。语气自然、友好、简洁，像平时聊天。\n"
+    "闲聊、开玩笑、写诗、解释概念、学习辅导、翻译、写一般性的申请书或信件草稿都可以。"
+    "草稿只是练习文字，不要说成学校的正式规定，也不要假装知识库里有这份文书。\n"
+    "本轮没有提供知识库片段。星云大学的办事规定、时限、金额、材料、个人成绩和办件进度，"
+    "一律说不知道，不要编。\n"
+    "看不到实时天气，不能核对密码，不能诊断病情。\n"
+    "不要每句话都建议转人工，也不要堆免责声明。用中文回答。不要输出 <think>。"
 )
 
 
@@ -768,25 +768,47 @@ def deepseek_api_key() -> str:
     return (os.environ.get("DEEPSEEK_API_KEY") or "").strip()
 
 
-def _build_messages(query: str, hits: list[tuple[Chunk, float]], mode: str = "faq") -> list[dict]:
+def _history_messages(history: list | None, query: str) -> list[dict]:
+    turns: list[dict] = []
+    for item in (history or [])[-8:]:
+        if not isinstance(item, dict):
+            continue
+        role = (item.get("role") or "").lower()
+        if role == "bot":
+            role = "assistant"
+        if role not in ("user", "assistant"):
+            continue
+        text = (item.get("text") or item.get("content") or "").strip()
+        if text:
+            turns.append({"role": role, "content": text[:800]})
+    if turns and turns[-1]["role"] == "user" and turns[-1]["content"] == (query or "").strip():
+        turns.pop()
+    return turns
+
+
+def _build_messages(
+    query: str,
+    hits: list[tuple[Chunk, float]],
+    mode: str = "faq",
+    history: list | None = None,
+) -> list[dict]:
+    system = GENERAL_SYSTEM if mode == "general" else FAQ_SYSTEM
+    messages: list[dict] = [{"role": "system", "content": system}]
+    messages.extend(_history_messages(history, query))
     if mode == "general":
-        return [
-            {"role": "system", "content": GENERAL_SYSTEM},
-            {"role": "user", "content": query},
-        ]
+        messages.append({"role": "user", "content": query})
+        return messages
     parts = [f"[{index}] {chunk.content}" for index, (chunk, _score) in enumerate(hits, 1)]
     context = "\n\n".join(parts) if parts else "（无检索结果）"
-    user = f"用户问题：{query}\n\n知识库片段：\n{context}"
-    return [
-        {"role": "system", "content": FAQ_SYSTEM},
-        {"role": "user", "content": user},
-    ]
+    messages.append({"role": "user", "content": f"用户问题：{query}\n\n知识库片段：\n{context}"})
+    return messages
 
 
 def generate_with_deepseek(
     query: str,
     hits: list[tuple[Chunk, float]],
     mode: str = "faq",
+    history: list | None = None,
 ) -> str | None:
     key = deepseek_api_key()
     if not key:
@@ -795,8 +817,8 @@ def generate_with_deepseek(
         return None
     body = {
         "model": DEEPSEEK_MODEL,
-        "messages": _build_messages(query, hits, mode),
-        "temperature": 0.2,
+        "messages": _build_messages(query, hits, mode, history),
+        "temperature": 0.4 if mode == "general" else 0.2,
         "max_tokens": 800,
         "stream": False,
     }
@@ -827,6 +849,7 @@ def iter_deepseek_stream(
     query: str,
     hits: list[tuple[Chunk, float]],
     mode: str = "faq",
+    history: list | None = None,
 ) -> Iterator[str]:
     """Yield text deltas from DeepSeek SSE; empty iterator if unavailable."""
     key = deepseek_api_key()
@@ -835,8 +858,8 @@ def iter_deepseek_stream(
         yield  # pragma: no cover — make this a generator
     body = {
         "model": DEEPSEEK_MODEL,
-        "messages": _build_messages(query, hits, mode),
-        "temperature": 0.2,
+        "messages": _build_messages(query, hits, mode, history),
+        "temperature": 0.4 if mode == "general" else 0.2,
         "max_tokens": 800,
         "stream": True,
     }
@@ -910,7 +933,13 @@ def _body_query(text: str) -> str:
 
 
 def _policy_shaped(query: str) -> bool:
-    return bool(_TOPIC.search(query))
+    if _TOPIC.search(query):
+        return True
+    return bool(re.search(r"[校宿馆证贷奖学餐]", query) and re.search(r"规定|政策|补贴|收费|标准|时薪|额度", query))
+
+
+def _off_campus_policy(query: str) -> bool:
+    return bool(re.search(r"火星|月球|外太空", query) and (_policy_shaped(query) or re.search(r"奖学金|学费|宿舍|规定", query)))
 
 
 def _from_skill(spec: dict) -> dict:
@@ -940,7 +969,14 @@ def _from_skill(spec: dict) -> dict:
     )
 
 
-def _maybe_llm(payload: dict, query: str, hits: list[tuple[Chunk, float]], mode: str, stream: bool) -> dict:
+def _maybe_llm(
+    payload: dict,
+    query: str,
+    hits: list[tuple[Chunk, float]],
+    mode: str,
+    stream: bool,
+    history: list | None = None,
+) -> dict:
     if not deepseek_api_key():
         return payload
     if mode == "faq" and not hits:
@@ -951,14 +987,29 @@ def _maybe_llm(payload: dict, query: str, hits: list[tuple[Chunk, float]], mode:
         pending["_hits"] = hits
         pending["_deepseek_mode"] = mode
         pending["_query"] = query
+        pending["_history"] = history or []
         return pending
-    text = generate_with_deepseek(query, hits, mode=mode)
+    text = generate_with_deepseek(query, hits, mode=mode, history=history)
     if not text:
         return payload
     upgraded = dict(payload)
     upgraded["answer"] = text
     upgraded["generator"] = "deepseek"
     return upgraded
+
+
+def _no_model_chat(query: str) -> dict:
+    folded = (query or "").strip()
+    if re.fullmatch(r"[嗯哦啊呃嘿哈？?！!。.…~～]{1,4}", folded):
+        text = "我没太听懂。你可以再说具体一点。"
+    else:
+        text = (
+            "这句要聊天模型才能接住。当前没有配置 DEEPSEEK_API_KEY，"
+            "所以闲聊、写稿和任意翻译我做不到。\n\n"
+            "校园办事、计算，以及词表里已有的短句，现在就能做。"
+            "要启用开放聊天，在服务环境里设置 DEEPSEEK_API_KEY 后重启即可，不必改代码。"
+        )
+    return _payload(text, intent="needs_model", action="general_skill", refuse=False, generator="unavailable")
 
 
 def lite_prelude(query: str) -> dict | None:
@@ -975,12 +1026,12 @@ def lite_prelude(query: str) -> dict | None:
     return None
 
 
-def answer_lite(query: str, stream: bool = False) -> dict:
+def answer_lite(query: str, stream: bool = False, history: list | None = None) -> dict:
     """One routing decision for blocking and streaming callers."""
     text = (query or "").strip()
     if not text:
         return _payload(
-            "直接说想办的事就行，例如在读证明、宿舍报修，或转人工。",
+            "想聊什么，或者要办什么事？",
             intent="boundary",
             action="general_skill",
             suggestions=list(_CHIPS[:3]),
@@ -1000,10 +1051,9 @@ def answer_lite(query: str, stream: bool = False) -> dict:
         )
     if _BACK_RE.match(text):
         return _payload(
-            "这一轮还没有上一个问题可以返回。直接说具体事项就行。",
+            "还没有上一条可以回去。你直接说就行。",
             intent="chitchat",
             action="general_skill",
-            suggestions=list(_CHIPS[:3]),
             generator="skill",
         )
     if _is_social(text):
@@ -1018,10 +1068,15 @@ def answer_lite(query: str, stream: bool = False) -> dict:
     target = _body_query(text)
     skill = try_skill(target)
     if skill is not None:
-        payload = _from_skill(skill)
-        if skill.get("intent") == "translate":
-            return _maybe_llm(payload, target, [], "general", stream)
-        return payload
+        return _from_skill(skill)
+    if _off_campus_policy(target):
+        return _payload(
+            "知识库里没有这条。我不能把火星或校外的事说成星云大学的规定。",
+            intent="unknown_policy",
+            action="knowledge_qa",
+            refuse=False,
+            generator="template",
+        )
 
     routed = route_faq(target)
     if routed["action"] == "answer" and routed["chunks"]:
@@ -1036,7 +1091,7 @@ def answer_lite(query: str, stream: bool = False) -> dict:
             title=chunk.title,
             hits=hits,
         )
-        return _maybe_llm(payload, target, hits, "faq", stream)
+        return _maybe_llm(payload, target, hits, "faq", stream, history)
     if routed["action"] == "clarify" and routed["chunks"]:
         chunks = routed["chunks"][:3]
         return _payload(
@@ -1060,24 +1115,14 @@ def answer_lite(query: str, stream: bool = False) -> dict:
         )
     if _policy_shaped(target):
         return _payload(
-            "知识库未覆盖这个问题，我没有依据，不能编一条校规。\n\n"
-            "你可以把事情说得更具体，或转人工让工作人员处理。下面几件是可以直接查的：",
-            intent="refuse",
-            action="refuse",
-            refuse=True,
-            suggestions=list(_CHIPS[:3]) + [_CHIPS[-1]],
-            generator="refuse",
+            "知识库里没有这条办事规定，我不能编。你要是能说得更具体，比如办的是哪一种，我再查。",
+            intent="unknown_policy",
+            action="knowledge_qa",
+            refuse=False,
+            generator="template",
         )
-    payload = _payload(
-        "这句我接住了，但没有通用大模型，也没有知识库依据，不能随便展开。\n\n"
-        "我可以直接做计算、单位换算、北京时间，以及校园用语的短翻译。"
-        "校园规定请直接问具体事项，或者说转人工。",
-        intent="boundary",
-        action="general_skill",
-        suggestions=list(_CHIPS[:3]) + [_CHIPS[-1]],
-        generator="skill",
-    )
-    return _maybe_llm(payload, target, [], "general", stream)
+    fallback = _no_model_chat(target)
+    return _maybe_llm(fallback, target, [], "general", stream, history)
 
 
 _CATALOG = (
