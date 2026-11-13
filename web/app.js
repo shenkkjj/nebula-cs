@@ -277,7 +277,7 @@
       <div class="empty-state">
         <div class="mark" aria-hidden="true">云</div>
         <h3>你好，我是校园助手</h3>
-        <p>按校园知识库回答办事问题，并标出依据。也能做计算、换算和校园用语短翻译。说不清的校规不会编，需要工作人员就转人工。</p>
+        <p>办事的口径我按知识库说，并标出处。闲聊、写东西、算题也可以。想说什么，直接打字就行。</p>
         <div class="empty-chips" role="group" aria-label="快捷提问">${chips}</div>
       </div>`;
     el.messages.querySelectorAll(".empty-chips .chip").forEach((btn) => {
@@ -800,6 +800,8 @@
           setStatus("已重新开始");
         } else if (data.agent_action === "safety") {
           setStatus("已隐去敏感信息 · 请不要发送证件号或病历");
+        } else if (data.intent === "needs_model") {
+          setStatus("开放聊天需要配置 DEEPSEEK_API_KEY");
         } else if (data.agent_action === "general_skill") {
           setStatus("已用本地能力回答 · 未引用校规");
         } else {
@@ -906,6 +908,8 @@
         setStatus("已重新开始");
       } else if (action === "safety") {
         setStatus("已隐去敏感信息 · 请不要发送证件号或病历");
+      } else if (finalPayload && finalPayload.intent === "needs_model") {
+        setStatus("开放聊天需要配置 DEEPSEEK_API_KEY");
       } else if (action === "general_skill" || action === "assistant_intro") {
         setStatus(action === "assistant_intro" ? "校园助手已就绪" : "已用本地能力回答 · 未引用校规");
       } else {

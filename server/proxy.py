@@ -927,13 +927,17 @@ class PortalHandler(SimpleHTTPRequestHandler):
             rewrite_meta = dict(rewrite_meta)
             rewrite_meta["dropped_conversation_id"] = True
         if LITE_MODE:
-            return self._handle_chat_lite(upstream, stream, rewrite_meta=rewrite_meta)
+            return self._handle_chat_lite(upstream, stream, rewrite_meta=rewrite_meta, history=_history)
         if stream:
             return self._handle_chat_stream(upstream, rewrite_meta=rewrite_meta)
         return self._handle_chat_blocking(upstream, rewrite_meta=rewrite_meta)
 
     def _handle_chat_lite(
-        self, upstream: dict, stream: bool, rewrite_meta: dict | None = None
+        self,
+        upstream: dict,
+        stream: bool,
+        rewrite_meta: dict | None = None,
+        history: list | None = None,
     ) -> None:
         query = (upstream.get("query") or "").strip()
         conversation_id = upstream.get("conversation_id") or ""
@@ -941,7 +945,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
         if not conversation_id:
             conversation_id = "lite-" + str(abs(hash(upstream.get("user") or "u")) % 10_000_000)
 
-        shaped = answer_lite(query, stream=stream)
+        shaped = answer_lite(query, stream=stream, history=history)
         shaped["conversation_id"] = conversation_id
         shaped["message_id"] = ""
         shaped["rewrite"] = rewrite_meta
@@ -977,7 +981,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             self._sse_write(start_ev)
             parts: list[str] = []
             got = False
-            for delta in iter_deepseek_stream(query, hits, mode=mode):
+            for delta in iter_deepseek_stream(query, hits, mode=mode, history=shaped.get("_history")):
                 got = True
                 parts.append(delta)
                 self._sse_write({"type": "delta", "text": delta})
