@@ -1,4 +1,4 @@
-# 星云客服 · PLAN（UI 落地 · 薄计划）
+# 校园客服 · PLAN（UI 落地 · 薄计划）
 
 > 版本：2026-11-07 23:12 Asia/Shanghai（CST）  
 > 前提：DESIGN E5 已确认；UX P2 已落地；用户「你自己看着弄吧」授权 Agent 最小升级  

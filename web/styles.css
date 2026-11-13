@@ -193,6 +193,21 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   border-color: var(--gold);
   background: rgba(184, 155, 94, 0.12);
 }
+.suggest-chips {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin-top: 8px; max-width: 100%;
+}
+.suggest-chips .chip {
+  font: inherit; font-size: 0.78rem; cursor: pointer; text-align: left;
+  background: rgba(184, 155, 94, 0.06);
+  color: var(--champagne);
+  border: 1px solid var(--gold-line);
+  padding: 0.4rem 0.8rem; border-radius: var(--radius-chip);
+}
+.suggest-chips .chip:hover {
+  border-color: var(--gold);
+  background: rgba(184, 155, 94, 0.12);
+}
 
 .msg { max-width: 88%; animation: rise .28s ease-out; }
 .msg.user { align-self: flex-end; }
@@ -482,6 +497,37 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   outline: none; border-color: var(--gold);
 }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.nav-modal { width: min(560px, 100%); }
+.nav-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.nav-cats .chip {
+  font: inherit; font-size: 0.78rem; cursor: pointer;
+  background: rgba(184, 155, 94, 0.06);
+  color: var(--champagne);
+  border: 1px solid var(--gold-line);
+  padding: 0.35rem 0.7rem; border-radius: var(--radius-chip);
+}
+.nav-cats .chip.active { border-color: var(--gold); background: rgba(184, 155, 94, 0.16); }
+.nav-list {
+  max-height: min(46vh, 360px); overflow: auto;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.nav-item {
+  font: inherit; text-align: left; cursor: pointer;
+  color: var(--text); background: transparent;
+  border: 1px solid var(--gold-line); border-radius: var(--radius-control);
+  padding: 0.55rem 0.75rem;
+}
+.nav-item:hover { border-color: var(--gold); }
+.nav-empty { margin: 8px 0; color: var(--mute); font-size: 0.84rem; }
+.bot-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.bot-tools .mini {
+  font: inherit; font-size: 0.75rem; cursor: pointer;
+  background: transparent; color: var(--champagne);
+  border: 1px solid var(--gold-line); border-radius: var(--radius-chip);
+  padding: 0.28rem 0.7rem;
+}
+.bot-tools .mini:hover { border-color: var(--gold); }
+.feedback-note { margin: 8px 0 0; font-size: 0.78rem; color: var(--mute); }
 .ticket-result {
   margin: 12px 0 0; padding: 10px 12px;
   border-radius: var(--radius-control);

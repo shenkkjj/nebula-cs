@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""星云客服门户 — 本地代理：托管静态页 + 转发 Dify Chat API（支持 SSE 流式）。
+"""校园客服门户 — 本地代理：托管静态页 + 转发 Dify Chat API（支持 SSE 流式）。
 
 也支持 LITE_MODE：无 Dify 容器，本地 FAQ 检索 + 可选 DeepSeek / 模板作答（适合 Render Free）。
 
@@ -18,6 +18,13 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Iterator
 from urllib.parse import urlparse
+
+from lite_skills import (
+    contains_sensitive,
+    redact_sensitive,
+    safety_payload,
+    ticket_sensitive_message,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB_DIR = ROOT / "web"
@@ -65,13 +72,10 @@ else:
 if LITE_MODE:
     from lite_engine import (  # noqa: E402
         answer_lite,
-        iter_deepseek_stream,
-        lite_prelude,
-        lite_ready,
-        retrieve,
-        template_answer,
-        citations_from,
         deepseek_api_key,
+        faq_catalog,
+        iter_deepseek_stream,
+        lite_ready,
     )
 
 THINK_RE = re.compile(
@@ -134,8 +138,13 @@ def looks_like_refuse(answer: str, citations: list | None = None) -> bool:
 
 
 HANDOFF_RE = re.compile(
-    r"(转\s*人工|人工\s*客服|人工\s*坐席|转接\s*人工|找\s*人工|联系\s*人工)"
+    r"(转\s*人工|人工\s*客服|人工\s*坐席|转接\s*人工|找\s*人工|联系\s*人工|有没有真人|找真人)"
 )
+ANGRY_RE = re.compile(
+    r"(我要投诉|投诉你们|我要反馈|太差了|服务太差|气死了|垃圾客服|找你们领导|找领导|受不了了|根本解决不了)"
+)
+_RESTART_RE = re.compile(r"^(重新开始|重新来过|换个话题|清空对话|开始新对话)[。.!！]?$")
+_BACK_RE = re.compile(r"^(返回上一个问题|回到上一个问题|上一个问题|返回上一题|回到刚才)[。.!！]?$")
 ORDER_RE = re.compile(
     r"(?:办事(?:单号|编号|进度)?|报修(?:单号|编号|进度)?|申请(?:单号|编号)?|"
     r"查一下(?:办事|报修|进度)|查询(?:办事(?:进度|单号|编号)?|报修(?:进度|单号)?|进度))"
@@ -144,10 +153,18 @@ ORDER_RE = re.compile(
     re.IGNORECASE,
 )
 ORDER_BARE_RE = re.compile(r"\b(SW\d{6,}|BX\d{6,}|JY\d{6,})\b", re.IGNORECASE)
-ANAPHORA_TOPIC_RE = re.compile(
-    r"^(?:那|那么|另外|还有)?\s*(.+?)\s*(?:呢|嘛|呢？|呢\?|吗|怎么样|如何)[？?！!。.]*$"
+_ASPECT_RULES = (
+    ("需要什么材料", re.compile(r"材料|要准备|要带")),
+    ("在哪里办理", re.compile(r"在哪|哪里|去哪|哪个窗口")),
+    ("需要多久", re.compile(r"多久|多长时间|几天|能下来|什么时候能|何时能")),
+    ("费用是多少", re.compile(r"多少钱|费用|收费")),
 )
-DEIXIS_RE = re.compile(r"(那|这个|那个|还有|另外|它|其|上述|刚才|上面)")
+_ASPECT_TOPIC_RE = re.compile(r"^(材料|多久|费用|哪里|时限|手续|流程|多久能下来|什么材料|怎么办)$")
+_FOLLOW_STRIP_RE = re.compile(
+    r"(那|么|这个|那个|请问|一下|多久|多长时间|几天|能下来|什么材料|哪些材料|要什么材料|"
+    r"需要什么材料|要准备|要带|在哪里办|在哪里|去哪|多少钱|费用|是多少|怎么|如何|办理|"
+    r"需要|什么|哪些|吗|呢|嘛|呀|啊|吧|的|了|请|帮我|想问|材料)"
+)
 
 # 演示用办事进度存根（无真实办件后台）。字段沿用本地查询结构。
 MOCK_ORDERS = {
@@ -184,104 +201,154 @@ def last_user_turns(history: list | None, limit: int = 4) -> list[str]:
     return turns[-limit:]
 
 
+def is_restart(query: str) -> bool:
+    return bool(_RESTART_RE.match((query or "").strip()))
+
+
+def is_back(query: str) -> bool:
+    return bool(_BACK_RE.match((query or "").strip()))
+
+
+def _aspect_phrase(query: str) -> str:
+    for label, pattern in _ASPECT_RULES:
+        if pattern.search(query or ""):
+            return label
+    return ""
+
+
+def is_followup_query(query: str) -> bool:
+    """Ellipsis such as 那多久能下来 / 要什么材料, not a fresh question."""
+    q = (query or "").strip()
+    if not q or len(q) > 22 or is_restart(q) or is_back(q):
+        return False
+    if re.match(r"^(?:那|那么|还有|另外|这个|那个)?\s*[\u4e00-\u9fffA-Za-z0-9]{1,12}\s*呢[？?]?$", q):
+        return True
+    if re.match(r"^(那|那么|这个|那个|还有|另外)", q) and len(q) <= 18:
+        return True
+    if not _aspect_phrase(q):
+        return False
+    stripped = _FOLLOW_STRIP_RE.sub("", q)
+    stripped = re.sub(r"[\s？?！!。.,，]", "", stripped)
+    return len(stripped) < 2
+
+
+def _switch_topic(query: str) -> str:
+    match = re.match(
+        r"^(?:那|那么|还有|另外|这个|那个)?\s*([\u4e00-\u9fffA-Za-z0-9]{1,12})\s*呢[？?]?$",
+        (query or "").strip(),
+    )
+    if not match:
+        return ""
+    topic = match.group(1).strip()
+    if _ASPECT_TOPIC_RE.match(topic) or _aspect_phrase(topic):
+        return ""
+    return topic
+
+
+def _substantive_users(history: list | None, current: str) -> list[str]:
+    kept = []
+    for text in last_user_turns(history, 8):
+        if text == current or "已隐去" in text:
+            continue
+        if is_restart(text) or is_back(text) or is_followup_query(text):
+            continue
+        kept.append(text)
+    return kept
+
+
 def needs_query_rewrite(query: str, history: list | None) -> bool:
     q = (query or "").strip()
     if not q or not history:
         return False
-    if len(q) > 48:
-        return False
-    if DEIXIS_RE.search(q):
-        return True
-    if len(q) <= 12 and q.endswith(("？", "?", "呢", "嘛", "吗")):
-        return True
-    # 极短追问且上一轮用户问较长
-    prev = last_user_turns(history, 1)
-    if prev and len(q) <= 10 and len(prev[-1]) >= 6:
-        return True
-    return False
-
-
-def _is_anaphoric_short(text: str) -> bool:
-    t = (text or "").strip()
-    if not t:
-        return True
-    if len(t) <= 12 and DEIXIS_RE.search(t):
-        return True
-    if re.match(r"^那.+呢[？?]?$", t):
-        return True
-    return False
+    return is_followup_query(q) or is_back(q)
 
 
 def rewrite_query_for_retrieval(query: str, history: list | None) -> tuple[str, dict | None]:
-    """多轮短指代 → 可检索的完整问句。规则改写，不额外调 LLM。"""
+    """Keep follow-ups on the previous campus intent. No extra model call."""
     q = (query or "").strip()
-    if not needs_query_rewrite(q, history):
+    if is_restart(q):
+        return q, {"original": q, "rewritten": q, "method": "restart"}
+    if not is_followup_query(q) and not is_back(q):
         return q, None
-
-    prev_users = [t for t in last_user_turns(history, 8) if t != q]
-    if not prev_users:
+    anchors = _substantive_users(history, q)
+    if is_back(q):
+        if not anchors:
+            return q, {"original": q, "rewritten": q, "method": "back", "missing": True}
+        target = anchors[-2] if len(anchors) >= 2 else anchors[-1]
+        return target, {
+            "original": q,
+            "rewritten": target,
+            "based_on": target[:80],
+            "method": "back",
+        }
+    if not anchors:
         return q, None
-    # 优先锚定最近一条「实质性」用户问题，跳过连续短指代
-    prev = ""
-    for t in reversed(prev_users):
-        if not _is_anaphoric_short(t):
-            prev = t
-            break
-    if not prev:
-        prev = prev_users[-1]
-
-    topic = ""
-    m = ANAPHORA_TOPIC_RE.match(q)
-    if m:
-        topic = re.sub(r"^(那|那么|这个|那个|还有|另外)\s*", "", m.group(1)).strip()
-        topic = topic.strip("的了吗呢嘛？?！!。.")
-    # 「那成绩单呢」类：抓出实体
-    if not topic:
-        m2 = re.match(r"^那\s*(.+?)(?:呢|嘛)?[？?！!。.]*$", q)
-        if m2:
-            topic = m2.group(1).strip()
-
-    # 根据上一问主题拼检索友好问句
-    focus = ""
-    if any(k in prev for k in ("证明", "成绩", "选课", "缓考", "学籍", "教务", "转专业", "辅修", "退课", "考试", "绩点", "四六级")):
-        focus = "教务办事"
-    elif any(k in prev for k in ("奖助", "助学", "贷款", "勤工", "奖学金", "困难补助", "绿色通道")):
-        focus = "奖助贷"
-    elif any(k in prev for k in ("图书馆", "借书", "续借", "研讨", "自习", "荐购", "还书")):
-        focus = "图书馆"
-    elif any(k in prev for k in ("宿舍", "报修", "门禁", "晚归", "调宿", "留校", "水电", "空调")):
-        focus = "宿舍后勤"
-    elif any(k in prev for k in ("校园网", "认证", "VPN", "无线", "有线", "eduroam")):
-        focus = "校园网"
-    elif any(k in prev for k in ("校园卡", "一卡通", "充值", "挂失", "补办", "圈存")):
-        focus = "校园卡"
-    elif any(k in prev for k in ("校医院", "医务", "心理", "挂号", "医保")):
-        focus = "医务心理"
-    elif any(k in prev for k in ("教室", "借用", "空闲教室")):
-        focus = "教室借用"
-    elif any(k in prev for k in ("假期", "寒暑", "节假日", "作息", "食堂")):
-        focus = "假期作息"
-    elif any(k in prev for k in ("办事", "进度", "一网通办", "催办", "补正")):
-        focus = "办事大厅"
-
-    if topic and focus:
-        rewritten = f"{topic}的{focus}政策是怎样的？{topic}{focus}多久？"
-    elif topic:
-        rewritten = f"关于「{prev}」中的{topic}，请说明相关政策与细节"
-    else:
-        rewritten = f"承接上一问「{prev}」，请回答：{q}"
-
-    meta = {
+    prev = anchors[-1]
+    switched = _switch_topic(q)
+    if switched and switched not in prev:
+        return switched, {
+            "original": q,
+            "rewritten": switched,
+            "based_on": prev[:80],
+            "method": "topic-switch",
+        }
+    aspect = _aspect_phrase(q) or "请补充说明"
+    rewritten = f"{prev} {aspect}"
+    return rewritten, {
         "original": q,
         "rewritten": rewritten,
         "based_on": prev[:80],
-        "method": "proxy-rule",
+        "method": "follow-up",
     }
-    return rewritten, meta
 
 
 def is_handoff_intent(query: str) -> bool:
-    return bool(HANDOFF_RE.search(query or ""))
+    q = query or ""
+    if re.search(r"(什么情况|什么时候|何时|如何|怎么|哪些|要不要|是否).{0,12}转\s*人工", q):
+        return False
+    if re.search(r"转\s*人工.{0,8}(什么|哪些|条件|情况)", q):
+        return False
+    if HANDOFF_RE.search(q) or ANGRY_RE.search(q):
+        return True
+    return False
+
+
+def classify_portal_intent(query: str) -> str:
+    """Intent gate before any FAQ lookup: safety, restart, handoff, ticket, then lite."""
+    if contains_sensitive(query):
+        return "safety"
+    if is_restart(query):
+        return "restart"
+    if is_handoff_intent(query):
+        return "handoff"
+    if lookup_mock_order(query) is not None:
+        return "ticket"
+    if is_back(query):
+        return "back"
+    return "lite"
+
+
+def _public_shaped(shaped: dict) -> dict:
+    return {key: value for key, value in shaped.items() if not str(key).startswith("_")}
+
+
+def safety_shaped(query: str) -> dict:
+    spec = safety_payload(redact_sensitive(query))
+    return {
+        "answer": spec["answer"],
+        "citations": [],
+        "refuse": False,
+        "clarify": False,
+        "suggestions": list(spec["suggestions"]),
+        "sensitive": True,
+        "redacted_query": spec["redacted_query"],
+        "agent_action": "safety",
+        "intent": "safety",
+        "engine": "lite" if LITE_MODE else "proxy",
+        "generator": "safety",
+        "handoff": False,
+        "streamed": False,
+    }
 
 
 def make_ticket_id(*parts: str) -> str:
@@ -292,11 +359,11 @@ def make_ticket_id(*parts: str) -> str:
 def handoff_payload(query: str, user: str, detail: str = "") -> dict:
     ticket_id = make_ticket_id(query, user, detail, "handoff")
     answer = (
-        "好的，已为您转接人工坐席（演示）。\n\n"
+        "好的，已为你转接人工（演示）。说一下事项即可，不必填写身份证号、银行卡或病历。\n\n"
         f"- 演示工单号：**{ticket_id}**\n"
         "- 状态：**已受理（本地存根）**\n"
-        "- 说明：当前环境未对接真实坐席队列；工单仅保存在本机回执中，便于课程演示。\n\n"
-        "如需补充办事单号、学号或联系方式，请点击「转人工」填写工单，或直接在对话中说明。"
+        "- 说明：当前环境未对接真实坐席队列；工单只留在这次演示回执里。\n\n"
+        "可以点「转人工」补一句联系方式，或继续在对话里说明。"
     )
     return {
         "answer": answer,
@@ -311,15 +378,26 @@ def handoff_payload(query: str, user: str, detail: str = "") -> dict:
     }
 
 
+_ORDER_SUGGESTIONS = (
+    {"label": "和一网通办的区别", "query": "一网通办「我的申请」和对话里查进度有何区别？"},
+    {"label": "转人工", "query": "转人工"},
+)
+_DEMO_NOTE = "这是演示查单，不是一网通办里的真实进度。真实办件请以一网通办「我的申请」为准。"
+
+
 def lookup_mock_order(query: str) -> dict | None:
+    text = query or ""
     oid = None
-    m = ORDER_RE.search(query or "")
-    if m:
-        oid = m.group(1)
+    matched = ORDER_RE.search(text)
+    if matched:
+        oid = matched.group(1)
     else:
-        m2 = ORDER_BARE_RE.search(query or "")
-        if m2 and any(k in (query or "") for k in ("办事", "报修", "进度", "申请", "查询", "教务", "宿舍", "校园网")):
-            oid = m2.group(1)
+        bare = ORDER_BARE_RE.search(text)
+        if bare:
+            compact = re.sub(r"[\s？?！!。.,，]", "", text)
+            keywords = ("办事", "报修", "进度", "申请", "查询", "教务", "宿舍", "校园网", "查单", "查一下")
+            if compact.upper() == bare.group(1).upper() or any(word in text for word in keywords) or len(text) <= 24:
+                oid = bare.group(1)
     if not oid:
         return None
     key = oid.upper().replace("_", "-")
@@ -345,11 +423,12 @@ def lookup_mock_order(query: str) -> dict | None:
         ticket_id = make_ticket_id(oid, "order-miss")
         return {
             "answer": (
-                f"未在演示办事库中找到 **{oid}**。\n\n"
+                f"未在演示办事库中找到 **{oid}**。{_DEMO_NOTE}\n\n"
                 "可试：`SW20260001` / `BX20260118` / `JY20260302`。\n"
-                f"若需真人核实，可转人工（演示工单可登记为 {ticket_id}）。"
+                f"若要工作人员核实，可以说转人工（演示工单可登记为 {ticket_id}）。"
             ),
             "citations": [],
+            "suggestions": list(_ORDER_SUGGESTIONS),
             "conversation_id": "",
             "message_id": "",
             "refuse": False,
@@ -361,14 +440,15 @@ def lookup_mock_order(query: str) -> dict | None:
         }
     return {
         "answer": (
-            f"已查询演示办事单 **{key}**（本地存根，非真实办件系统）：\n\n"
+            f"已查到演示单 **{key}**。{_DEMO_NOTE}\n\n"
             f"- 事项：{info['items']}\n"
             f"- 状态：**{info['status']}**\n"
             f"- 经办：{info['office']}\n"
             f"- 时效：{info['eta']}\n\n"
-            "如需催办、补充材料或撤销，请转人工坐席处理。"
+            "催办、补材料或撤销需要工作人员，可以说转人工。"
         ),
         "citations": [],
+        "suggestions": list(_ORDER_SUGGESTIONS),
         "conversation_id": "",
         "message_id": "",
         "refuse": False,
@@ -524,6 +604,12 @@ class PortalHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if raw in ("/api/faq-nav", "/api/faq-nav/"):
+            if not LITE_MODE:
+                self._json_error(404, "办事导航只在轻量模式提供")
+                return
+            self._json_response(200, faq_catalog())
+            return
         if raw.startswith("/api/"):
             self._json_error(404, "unknown endpoint")
             return
@@ -609,6 +695,10 @@ class PortalHandler(SimpleHTTPRequestHandler):
         subject = (data.get("subject") or "").strip() or "未填写主题"
         detail = (data.get("detail") or "").strip()
         contact = (data.get("contact") or "").strip()
+        blocked = ticket_sensitive_message(subject, detail, contact)
+        if blocked:
+            self._json_response(400, {"ok": False, "message": blocked})
+            return
         ticket_id = "TK" + str(abs(hash(subject + detail + contact)) % 10_000_000).zfill(7)
         self._json_response(
             200,
@@ -704,8 +794,34 @@ class PortalHandler(SimpleHTTPRequestHandler):
         history = data.get("history") or data.get("recent_turns") or []
         if not isinstance(history, list):
             history = []
-        # 仅保留最近若干轮，防滥用
+        # 仅保留最近若干轮，防滥用。历史里的证件号先抹掉，避免追问把它们拼回去。
         history = history[-12:]
+        safe_history = []
+        for item in history:
+            if isinstance(item, dict):
+                copied = dict(item)
+                for field in ("text", "content", "query"):
+                    if copied.get(field):
+                        copied[field] = redact_sensitive(str(copied.get(field) or ""))
+                safe_history.append(copied)
+            else:
+                safe_history.append(item)
+        history = safe_history
+
+        if contains_sensitive(query):
+            redacted = redact_sensitive(query)
+            upstream = {
+                "inputs": {},
+                "query": redacted,
+                "response_mode": "streaming" if stream else "blocking",
+                "user": user,
+                "_original_query": redacted,
+                "_rewrite": None,
+                "_sensitive": True,
+            }
+            if conversation_id:
+                upstream["conversation_id"] = conversation_id
+            return upstream, stream, history, redacted
 
         # Agent 层：查询改写（短指代 → 可检索问句）；上游仍走 Dify KR
         rewritten, rewrite_meta = rewrite_query_for_retrieval(query, history)
@@ -762,22 +878,48 @@ class PortalHandler(SimpleHTTPRequestHandler):
         if parsed is None:
             return
         upstream, stream, _history, original_query = parsed
+        conversation_id = upstream.get("conversation_id") or ""
+        kind = classify_portal_intent(original_query)
 
-        # 1) 转人工意图 — 不调引擎
-        if is_handoff_intent(original_query):
-            shaped = handoff_payload(original_query, upstream.get("user") or "nebula-portal")
-            shaped["conversation_id"] = upstream.get("conversation_id") or ""
+        # 证件号 / 病历：不进检索，也不进工单。
+        if kind == "safety":
+            shaped = safety_shaped(original_query)
+            shaped["conversation_id"] = conversation_id
             return self._emit_local_agent_reply(shaped, stream)
 
-        # 2) 演示办事进度查询存根
-        order = lookup_mock_order(original_query)
-        if order is not None:
-            order["conversation_id"] = upstream.get("conversation_id") or ""
+        if kind == "restart":
+            if LITE_MODE:
+                shaped = answer_lite(original_query)
+            else:
+                shaped = {
+                    "answer": "好，我们重新开始。请直接说出新的问题。",
+                    "citations": [],
+                    "refuse": False,
+                    "agent_action": "restart",
+                    "intent": "restart",
+                    "engine": "proxy",
+                    "generator": "intro",
+                    "streamed": False,
+                }
+            shaped["conversation_id"] = ""
+            return self._emit_local_agent_reply(shaped, stream)
+
+        # 转人工是独立出口，不拿去检索。
+        if kind == "handoff":
+            shaped = handoff_payload(original_query, upstream.get("user") or "nebula-portal")
+            shaped["conversation_id"] = conversation_id
+            return self._emit_local_agent_reply(shaped, stream)
+
+        # 演示查单，和知识库问答分开。
+        if kind == "ticket":
+            order = lookup_mock_order(original_query) or {}
+            order["conversation_id"] = conversation_id
             return self._emit_local_agent_reply(order, stream)
 
-        # 3) Lite FAQ / DeepSeek，或 Dify
+        # Lite FAQ / DeepSeek，或 Dify
         rewrite_meta = upstream.pop("_rewrite", None)
         upstream.pop("_original_query", None)
+        upstream.pop("_sensitive", None)
         # 短指代改写后去掉 conversation_id：部分 Chatflow 多轮下 KR 上下文会空，
         # 导致「有改写仍拒答」。改写句已自含上文主题，单轮检索更稳。
         if rewrite_meta and upstream.get("conversation_id"):
@@ -799,26 +941,22 @@ class PortalHandler(SimpleHTTPRequestHandler):
         if not conversation_id:
             conversation_id = "lite-" + str(abs(hash(upstream.get("user") or "u")) % 10_000_000)
 
-        # Greetings and hard off-topic are decided before retrieval. The UI
-        # defaults to SSE, so this must run on the streaming path too.
-        early = lite_prelude(query)
-        if early is not None:
-            early["conversation_id"] = conversation_id
-            early["message_id"] = ""
-            early["rewrite"] = rewrite_meta
-            return self._emit_local_agent_reply(early, stream)
-
+        shaped = answer_lite(query, stream=stream)
+        shaped["conversation_id"] = conversation_id
+        shaped["message_id"] = ""
+        shaped["rewrite"] = rewrite_meta
+        hits = shaped.get("_hits") or []
+        mode = shaped.get("_deepseek_mode") or "faq"
+        if stream and shaped.get("generator") == "deepseek_pending" and deepseek_api_key():
+            return self._stream_lite_deepseek(shaped, hits, mode, query)
+        public = _public_shaped(shaped)
         if not stream:
-            shaped = answer_lite(query, stream=False)
-            shaped["conversation_id"] = conversation_id
-            shaped["message_id"] = ""
-            shaped["rewrite"] = rewrite_meta
-            self._json_response(200, shaped)
+            self._json_response(200, public)
             return
+        self._emit_local_agent_reply(public, True)
 
-        # Streaming path: DeepSeek SSE if key+hits, else chunked template.
-        hits = retrieve(query)
-        citations = citations_from(hits)
+    def _stream_lite_deepseek(self, shaped: dict, hits: list, mode: str, query: str) -> None:
+        """Optional DeepSeek SSE. Local answer stays the fallback if the stream is empty."""
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -828,63 +966,46 @@ class PortalHandler(SimpleHTTPRequestHandler):
         try:
             start_ev = {
                 "type": "start",
-                "conversation_id": conversation_id,
+                "conversation_id": shaped.get("conversation_id") or "",
                 "message_id": "",
                 "task_id": "",
-                "agent_action": "knowledge_qa",
+                "agent_action": shaped.get("agent_action") or "knowledge_qa",
                 "engine": "lite",
             }
-            if rewrite_meta:
-                start_ev["rewrite"] = rewrite_meta
+            if shaped.get("rewrite"):
+                start_ev["rewrite"] = shaped["rewrite"]
             self._sse_write(start_ev)
-
-            answer_parts: list[str] = []
-            generator = "template"
-            if hits and deepseek_api_key():
-                got = False
-                for delta in iter_deepseek_stream(query, hits):
-                    got = True
-                    answer_parts.append(delta)
-                    self._sse_write({"type": "delta", "text": delta})
-                if got:
-                    generator = "deepseek"
+            parts: list[str] = []
+            got = False
+            for delta in iter_deepseek_stream(query, hits, mode=mode):
+                got = True
+                parts.append(delta)
+                self._sse_write({"type": "delta", "text": delta})
+            citations = shaped.get("citations") or []
+            if got:
+                answer = clean_answer("".join(parts).strip())
+                if looks_like_refuse(answer, citations):
+                    answer = shaped.get("answer") or answer
+                    generator = shaped.get("generator") if shaped.get("generator") != "deepseek_pending" else "template"
                 else:
-                    # Fallback if stream failed mid-flight / empty
-                    shaped = answer_lite(query, stream=False)
-                    answer = shaped.get("answer") or ""
-                    generator = shaped.get("generator") or "template"
-                    citations = shaped.get("citations") or citations
-                    step = 48
-                    for i in range(0, len(answer), step):
-                        piece = answer[i : i + step]
-                        answer_parts.append(piece)
-                        self._sse_write({"type": "delta", "text": piece})
+                    generator = "deepseek"
             else:
-                answer = template_answer(query, hits)
+                answer = shaped.get("answer") or ""
+                generator = "template" if mode == "faq" else (shaped.get("generator") or "skill")
                 step = 48
                 for i in range(0, len(answer), step):
-                    piece = answer[i : i + step]
-                    answer_parts.append(piece)
-                    self._sse_write({"type": "delta", "text": piece})
-
-            answer = clean_answer("".join(answer_parts).strip())
-            refuse = looks_like_refuse(answer, citations)
-            if not hits:
-                refuse = True
-            done = {
-                "type": "done",
-                "answer": answer,
-                "citations": citations,
-                "conversation_id": conversation_id,
-                "message_id": "",
-                "task_id": "",
-                "refuse": refuse,
-                "streamed": True,
-                "rewrite": rewrite_meta,
-                "agent_action": "knowledge_qa",
-                "engine": "lite",
-                "generator": generator if hits else "refuse",
-            }
+                    self._sse_write({"type": "delta", "text": answer[i : i + step]})
+            done = _public_shaped(shaped)
+            done.update(
+                {
+                    "type": "done",
+                    "answer": answer,
+                    "citations": citations,
+                    "refuse": bool(shaped.get("refuse")),
+                    "streamed": True,
+                    "generator": generator,
+                }
+            )
             self._sse_write(done)
         except (BrokenPipeError, ConnectionResetError):
             return
@@ -1122,7 +1243,7 @@ def main() -> None:
     key = load_api_key()
     PortalHandler.api_key = key
     server = ThreadingHTTPServer((HOST, PORT), PortalHandler)
-    print(f"星云客服门户已启动 → http://{HOST}:{PORT}/", flush=True)
+    print(f"校园客服门户已启动 → http://{HOST}:{PORT}/", flush=True)
     print(f"静态资源：{WEB_DIR}", flush=True)
     if LITE_MODE:
         info = lite_ready()

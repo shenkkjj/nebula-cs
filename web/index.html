@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>星云客服 · 校园私有知识库智能客服</title>
-  <meta name="description" content="星云客服助手 · 夜间贵宾席 E5 · 校园办事私有知识库智能客服（沈凯杰、王瑞康）" />
+  <title>校园客服 · 私有知识库智能客服</title>
+  <meta name="description" content="校园助手 · 虚构星云大学办事知识库 · 夜间贵宾席 E5（沈凯杰、王瑞康）" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -15,11 +15,13 @@
   <div class="frame">
     <header class="top">
       <div class="brand">
-        <h1>星云客服</h1>
-        <p>智能客服助手 · 校园办事 · 私有知识库<br />沈凯杰、王瑞康</p>
+        <h1>校园客服</h1>
+        <p>校园助手 · 虚构星云大学 · 私有知识库<br />沈凯杰、王瑞康</p>
       </div>
       <div class="top-actions">
         <span class="meta" id="onlinePill">助手在线</span>
+        <button type="button" class="ghost" id="btnNav">办事导航</button>
+        <button type="button" class="ghost" id="btnExport">导出记录</button>
         <button type="button" class="ghost" id="btnNewChat">新对话</button>
         <button type="button" class="ghost" id="btnTicketTop">转人工</button>
       </div>
@@ -35,7 +37,7 @@
             id="queryInput"
             rows="1"
             maxlength="2000"
-            placeholder="轻声提问：在读证明、助学贷款、教室借用，或说「转人工」…"
+            placeholder="在读证明、算一道题、查 SW20260001，或说「转人工」…"
             autocomplete="off"
           ></textarea>
           <button type="button" class="stop-btn" id="btnStop" hidden>停止生成</button>
@@ -61,19 +63,32 @@
 
   <button type="button" class="linkish" id="btnToggleFaq" hidden>问题列表</button>
 
+  <div class="modal-backdrop" id="navModal" hidden>
+    <div class="modal nav-modal" role="dialog" aria-modal="true" aria-labelledby="navTitle">
+      <header>
+        <h3 id="navTitle">办事导航</h3>
+        <button type="button" class="icon-btn" id="btnCloseNav" aria-label="关闭">×</button>
+      </header>
+      <p class="modal-desc">按现有知识库标题浏览。点一条就按该问法检索，不会新增校规。</p>
+      <input id="navSearch" type="search" placeholder="搜索证明、宿舍、校园网…" autocomplete="off" />
+      <div class="nav-cats" id="navCats" role="group" aria-label="办事分类"></div>
+      <div class="nav-list" id="navList" role="list"></div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="ticketModal" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ticketTitle">
       <header>
         <h3 id="ticketTitle">转人工坐席</h3>
         <button type="button" class="icon-btn" id="btnCloseTicket" aria-label="关闭">×</button>
       </header>
-      <p class="modal-desc">智能客服助手将为您登记演示工单（本地存根，不会真正派单）。也可在对话中直接说「转人工」。</p>
+      <p class="modal-desc">登记一条演示工单（本地存根，不会真正派单）。请不要填写身份证号、银行卡号或病历。也可以在对话里直接说「转人工」。</p>
       <form id="ticketForm">
         <label>主题
           <input type="text" name="subject" required maxlength="80" placeholder="例如：在读证明领取时间" />
         </label>
         <label>问题描述
-          <textarea name="detail" rows="4" maxlength="800" placeholder="补充办事单号、学号或现象…"></textarea>
+          <textarea name="detail" rows="4" maxlength="800" placeholder="补充办事单号或现象，不要贴证件号和病历"></textarea>
         </label>
         <label>联系方式（选填）
           <input type="text" name="contact" maxlength="80" placeholder="手机 / 邮箱" />
