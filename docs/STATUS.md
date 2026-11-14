@@ -10,20 +10,20 @@
 - `pace`: `standard`
 - `pending_review`: `false`
 - `agent_scope`: 用户 2026-11-14 指示「你只用做流程的前三个阶段」。本 Agent 只做 grill / design / plan，PLAN 整版确认后停止。
-- `next_action`: 写 PLAN.md，确定技术栈、依赖、阶段与验收，请用户整版确认后交付。
+- `next_action`: 请用户整版确认 PLAN v1.0，确认后本 Agent 工作结束，交付 PRD + DESIGN + PLAN 给你们实施。
 
 ## 2. 已确认基准与待决项
 
 - 已确认基准：PRD v1.0（2026-11-14 整版确认）｜DESIGN v1.0（2026-11-14 整版确认，涵盖门户三新状态 + S1 坐席与后台）
 - 待用户决定 / 原问题：PLAN v1.0 整版确认
-- 候选位置：`docs/PLAN.md`（待写）
+- 候选位置：`docs/PLAN.md`
 - 活动操作 / 证据：无运行中的进程
 
 ## 3. 文档同步（`docs_sync`）
 
-- 版本与范围：PRD v1.0（已确认）；DESIGN v1.0（待确认，涵盖门户新状态 + S1 坐席与后台）；PLAN 旧版 P1–P3（作废，待新计划取代）
+- 版本与范围：PRD v1.0（已确认）；DESIGN v1.0（已确认）；PLAN v1.0（待确认，7 阶段 T1-T7）
 - 未同步项：README 仍描述旧版
-- 更新时间：2026-11-14 22:30
+- 更新时间：2026-11-14 23:15
 
 ## 历史
 
