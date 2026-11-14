@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>管理后台 · 校园客服</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/staff.css" />
+</head>
+<body class="desk-page">
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <div class="admin" id="main">
+    <aside class="rail" aria-label="后台导航">
+      <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role">管理后台</span></div>
+      <nav>
+        <a class="item" href="#docs" data-nav="docs">知识库文档</a>
+        <a class="item" href="#probe" data-nav="probe">绑定自检</a>
+        <a class="item" href="#audit" data-nav="audit">审计日志</a>
+        <a class="item" href="#config" data-nav="config">约束参数</a>
+        <a class="item" href="#eval" data-nav="eval">评测</a>
+      </nav>
+      <div class="rail-foot">
+        <span class="who" id="who">管理员</span>
+        <button type="button" class="btn btn-quiet btn-sm" id="btnLogout">退出</button>
+      </div>
+    </aside>
+    <div class="admin-main">
+      <section data-page="docs">
+        <div class="page-head"><div><h1 class="page-title">知识库文档</h1><p class="page-sub" id="docsHint"></p></div></div>
+        <form id="uploadForm" class="filters">
+          <label class="field grow"><span>上传 md / txt / pdf / docx，单个 ≤ 15MB</span><input class="input" type="file" name="file" accept=".md,.txt,.pdf,.docx" required /></label>
+          <button class="btn btn-solid" type="submit">上传</button>
+        </form>
+        <p class="form-status" id="uploadStatus" hidden></p>
+        <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>文档</th><th>来源</th><th>索引</th><th></th></tr></thead><tbody id="docsBody"></tbody></table></div></div>
+      </section>
+      <section data-page="probe" hidden>
+        <div class="page-head"><div><h1 class="page-title">绑定自检</h1><p class="page-sub">启动时、每 10 分钟，以及你点「立即自检」。</p></div><button type="button" class="btn btn-solid" id="btnProbe">立即自检</button></div>
+        <div class="panel" id="probeBox"><p class="empty">还没有自检记录。</p></div>
+      </section>
+      <section data-page="audit" hidden>
+        <div class="page-head"><div><h1 class="page-title">审计日志</h1><p class="page-sub">问题里的手机号和证件号已打码。</p></div><a class="btn btn-ghost" id="auditExport" href="/api/admin/audit.csv">导出 CSV</a></div>
+        <form class="filters" id="auditFilters">
+          <label class="field"><span>类型</span><select class="select" name="kind"><option>全部</option><option>问答</option><option>后台操作</option></select></label>
+          <label class="field"><span>判定</span><input class="input" name="decision" placeholder="通过、拒答、转人工" /></label>
+          <label class="field grow"><span>搜索</span><input class="input" name="q" type="search" /></label>
+          <button class="btn btn-ghost" type="submit">筛选</button>
+        </form>
+        <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th></th><th>时间</th><th>会话</th><th>问题</th><th>判定</th><th>来源</th><th class="num">耗时</th></tr></thead><tbody id="auditBody"></tbody></table></div></div>
+      </section>
+      <section data-page="config" hidden>
+        <div class="page-head"><div><h1 class="page-title">约束参数</h1><p class="page-sub" id="configNote"></p></div></div>
+        <form class="panel" id="configForm" style="padding:20px; display:grid; gap:12px; max-width:640px">
+          <label class="field"><span>引用相关度阈值（0–1）</span><input class="input" name="score_threshold" type="number" min="0" max="1" step="0.01" required /></label>
+          <label class="field"><span>最多显示几条引用</span><input class="input" name="max_citations" type="number" min="1" max="8" step="1" required /></label>
+          <label class="field"><span>拒答文案</span><textarea class="textarea" name="refusal_text" rows="3" maxlength="400" required></textarea></label>
+          <label class="field"><span>探针问题</span><input class="input" name="probe_question" maxlength="200" required /></label>
+          <label class="field"><span>探针应包含的文字</span><input class="input" name="probe_expect" maxlength="80" required /></label>
+          <label><input type="checkbox" name="auto_ticket_on_refusal" /> 拒答后自动建工单</label>
+          <div class="form-actions"><button class="btn btn-solid" type="submit">保存</button></div>
+          <p class="form-status" id="configStatus" hidden></p>
+        </form>
+      </section>
+      <section data-page="eval" hidden>
+        <div class="page-head">
+          <div><h1 class="page-title">评测</h1><p class="page-sub">只显示这次环境里真正跑出来的数字。没有跑过的组保持空白。</p></div>
+          <div class="top-actions">
+            <label class="sr-only" for="evalSet">数据集</label>
+            <select class="select" id="evalSet"></select>
+            <label class="sr-only" for="evalGroup">对照组</label>
+            <select class="select" id="evalGroup"><option value="A">A 改造前规则引擎</option><option value="B">B Dify 直出</option><option value="C">C 本系统</option></select>
+            <button type="button" class="btn btn-solid" id="btnEval">运行评测</button>
+          </div>
+        </div>
+        <p class="form-status" id="evalStatus" hidden></p>
+        <div class="panel" id="evalTable"><p class="empty">还没有实测结果。</p></div>
+        <div class="table-foot" id="evalExport" hidden></div>
+      </section>
+    </div>
+  </div>
+  <script src="/admin.js"></script>
+</body>
+</html>

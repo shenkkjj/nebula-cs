@@ -1,3 +1,5 @@
+> 2026-11-14：这是旧的 Render Free 轻量说明，不是这次 Dify 改造的主线。主线在本机，见 README「本机启动」。不要据此改线上服务。
+
 # Deploy 校园客服（Lite）to Render Free — no card
 
 ## Why lite?

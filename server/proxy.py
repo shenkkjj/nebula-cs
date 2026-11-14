@@ -12,6 +12,8 @@ import json
 import os
 import re
 import sys
+import threading
+import time
 import urllib.error
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -19,6 +21,17 @@ from pathlib import Path
 from typing import Iterator
 from urllib.parse import urlparse
 
+import http_api
+from dify_client import DifyClient
+from gateway import iter_events, run_probe
+from lite_engine import (
+    answer_lite,
+    deepseek_api_key,
+    faq_catalog,
+    iter_deepseek_stream,
+    lite_ready,
+)
+from settings import load_config
 from lite_skills import (
     contains_sensitive,
     redact_sensitive,
@@ -66,17 +79,9 @@ if os.environ.get("PORT"):
     HOST = os.environ.get("PORTAL_HOST", "0.0.0.0")
     PORT = int(os.environ["PORT"])
 else:
-    HOST = os.environ.get("PORTAL_HOST", "127.0.0.1" if not LITE_MODE else "0.0.0.0")
-    PORT = int(os.environ.get("PORTAL_PORT", "8787"))
-
-if LITE_MODE:
-    from lite_engine import (  # noqa: E402
-        answer_lite,
-        deepseek_api_key,
-        faq_catalog,
-        iter_deepseek_stream,
-        lite_ready,
-    )
+    # Gateway mode listens on localhost:8080. Lite / Render keeps the old port.
+    HOST = os.environ.get("PORTAL_HOST", "0.0.0.0" if LITE_MODE else "127.0.0.1")
+    PORT = int(os.environ.get("PORTAL_PORT", "8787" if LITE_MODE else "8080"))
 
 THINK_RE = re.compile(
     r"<think>.*?</think>|<!--dify-deepseek-reasoning-->",
@@ -85,18 +90,21 @@ THINK_RE = re.compile(
 
 
 def load_api_key() -> str:
-    if LITE_MODE:
-        return ""
     key = (os.environ.get("DIFY_APP_API_KEY") or "").strip()
     if key:
         return key
     key_file = Path(os.environ.get("DIFY_APP_API_KEY_FILE", str(DEFAULT_KEY_FILE)))
     if key_file.is_file():
-        return key_file.read_text(encoding="utf-8").strip()
-    raise SystemExit(
-        f"缺少应用 API Key：请设置 DIFY_APP_API_KEY 或写入 {key_file}；"
-        f"或设置 LITE_MODE=1 使用本地 FAQ 轻量模式"
+        text = key_file.read_text(encoding="utf-8").strip()
+        if text:
+            return text
+    if use_lite_mode():
+        return ""
+    print(
+        "警告：未配置 DIFY_APP_API_KEY。办事问答会进入知识库维护，直到配置密钥并自检通过。",
+        flush=True,
     )
+    return ""
 
 
 def clean_answer(text: str) -> str:
@@ -566,6 +574,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
         sys.stderr.write("[%s] %s\n" % (self.log_date_time_string(), fmt % args))
 
     def end_headers(self) -> None:
+        for cookie in getattr(self, "_set_cookies", []) or []:
+            self.send_header("Set-Cookie", cookie)
+        self._set_cookies = []
         if self.path.startswith("/api/"):
             self.send_header("Cache-Control", "no-store")
         else:
@@ -582,6 +593,14 @@ class PortalHandler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:
         raw = self.path.split("?", 1)[0]
         if raw in ("/api/health", "/api/health/"):
+            if not use_lite_mode():
+                body = json.dumps(http_api.health_payload(), ensure_ascii=False).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             features = ["query_rewrite", "human_handoff", "order_stub"]
             payload = {
                 "ok": True,
@@ -592,7 +611,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 "features": features + (["lite_faq", "deepseek_optional", "assistant_intro"] if LITE_MODE else []),
                 "lite_mode": LITE_MODE,
             }
-            if LITE_MODE:
+            if use_lite_mode():
                 try:
                     payload["lite"] = lite_ready()
                 except Exception as exc:  # noqa: BLE001
@@ -605,13 +624,14 @@ class PortalHandler(SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
         if raw in ("/api/faq-nav", "/api/faq-nav/"):
-            if not LITE_MODE:
-                self._json_error(404, "办事导航只在轻量模式提供")
-                return
             self._json_response(200, faq_catalog())
+            return
+        if http_api.try_get(self, raw):
             return
         if raw.startswith("/api/"):
             self._json_error(404, "unknown endpoint")
+            return
+        if http_api.page_guard(self, raw):
             return
         if raw == "/design" or raw.startswith("/design/"):
             return self._serve_design(raw)
@@ -653,13 +673,21 @@ class PortalHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self) -> None:
-        path = self.path.rstrip("/")
+        path = self.path.split("?", 1)[0].rstrip("/")
+        if http_api.try_post(self, path):
+            return
         if path == "/api/chat":
             return self._handle_chat()
         if path == "/api/chat/stop":
             return self._handle_stop()
         if path == "/api/ticket":
             return self._handle_ticket()
+        self._json_error(404, "unknown endpoint")
+
+    def do_DELETE(self) -> None:
+        path = self.path.split("?", 1)[0].rstrip("/")
+        if http_api.try_delete(self, path):
+            return
         self._json_error(404, "unknown endpoint")
 
     def _read_json(self) -> dict:
@@ -699,6 +727,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
         if blocked:
             self._json_response(400, {"ok": False, "message": blocked})
             return
+        if not use_lite_mode():
+            portal_session = str(data.get("portal_session") or "")[:80]
+            return http_api.create_portal_ticket(self, subject, detail, contact, portal_session)
         ticket_id = "TK" + str(abs(hash(subject + detail + contact)) % 10_000_000).zfill(7)
         self._json_response(
             200,
@@ -717,7 +748,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             return
         task_id = (data.get("task_id") or "").strip()
         user = (data.get("user") or "nebula-portal").strip()[:64] or "nebula-portal"
-        if LITE_MODE:
+        if use_lite_mode():
             # Lite has no upstream task; client aborts locally.
             self._json_response(
                 200, {"ok": True, "stopped": True, "lite": True, "task_id": task_id}
@@ -874,6 +905,8 @@ class PortalHandler(SimpleHTTPRequestHandler):
             return
 
     def _handle_chat(self) -> None:
+        if not use_lite_mode():
+            return self._handle_chat_gateway()
         parsed = self._parse_chat_request()
         if parsed is None:
             return
@@ -888,7 +921,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             return self._emit_local_agent_reply(shaped, stream)
 
         if kind == "restart":
-            if LITE_MODE:
+            if use_lite_mode():
                 shaped = answer_lite(original_query)
             else:
                 shaped = {
@@ -926,7 +959,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             upstream.pop("conversation_id", None)
             rewrite_meta = dict(rewrite_meta)
             rewrite_meta["dropped_conversation_id"] = True
-        if LITE_MODE:
+        if use_lite_mode():
             return self._handle_chat_lite(upstream, stream, rewrite_meta=rewrite_meta, history=_history)
         if stream:
             return self._handle_chat_stream(upstream, rewrite_meta=rewrite_meta)
@@ -958,6 +991,52 @@ class PortalHandler(SimpleHTTPRequestHandler):
             self._json_response(200, public)
             return
         self._emit_local_agent_reply(public, True)
+
+    def _handle_chat_gateway(self) -> None:
+        """Dify plus the constraint layer. The rules engine is not on this path."""
+        try:
+            data = self._read_json()
+        except ValueError as exc:
+            self._json_error(400, str(exc))
+            return
+        query = (data.get("query") or "").strip()
+        if not query:
+            self._json_error(400, "query 不能为空")
+            return
+        if len(query) > 2000:
+            self._json_error(400, "query 过长")
+            return
+        visitor = http_api.ensure_visitor(self)
+        history = data.get("history") if isinstance(data.get("history"), list) else []
+        stream = data.get("stream")
+        stream = True if stream is None else bool(stream)
+        request = {
+            "query": query,
+            "user": (data.get("user") or visitor)[:64],
+            "visitor": visitor,
+            "portal_session": str(data.get("portal_session") or "")[:80],
+            "history": history[-12:],
+            "conversation_id": (data.get("conversation_id") or "").strip(),
+        }
+        events = iter_events(request)
+        if not stream:
+            done = {}
+            for event in events:
+                if event.get("type") == "done":
+                    done = {key: value for key, value in event.items() if key != "type"}
+            self._json_response(200, done)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        try:
+            for event in events:
+                self._sse_write(event)
+        except (BrokenPipeError, ConnectionResetError):
+            return
 
     def _stream_lite_deepseek(self, shaped: dict, hits: list, mode: str, query: str) -> None:
         """Optional DeepSeek SSE. Local answer stays the fallback if the stream is empty."""
@@ -1249,16 +1328,27 @@ def main() -> None:
     server = ThreadingHTTPServer((HOST, PORT), PortalHandler)
     print(f"校园客服门户已启动 → http://{HOST}:{PORT}/", flush=True)
     print(f"静态资源：{WEB_DIR}", flush=True)
-    if LITE_MODE:
+    if use_lite_mode():
         info = lite_ready()
         print(
             f"引擎：LITE FAQ（chunks={info.get('chunks')} deepseek={info.get('deepseek')}）",
             flush=True,
         )
         print(f"FAQ：{info.get('faq_path')}", flush=True)
+        print("Agent：query_rewrite + human_handoff + case_stub", flush=True)
     else:
-        print(f"引擎：{DIFY_CHAT_URL}（SSE 流式默认开启）", flush=True)
-    print("Agent：query_rewrite + human_handoff + case_stub", flush=True)
+        print(f"引擎：网关约束层 → {DIFY_CHAT_URL}", flush=True)
+        print("坐席 /agent · 后台 /admin · 登录 /login", flush=True)
+
+        def _probe_loop() -> None:
+            while True:
+                try:
+                    run_probe(DifyClient(timeout=8))
+                except Exception as exc:  # noqa: BLE001
+                    print(f"自检失败：{type(exc).__name__}", flush=True)
+                time.sleep(load_config()["probe_interval_seconds"])
+
+        threading.Thread(target=_probe_loop, name="kb-probe", daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

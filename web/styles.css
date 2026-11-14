@@ -603,3 +603,35 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .msg.refuse .msg-actions .solid {
   background: linear-gradient(180deg, #c9a86a, var(--gold));
 }
+
+.notice-bar {
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  background: rgba(227, 168, 87, .12);
+  border: 1px solid rgba(227, 168, 87, .45);
+  color: #e3a857;
+  font-size: 0.86rem;
+}
+.notice-bar strong { margin-right: 8px; }
+.meta.warn {
+  color: #e3a857;
+  border-color: rgba(227, 168, 87, .7);
+}
+.meta.warn::before { background: #e3a857; box-shadow: 0 0 0 3px rgba(227, 168, 87, .18); }
+.sys-line {
+  align-self: center;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--mute);
+}
+.msg.agent-msg .who { color: #e3a857; }
+.msg.agent-msg .bubble { border-color: rgba(227, 168, 87, .45); }
+.cite-card .snip-more {
+  display: none;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--cite-rule);
+  color: var(--mute);
+  font-size: 0.82rem;
+}
+.cite-card.open .snip-more { display: block; }

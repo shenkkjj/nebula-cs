@@ -6,9 +6,9 @@
 
 ## 1. 用户确认记录
 
-- **状态**：待确认
-- **确认方式**：整版确认
-- **用户原话 / 来源与日期**：待确认
+- **状态**：已确认
+- **确认方式**：整版确认后进入 build
+- **用户原话 / 来源与日期**：2026-11-14 23:13，产品负责人要求按 vibe 流程做完剩余工作，PLAN v1.0 视为已确认（不再停在「待确认」）。
 
 ## 2. 技术基础决策
 
@@ -191,7 +191,7 @@
 | 安装 Docker Desktop | T1 前 | 下载安装并启动 Docker Desktop | `docker --version` 和 `docker-compose --version` 有输出 |
 | 部署 Dify 本地实例 | T1 前 | 课程机 `/workspace/dify` 或本地 `git clone` Dify 仓库，`docker-compose up -d` | 访问 `http://127.0.0.1` 打开 Dify 控制台 |
 | 创建 Chatflow 应用 | T1 前 | Dify 控制台创建应用，类型 Chatflow，绑定知识库，添加 Knowledge Retrieval 节点，获取 API key | API key 形如 `app-xxx...`，长度 > 20 |
-| 上传知识库文档 | T1 前 | Dify 控制台创建知识库「星云大学办事」，上传 `sample-kb/*.md` 144 个文件 | 知识库显示 144 篇文档，索引完成 |
+| 上传知识库文档 | T1 前 | Dify 控制台创建知识库「星云大学办事」，导入 **一个文件** `sample-kb/客服样例FAQ.md`（里面 144 条）。2026-11-14 进入 build 时更正：不是 144 个文件 | 这一篇索引完成，按标题能检索到条目 |
 | 安装 Ollama 并拉取 bge-m3 | T1 前 | `ollama pull bge-m3` | `ollama list` 显示 bge-m3 |
 | 配置环境变量 | T1 前 | 新建 `.env` 文件：`DIFY_APP_API_KEY=app-xxx`、`DEEPSEEK_API_KEY=sk-xxx`、`DIFY_CHAT_URL=http://127.0.0.1/v1/chat-messages` | `python server/proxy.py` 启动无报错 |
 | 准备测试集 | T5 前 | 确认 `tests/eval/test-set.json` 和 `tests/eval/dev-set.json` 已就绪（107 题） | 文件存在且 JSON 格式正确 |

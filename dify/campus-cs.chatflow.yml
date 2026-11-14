@@ -1,0 +1,227 @@
+# 校园客服 Chatflow。导入 Dify 后必须做两件事：
+# 1. 把知识检索节点的 dataset_ids 换成你创建的知识库 id（只导入 sample-kb/客服样例FAQ.md 这一篇）。
+# 2. 把两个 LLM 节点的 provider / name 换成已安装的 DeepSeek 插件模型。
+# 若导入器拒绝这份 DSL，按节点顺序在控制台手搭，提示词以本文件为准。
+# 网关不依赖模型一定输出 JSON；它仍会做空检索拦截、引用校验和按文档合并。
+app:
+  description: 星云大学校园办事。改写、检索、作答在 Chatflow；约束在自建网关。
+  icon: "🎓"
+  icon_background: "#1c1f26"
+  mode: advanced-chat
+  name: 校园客服
+  use_icon_as_answer_icon: false
+dependencies: []
+kind: app
+version: "0.3.0"
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: ""
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+      - data:
+          sourceType: start
+          targetType: llm
+        id: start-rewrite
+        source: start
+        sourceHandle: source
+        target: rewrite
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: knowledge-retrieval
+        id: rewrite-kr
+        source: rewrite
+        sourceHandle: source
+        target: kr
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: knowledge-retrieval
+          targetType: if-else
+        id: kr-cond
+        source: kr
+        sourceHandle: source
+        target: cond
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: answer
+        id: cond-refuse
+        source: cond
+        sourceHandle: "true"
+        target: refuse
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: llm
+        id: cond-answer
+        source: cond
+        sourceHandle: "false"
+        target: answer-llm
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: answer
+        id: llm-out
+        source: answer-llm
+        sourceHandle: source
+        target: final
+        targetHandle: target
+        type: custom
+    nodes:
+      - data:
+          title: 开始
+          type: start
+          variables: []
+        id: start
+        position: {x: 80, y: 280}
+        type: custom
+        width: 244
+        height: 54
+      - data:
+          title: 改写
+          type: llm
+          context:
+            enabled: false
+          memory:
+            window:
+              enabled: true
+              size: 6
+          model:
+            provider: langgenius/deepseek/deepseek
+            name: deepseek-chat
+            mode: chat
+            completion_params:
+              temperature: 0.1
+          prompt_template:
+            - id: rewrite-system
+              role: system
+              text: |
+                你是校园客服的查询改写。只输出一句可检索的中文问题，不要回答。
+                如果用户是在追问，把上一句的办事主题补进这句。
+                如果问题含糊，例如只说「证明」「校园卡」「宿舍坏了」，原样输出，让下游决定要不要澄清。
+                不要编造校规。
+            - id: rewrite-user
+              role: user
+              text: "{{#sys.query#}}"
+          vision:
+            enabled: false
+        id: rewrite
+        position: {x: 380, y: 280}
+        type: custom
+        width: 244
+        height: 90
+      - data:
+          title: 知识检索
+          type: knowledge-retrieval
+          dataset_ids:
+            - REPLACE_WITH_DATASET_ID
+          query_variable_selector:
+            - rewrite
+            - text
+          retrieval_mode: multiple
+          multiple_retrieval_config:
+            top_k: 4
+            reranking_enable: false
+            score_threshold_enabled: false
+        id: kr
+        position: {x: 680, y: 280}
+        type: custom
+        width: 244
+        height: 92
+      - data:
+          title: 检索是否为空
+          type: if-else
+          cases:
+            - case_id: "true"
+              id: "true"
+              logical_operator: and
+              conditions:
+                - id: empty-result
+                  comparison_operator: empty
+                  varType: array
+                  value: ""
+                  variable_selector:
+                    - kr
+                    - result
+        id: cond
+        position: {x: 980, y: 220}
+        type: custom
+        width: 244
+        height: 120
+      - data:
+          title: 空检索拒答
+          type: answer
+          answer: 知识库里没有这条办事说明，我不能编规定。需要的话可以转人工，值班老师会回复你。
+        id: refuse
+        position: {x: 1280, y: 80}
+        type: custom
+        width: 244
+        height: 100
+      - data:
+          title: 作答
+          type: llm
+          context:
+            enabled: true
+            variable_selector:
+              - kr
+              - result
+          memory:
+            window:
+              enabled: false
+              size: 4
+          model:
+            provider: langgenius/deepseek/deepseek
+            name: deepseek-chat
+            mode: chat
+            completion_params:
+              temperature: 0.2
+          prompt_template:
+            - id: answer-system
+              role: system
+              text: |
+                你是「校园助手」，只根据 <context> 里的星云大学办事片段回答。
+                片段里没有的时限、金额、材料、电话，不要编。
+                用口语短句。不要输出思考过程。
+                若片段明显不够回答，只回复：知识库里没有这条办事说明，我不能编规定。
+                若用户问得含糊、片段对应 2 到 3 个不同条目，不要猜，只输出 JSON：
+                {"clarify": ["条目标题1", "条目标题2"]}
+                其他情况直接回答，并让同学能看出依据来自知识库。
+            - id: answer-user
+              role: user
+              text: "{{#sys.query#}}"
+          vision:
+            enabled: false
+        id: answer-llm
+        position: {x: 1280, y: 320}
+        type: custom
+        width: 244
+        height: 98
+      - data:
+          title: 回答
+          type: answer
+          answer: "{{#answer-llm.text#}}"
+        id: final
+        position: {x: 1580, y: 320}
+        type: custom
+        width: 244
+        height: 100

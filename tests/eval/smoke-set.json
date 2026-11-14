@@ -1,0 +1,139 @@
+{
+  "set": "smoke",
+  "count": 12,
+  "source": "sample-kb/客服样例FAQ.md",
+  "note": "知识库是这一个文件里的 144 条，不是 144 个文件。基线 12 题只在 smoke-set.json。",
+  "items": [
+    {
+      "type": "in_scope",
+      "question": "我想开个在校证明，去哪弄？",
+      "expected_title": "在读证明如何办理？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "3 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "S-001"
+    },
+    {
+      "type": "in_scope",
+      "question": "宿舍空调坏了找谁修",
+      "expected_title": "宿舍报修怎么提交？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "1 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "S-002"
+    },
+    {
+      "type": "in_scope",
+      "question": "书最多能借多久",
+      "expected_title": "如何借书和续借？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "30 天",
+        "60 天"
+      ],
+      "should_refuse": false,
+      "id": "S-003"
+    },
+    {
+      "type": "in_scope",
+      "question": "挂科了怎么办",
+      "expected_title": "补考和重修有什么区别？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "补考面向成绩不及格、且课"
+      ],
+      "should_refuse": false,
+      "id": "S-004"
+    },
+    {
+      "type": "in_scope",
+      "question": "饭卡丢了怎么办",
+      "expected_title": "校园卡如何充值和挂失？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "S-005"
+    },
+    {
+      "type": "in_scope",
+      "question": "想换个专业，有什么条件",
+      "expected_title": "如何办理转专业？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "S-006"
+    },
+    {
+      "type": "in_scope",
+      "question": "奖学金一般什么时候评",
+      "expected_title": "国家奖学金和励志奖学金有什么区别？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "8000 元",
+        "5000 元"
+      ],
+      "should_refuse": false,
+      "id": "S-007"
+    },
+    {
+      "type": "in_scope",
+      "question": "连不上校园网",
+      "expected_title": "校园网故障如何报修？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "S-008"
+    },
+    {
+      "type": "in_scope",
+      "question": "晚上几点前必须回宿舍",
+      "expected_title": "宿舍门禁时间是什么？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "6:00",
+        "23:30"
+      ],
+      "should_refuse": false,
+      "id": "S-009"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "出国交换需要准备什么材料",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "S-010"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "怎么请病假",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "S-011"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "毕业论文查重率要求多少",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "S-012"
+    }
+  ]
+}
