@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>门户新增状态 · 设计原型</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../web/styles.css" />
+  <style>
+    .demo-bar { position: sticky; top: 0; z-index: 100; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 20px; font-size: 13px; color: #e3a857; border-bottom: 1px dashed rgba(227, 168, 87, .5); background: rgba(227, 168, 87, .06); }
+    .demo-bar strong { font-weight: 700; }
+    .demo-bar a { color: #c9ba9a; text-decoration: none; padding: 2px 10px; border-radius: 999px; }
+    .demo-bar a:hover { color: #e8dcc4; }
+    .demo-bar a[aria-current="page"] { color: #0b0c0e; background: #e3a857; }
+    .demo-bar .sp { flex: 1; }
+    [data-state] { display: none; }
+    [data-state].is-active { display: block; }
+    .frame { min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <nav class="demo-bar" aria-label="状态切换（设计原型）">
+    <strong>门户新增状态</strong><span>原型 · 演示数据</span>
+    <a href="#clarify">R-103 澄清选项</a>
+    <a href="#agent-reply">R-106 坐席回复</a>
+    <a href="#maintenance">R-204 知识库维护</a>
+    <span class="sp"></span>
+    <a href="../index.html">返回设计首页</a>
+  </nav>
+
+  <div data-state="clarify" class="frame">
+    <header class="top">
+      <div class="brand"><h1>校园客服</h1><p>校园助手 · 虚构星云大学 · 私有知识库<br />沈凯杰、王瑞康</p></div>
+      <div class="top-actions"><span class="meta">助手在线</span><button type="button" class="ghost">新对话</button></div>
+    </header>
+    <div class="workspace">
+      <section class="lounge" aria-label="对话区">
+        <div class="messages" role="log">
+          <div class="msg user"><div class="bubble">证明怎么开？</div></div>
+          <div class="msg"><div class="meta">机器人 · 刚刚</div><div class="bubble">你说的「证明」指的是哪一种？选一个我再回答你：</div>
+            <div class="clarify-opts" role="group" aria-label="澄清选项">
+              <button type="button" class="chip">在读证明</button>
+              <button type="button" class="chip">成绩证明</button>
+              <button type="button" class="chip">其他证明</button>
+            </div>
+          </div>
+        </div>
+        <form class="composer"><textarea rows="1" maxlength="2000" placeholder="或者直接说「在读证明怎么开」"></textarea><button type="submit">发送</button></form>
+      </section>
+      <aside class="silk" aria-label="会话与出处">
+        <div class="silk-block"><h2>会话</h2><hr class="rule" /><div class="session-list"><button type="button" class="session-item active"><span class="s-t">证明怎么开？</span><span class="s-m">刚刚</span></button></div></div>
+        <div class="silk-block silk-cites"><h2>出处</h2><hr class="rule" /><div class="cite-list empty-cites"><p class="small muted">选择一个澄清选项后会出现引用</p></div></div>
+        <p class="status-foot">就绪 · 流式经本地代理转发，密钥不进入浏览器</p>
+      </aside>
+    </div>
+  </div>
+
+  <div data-state="agent-reply" class="frame">
+    <header class="top">
+      <div class="brand"><h1>校园客服</h1><p>校园助手 · 虚构星云大学 · 私有知识库<br />沈凯杰、王瑞康</p></div>
+      <div class="top-actions"><span class="meta">人工接入中</span><button type="button" class="ghost">新对话</button></div>
+    </header>
+    <div class="workspace">
+      <section class="lounge" aria-label="对话区">
+        <div class="messages" role="log">
+          <div class="msg user"><div class="bubble">怎么请病假？</div></div>
+          <div class="msg"><div class="meta">机器人 · 14:02</div><div class="bubble refuse">知识库里没有请假的规定，我不能编。需要的话可以转人工，值班老师会回复你。<button type="button" class="solid" style="margin-top:10px">转人工</button></div></div>
+          <div class="sys-line">14:03 你点了「转人工」，工单 TK20261114-0007 已登记，排队中…</div>
+          <div class="sys-line">14:05 王老师接入，机器人暂停回复</div>
+          <div class="msg agent-msg"><div class="meta">王老师 · 人工客服 · 14:06</div><div class="bubble">你好。病假先在一网通办「请假申请」里提交，附校医院或医院的诊断证明。3 天以内由辅导员审批，超过 3 天还要学院审批。</div></div>
+          <div class="msg user"><div class="bubble">好的。那校医院几点开门？</div></div>
+        </div>
+        <form class="composer"><textarea rows="1" maxlength="2000" placeholder="继续问人工客服…"></textarea><button type="submit">发送</button></form>
+      </section>
+      <aside class="silk" aria-label="会话与出处">
+        <div class="silk-block"><h2>会话</h2><hr class="rule" /><div class="session-list"><button type="button" class="session-item active"><span class="s-t">怎么请病假？</span><span class="s-m">刚刚 · 人工</span></button></div></div>
+        <div class="silk-block silk-cites"><h2>出处</h2><hr class="rule" /><div class="cite-list empty-cites"><p class="small muted">人工客服的回答不附引用</p></div></div>
+        <p class="status-foot">人工客服 王老师 接入中 · 工单 TK20261114-0007</p>
+      </aside>
+    </div>
+  </div>
+
+  <div data-state="maintenance" class="frame">
+    <header class="top">
+      <div class="brand"><h1>校园客服</h1><p>校园助手 · 虚构星云大学 · 私有知识库<br />沈凯杰、王瑞康</p></div>
+      <div class="top-actions"><span class="meta warn">知识库维护中</span><button type="button" class="ghost">新对话</button></div>
+    </header>
+    <div class="workspace">
+      <section class="lounge" aria-label="对话区">
+        <div class="messages" role="log">
+          <div class="notice-bar warn"><strong>知识库维护中</strong>机器人暂时不能回答办事问题。你的提问已登记，坐席上线后会回复。</div>
+          <div class="msg user"><div class="bubble">在读证明怎么开？</div></div>
+          <div class="sys-line">已为你登记人工工单 TK20261114-0011，坐席上线后回复</div>
+        </div>
+        <form class="composer"><textarea rows="1" maxlength="2000" placeholder="你的提问会自动登记工单…"></textarea><button type="submit">发送</button></form>
+      </section>
+      <aside class="silk" aria-label="会话与出处">
+        <div class="silk-block"><h2>会话</h2><hr class="rule" /><div class="session-list"><button type="button" class="session-item active"><span class="s-t">在读证明怎么开？</span><span class="s-m">刚刚 · 维护</span></button></div></div>
+        <div class="silk-block silk-cites"><h2>出处</h2><hr class="rule" /><div class="cite-list empty-cites"><p class="small muted">维护期间暂无引用</p></div></div>
+        <p class="status-foot warn">知识库维护中 · 机器人暂停回答办事问题</p>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      function show(name) {
+        for (const s of document.querySelectorAll('[data-state]')) s.classList.toggle('is-active', s.dataset.state === name);
+        for (const a of document.querySelectorAll('.demo-bar a[href^="#"]')) {
+          a.toggleAttribute('aria-current', a.getAttribute('href') === '#' + name);
+        }
+        document.title = name + ' · 门户新增状态';
+      }
+      function route() { show(location.hash.slice(1) || 'clarify'); }
+      window.addEventListener('hashchange', route);
+      route();
+    })();
+  </script>
+</body>
+</html>

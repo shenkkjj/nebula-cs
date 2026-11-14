@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>S1 值班台 · 候选原型</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../_shared/staff-e5.css" />
+  <style>
+    /* S1 值班台：坐席与后台是两个独立应用。坐席三栏同屏处理；后台左侧导航 + 密集表格。 */
+    .s-agent { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .desk { display: grid; grid-template-columns: 300px minmax(0, 1fr) 372px; gap: 16px; padding: 16px 24px 20px; min-height: 0; }
+    .desk > .panel { display: flex; flex-direction: column; min-height: 0; }
+    .queue .seg { margin: 12px 12px 0; }
+    .queue .list { display: grid; align-content: start; gap: 8px; flex: 1; min-height: 0; padding: 12px; overflow: auto; }
+    .conv-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--gold-faint); }
+    .conv .thread { flex: 1; min-height: 0; }
+    .ctx .tabpanel { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px; }
+    .admin { display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100%; }
+    .rail { display: flex; flex-direction: column; gap: 22px; padding: 20px 14px; border-right: 1px solid var(--gold-line); background: rgba(20, 22, 26, .65); }
+    .rail .brand { flex-direction: column; gap: 2px; padding: 0 8px; }
+    .rail nav { display: grid; gap: 4px; }
+    .rail .item { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 40px; padding: 8px 12px; border: 0; border-radius: var(--radius-control); background: none; color: var(--champagne-soft); font-size: 13px; text-align: left; text-decoration: none; }
+    .rail .item:hover { background: rgba(184, 155, 94, .07); color: var(--champagne); }
+    .rail .item[aria-current="page"] { background: rgba(184, 155, 94, .15); color: var(--champagne); font-weight: 600; }
+    .rail-foot { margin-top: auto; display: grid; justify-items: start; gap: 8px; padding: 0 8px; font-size: 12px; color: var(--mute); }
+    .admin-main { overflow: auto; padding: 24px 32px 40px; display: grid; gap: 18px; align-content: start; }
+    .filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+    .filters .field { margin: 0; min-width: 150px; }
+    .filters .grow { flex: 1; min-width: 240px; }
+    .detail { max-width: 760px; padding: 6px 4px 8px; }
+    .table-foot { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 20px; font-size: 12px; color: var(--mute); }
+    @media (max-width: 1180px) {
+      body.proto-page { height: auto; min-height: 100vh; overflow: auto; }
+      [data-screen] { height: auto; }
+      .desk { grid-template-columns: 260px minmax(0, 1fr); }
+      .desk > .panel { min-height: 460px; }
+      .desk > .ctx { grid-column: 1 / -1; }
+      .admin { height: auto; min-height: 100%; }
+    }
+    @media (max-width: 760px) {
+      .desk, .admin { grid-template-columns: 1fr; }
+      .rail { border-right: 0; border-bottom: 1px solid var(--gold-line); }
+    }
+  </style>
+</head>
+<body class="proto-page" data-option="S1 值班台">
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <nav class="proto-bar" aria-label="原型页面切换，不是产品界面">
+    <strong>候选 S1「值班台」</strong><span>原型 · 演示数据</span>
+    <a href="#agent">坐席工作台</a>
+    <a href="#audit">管理后台 · 审计日志</a>
+    <a href="#eval">管理后台 · 评测</a>
+    <span class="sp"></span>
+    <a href="../index.html">返回候选对比</a>
+  </nav>
+  <div class="app" id="main" tabindex="-1">
+    <section data-screen="agent" data-title="坐席工作台" class="s-agent">
+      <header class="topbar">
+        <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role">坐席工作台</span></div>
+        <div class="top-actions">
+          <span class="pill ok">知识库就绪</span>
+          <span class="who">王老师 · 坐席</span>
+          <button type="button" class="btn btn-quiet btn-sm" data-toast="原型：退出后回到登录页">退出</button>
+        </div>
+      </header>
+      <div class="desk">
+        <aside class="panel queue" aria-labelledby="q-title">
+          <div class="panel-head"><h2 class="panel-title" id="q-title">转人工队列</h2><span class="small muted">每 5 秒刷新</span></div>
+          <div class="seg" role="tablist" aria-label="工单状态">
+            <button type="button" role="tab" id="qt-wait" aria-controls="qp-wait" aria-selected="false" tabindex="-1">待接入 2</button>
+            <button type="button" role="tab" id="qt-doing" aria-controls="qp-doing" aria-selected="true">处理中 2</button>
+            <button type="button" role="tab" id="qt-done" aria-controls="qp-done" aria-selected="false" tabindex="-1">已结束 14</button>
+          </div>
+          <div class="list" role="tabpanel" id="qp-wait" aria-labelledby="qt-wait" hidden>
+            <button type="button" class="ticket" data-toast="原型只做了 TK20261114-0007 的完整对话">
+              <span class="row"><span>TK20261114-0009</span><span class="badge bad">拒答后</span></span>
+              <span class="q">毕业论文查重率要求多少？</span>
+              <span class="row"><span>等待 1 分</span><span>访客 5D21</span></span>
+            </button>
+            <button type="button" class="ticket" data-toast="原型只做了 TK20261114-0007 的完整对话">
+              <span class="row"><span>TK20261114-0008</span><span class="badge">用户主动</span></span>
+              <span class="q">在读证明能加急吗？明天就要交</span>
+              <span class="row"><span>等待 2 分</span><span>访客 7C1D</span></span>
+            </button>
+          </div>
+          <div class="list" role="tabpanel" id="qp-doing" aria-labelledby="qt-doing">
+            <button type="button" class="ticket" aria-current="true">
+              <span class="row"><span>TK20261114-0007</span><span class="badge bad">拒答后</span></span>
+              <span class="q">怎么请病假？</span>
+              <span class="row"><span>你已接入 4 分</span><span>访客 B820</span></span>
+            </button>
+            <button type="button" class="ticket" data-toast="这张工单已由李老师接入，你只能查看">
+              <span class="row"><span>TK20261114-0005</span><span class="badge warn">知识库维护</span></span>
+              <span class="q">宿舍空调坏了三天了，一直没人来修</span>
+              <span class="row"><span>李老师接入 · 12 分</span><span>访客 0D6A</span></span>
+            </button>
+          </div>
+          <div class="list" role="tabpanel" id="qp-done" aria-labelledby="qt-done" hidden>
+            <button type="button" class="ticket" data-toast="原型：已结束的工单只读">
+              <span class="row"><span>TK20261114-0004</span><span class="badge ok">已结束</span></span>
+              <span class="q">校园网账号被锁了</span>
+              <span class="row"><span>13:41 结束 · 王老师</span><span>已填处理说明</span></span>
+            </button>
+            <p class="small muted">今天共 14 张，更早的到审计日志里查。</p>
+          </div>
+        </aside>
+
+        <section class="panel conv" aria-labelledby="c-title">
+          <div class="conv-head">
+            <div>
+              <h1 class="panel-title" id="c-title">TK20261114-0007 · 怎么请病假？</h1>
+              <p class="small muted">访客 B820（匿名）· 机器人拒答后转人工 · 14:03 创建</p>
+            </div>
+            <div class="top-actions">
+              <span class="badge info">处理中 · 你已接入</span>
+              <button type="button" class="btn btn-ghost btn-sm" data-open="dlg-close">结束工单</button>
+            </div>
+          </div>
+          <div class="thread" id="thread-s1" aria-label="对话记录">
+            <div class="msg visitor"><div class="meta">访客 · 14:02</div><div class="bubble">怎么请病假？</div></div>
+            <div class="msg bot refused is-selected">
+              <div class="meta">机器人 · 14:02 <span class="badge bad">已拦截 · 空检索</span></div>
+              <div class="bubble">知识库里没有请假的规定，我不能编。需要的话可以转人工，值班老师会回复你。</div>
+              <div class="msg-tools"><button type="button" class="btn btn-quiet btn-sm" data-trace="tr-s1-1">查看判定</button></div>
+            </div>
+            <p class="sys-line">14:03 访客点了「转人工」，生成工单 TK20261114-0007</p>
+            <p class="sys-line">14:05 王老师接入，机器人暂停回复</p>
+            <div class="msg agent"><div class="meta">王老师 · 14:06</div><div class="bubble">你好。病假先在一网通办「请假申请」里提交，附校医院或医院的诊断证明。3 天以内由辅导员审批，超过 3 天还要学院审批。</div></div>
+            <div class="msg visitor"><div class="meta">访客 · 14:07</div><div class="bubble">好的。那校医院几点开门？</div></div>
+          </div>
+          <form class="composer" data-demo="已发送给访客（原型，不会真的发出）" data-append="#thread-s1" data-author="王老师" data-clear>
+            <label class="sr-only" for="reply-s1">回复访客</label>
+            <textarea class="textarea" id="reply-s1" rows="1" maxlength="800" required data-msg="回复内容不能为空" data-enter-submit placeholder="回复访客，Enter 发送，Shift+Enter 换行"></textarea>
+            <button class="btn btn-solid" type="submit">发送</button>
+          </form>
+        </section>
+
+        <aside class="panel ctx" aria-label="判定与工单操作">
+          <div class="tabs" role="tablist" aria-label="工单操作">
+            <button type="button" role="tab" id="ct-trace" data-state="trace" aria-controls="cp-trace" aria-selected="true">判定详情</button>
+            <button type="button" role="tab" id="ct-write" data-state="writeback" aria-controls="cp-write" aria-selected="false" tabindex="-1">回写知识库</button>
+            <button type="button" role="tab" id="ct-bad" data-state="badcase" aria-controls="cp-bad" aria-selected="false" tabindex="-1">标记坏例</button>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="cp-trace" aria-labelledby="ct-trace">
+            <div data-trace-panel id="tr-s1-1">
+              <p class="eyebrow">机器人 · 14:02 这一轮</p>
+              <ol class="trace" style="margin-top:14px">
+                <li class="ok"><span class="dot">1</span><div><p class="t">打码</p><p class="d">没有手机号或证件号</p></div><span class="ms">1 ms</span></li>
+                <li class="ok"><span class="dot">2</span><div><p class="t">改写</p><p class="d">没有上文，按原问题「怎么请病假？」检索</p></div><span class="ms">0 ms</span></li>
+                <li class="bad"><span class="dot">3</span><div><p class="t">检索：命中 0 段</p><p class="d">知识库「星云大学办事」· 取前 3 段 · 相关度阈值 0.50</p></div><span class="ms">180 ms</span></li>
+                <li class="bad"><span class="dot">4</span><div><p class="t">约束：空检索拦截</p><p class="d">检索为空，不交给模型作答（R-202）</p></div><span class="ms">1 ms</span></li>
+                <li class="ok"><span class="dot">5</span><div><p class="t">输出</p><p class="d">拒答模板，附「转人工」按钮</p></div><span class="ms">首字 0.4 s</span></li>
+              </ol>
+              <p style="margin-top:16px"><a class="small" href="#audit">在审计日志里查看这一轮 →</a></p>
+            </div>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="cp-write" aria-labelledby="ct-write" hidden>
+            <form data-demo="已写入「坐席回写｜怎么请病假？」，索引中…" data-demo-done="索引完成。再有人问，机器人能回答并引用这一条。" data-toast="已提交回写" data-keep-open>
+              <p class="small muted" style="margin-bottom:14px">写入后成为一篇独立文档，来源标「坐席回写」。管理员可以在知识库文档里删除。</p>
+              <label class="field"><span>问题</span><input class="input" name="q" required maxlength="120" value="怎么请病假？" data-msg="请填写问题"></label>
+              <label class="field"><span>标准答法</span><textarea class="textarea" name="a" rows="6" required maxlength="800" data-msg="请填写标准答法">病假先在一网通办「请假申请」里提交，附校医院或医院的诊断证明。3 天以内由辅导员审批，超过 3 天还要学院审批。</textarea><small>最多 800 字</small></label>
+              <div class="form-actions"><button class="btn btn-solid" type="submit">写入知识库</button></div>
+              <p class="form-status" role="status" hidden></p>
+            </form>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="cp-bad" aria-labelledby="ct-bad" hidden>
+            <form data-demo="已加入评测集，编号 BAD-012" data-keep-open>
+              <p class="small muted" style="margin-bottom:12px">针对：机器人 · 14:02「知识库里没有请假的规定……」</p>
+              <fieldset class="radio-list"><legend class="legend">问题类型</legend>
+                <label><input type="radio" name="kind" value="wrong" required> 答错</label>
+                <label><input type="radio" name="kind" value="cite"> 引用不对</label>
+                <label><input type="radio" name="kind" value="miss-refuse"> 该拒没拒</label>
+                <label><input type="radio" name="kind" value="over-refuse"> 不该拒却拒</label>
+                <label><input type="radio" name="kind" value="other"> 其他</label>
+              </fieldset>
+              <label class="field"><span>期望结果（选填）</span><textarea class="textarea" name="expect" rows="3" maxlength="400" placeholder="例如：知识库缺请假条目，已回写；补上后应回答并引用「坐席回写｜怎么请病假？」"></textarea></label>
+              <div class="form-actions"><button class="btn btn-solid" type="submit">加入评测集</button></div>
+              <p class="form-status" role="status" hidden></p>
+            </form>
+          </div>
+        </aside>
+      </div>
+      <dialog id="dlg-close" aria-labelledby="dc-title">
+        <form data-demo="工单已结束，访客可以继续问机器人">
+          <div class="panel-head"><h2 class="panel-title" id="dc-title">结束工单</h2><button type="button" class="icon-btn" data-close aria-label="关闭">×</button></div>
+          <div class="panel-body">
+            <label class="field"><span>处理说明（必填）</span><textarea class="textarea" rows="3" required maxlength="300" data-msg="请写一句处理说明" placeholder="例如：已告知病假流程，并回写知识库"></textarea></label>
+            <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>取消</button><button type="submit" class="btn btn-solid">结束工单</button></div>
+          </div>
+        </form>
+      </dialog>
+    </section>
+    <section data-screen="audit" data-title="审计日志" hidden>
+      <div class="admin">
+        <aside class="rail" aria-label="后台导航">
+          <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role">管理后台</span></div>
+          <nav>
+            <button type="button" class="item" data-toast="选定方案后补齐这一页">知识库文档 <span class="small muted">146</span></button>
+            <button type="button" class="item" data-toast="选定方案后补齐这一页">绑定自检 <span class="badge ok">正常</span></button>
+            <a class="item" href="#audit" data-nav-link="audit">审计日志</a>
+            <button type="button" class="item" data-toast="选定方案后补齐这一页">约束参数</button>
+            <a class="item" href="#eval" data-nav-link="eval">评测</a>
+          </nav>
+          <div class="rail-foot"><span class="pill ok">知识库就绪</span><span>陈老师 · 管理员</span><button type="button" class="btn btn-quiet btn-sm" data-toast="原型：退出后回到登录页">退出</button></div>
+        </aside>
+        <div class="admin-main">
+          <div class="page-head">
+            <div><h1 class="page-title">审计日志</h1><p class="page-sub">每轮问答和每次后台操作都记在这里。问题里的手机号、证件号已打码。</p></div>
+            <button type="button" class="btn btn-ghost" data-toast="原型：按当前筛选导出 CSV">导出 CSV</button>
+          </div>
+          <form class="filters" aria-label="筛选审计记录">
+            <label class="field"><span>时间</span><select class="select"><option>今天</option><option>最近 7 天</option><option>全部</option></select></label>
+            <label class="field"><span>类型</span><select class="select"><option>全部</option><option>问答</option><option>后台操作</option></select></label>
+            <label class="field"><span>判定</span><select class="select"><option>全部</option><option>通过</option><option>拒答</option><option>拦截</option><option>转人工</option><option>非办事</option></select></label>
+            <label class="field grow"><span>搜索</span><input class="input" type="search" placeholder="问题、会话号或工单号"></label>
+          </form>
+          <div class="panel">
+            <div class="table-wrap">
+              <table class="table">
+                <caption class="sr-only">今天的审计记录，演示数据</caption>
+                <thead><tr><th scope="col" class="col-toggle"><span class="sr-only">展开</span></th><th scope="col">时间</th><th scope="col">会话</th><th scope="col">问题（已打码）</th><th scope="col">判定</th><th scope="col">来源</th><th scope="col" class="num">首字</th><th scope="col" class="num">总耗时</th></tr></thead>
+                <tbody>
+                  <tr><td></td><td>14:12:08</td><td>A3F2</td><td class="clip">那成绩单呢？</td><td><span class="badge ok">通过 · 已改写</span></td><td class="clip">FAQ-003 成绩单如何申请？</td><td class="num">1.9 s</td><td class="num">4.1 s</td></tr>
+                  <tr><td></td><td>14:09:51</td><td>7C1D</td><td class="clip">我想开个在校证明，去哪弄？</td><td><span class="badge ok">通过</span></td><td class="clip">FAQ-002 在读证明如何办理？</td><td class="num">1.6 s</td><td class="num">3.8 s</td></tr>
+                  <tr><td></td><td>14:08:30</td><td>—</td><td class="clip">王老师回写「怎么请病假？」</td><td><span class="badge">后台操作</span></td><td class="clip">坐席回写</td><td class="num">—</td><td class="num">—</td></tr>
+                  <tr><td><button type="button" class="row-toggle" aria-expanded="true" aria-controls="ad-4" aria-label="展开这一轮的判定">›</button></td><td>14:05:12</td><td>51E9</td><td class="clip">宿舍晚上几点关门，晚归怎么办</td><td><span class="badge ok">通过 · 合并 3→2</span></td><td class="clip">宿舍管理办法.pdf 等 2 篇</td><td class="num">1.7 s</td><td class="num">4.4 s</td></tr>
+                  <tr class="detail-row" id="ad-4"><td></td><td colspan="7"><div class="detail"><ol class="trace">
+                    <li class="ok"><span class="dot">1</span><div><p class="t">改写</p><p class="d">没有上文，按原问题检索</p></div><span class="ms">0 ms</span></li>
+                    <li class="ok"><span class="dot">2</span><div><p class="t">检索：命中 3 段</p><div class="hits"><div class="hit"><span>宿舍管理办法（演示）.pdf · 第 3 节 门禁</span><span class="s">0.81</span></div><div class="hit merged"><span>宿舍管理办法（演示）.pdf · 第 5 节 晚归（并入上一条）</span><span class="s">0.77</span></div><div class="hit"><span>FAQ-096 宿舍门禁时间是什么？</span><span class="s">0.75</span></div></div></div><span class="ms">210 ms</span></li>
+                    <li class="ok"><span class="dot">3</span><div><p class="t">约束：按文档合并</p><p class="d">3 段来自 2 篇文档，显示 2 张引用卡（R-203）</p></div><span class="ms">1 ms</span></li>
+                    <li class="ok"><span class="dot">4</span><div><p class="t">约束：引用校验</p><p class="d">回答引用了 [1][2]，都来自已绑定知识库，相关度 ≥ 0.50（R-201）</p></div><span class="ms">2 ms</span></li>
+                    <li class="ok"><span class="dot">5</span><div><p class="t">输出</p><p class="d">「6:00 起可以进楼，23:30 后刷卡记为晚归……」</p></div><span class="ms">首字 1.7 s</span></li>
+                  </ol></div></td></tr>
+                  <tr><td></td><td>14:03:44</td><td>0D6A</td><td class="clip">验证码发到 138****5678 了吗</td><td><span class="badge bad">拒答 · 库外</span></td><td>—</td><td class="num">1.1 s</td><td class="num">1.3 s</td></tr>
+                  <tr><td></td><td>14:03:02</td><td>B820</td><td class="clip">点了「转人工」</td><td><span class="badge info">转人工 · TK20261114-0007</span></td><td>—</td><td class="num">—</td><td class="num">—</td></tr>
+                  <tr><td></td><td>14:02:15</td><td>B820</td><td class="clip">怎么请病假？</td><td><span class="badge bad">拦截 · 空检索</span></td><td>—</td><td class="num">0.4 s</td><td class="num">0.6 s</td></tr>
+                  <tr><td></td><td>14:01:20</td><td>9F33</td><td class="clip">帮我写首诗</td><td><span class="badge">非办事 · 说明范围</span></td><td>—</td><td class="num">0.3 s</td><td class="num">0.3 s</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="table-foot"><span>今天 128 条，显示前 9 条 <span class="mock">演示数据</span></span><span>每页 50 条</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section data-screen="eval" data-title="评测" hidden>
+      <div class="admin">
+        <aside class="rail" aria-label="后台导航">
+          <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role">管理后台</span></div>
+          <nav>
+            <button type="button" class="item" data-toast="选定方案后补齐这一页">知识库文档 <span class="small muted">146</span></button>
+            <button type="button" class="item" data-toast="选定方案后补齐这一页">绑定自检 <span class="badge ok">正常</span></button>
+            <a class="item" href="#audit" data-nav-link="audit">审计日志</a>
+            <button type="button" class="item" data-toast="选定方案后补齐这一页">约束参数</button>
+            <a class="item" href="#eval" data-nav-link="eval">评测</a>
+          </nav>
+          <div class="rail-foot"><span class="pill ok">知识库就绪</span><span>陈老师 · 管理员</span><button type="button" class="btn btn-quiet btn-sm" data-toast="原型：退出后回到登录页">退出</button></div>
+        </aside>
+        <div class="admin-main">
+          <div class="page-head">
+            <div><h1 class="page-title">评测</h1><p class="page-sub">同一套题跑三组对照。调提示词和阈值只看开发集，报告只用测试集。</p></div>
+            <div class="top-actions">
+              <label class="sr-only" for="ds-s1">数据集</label>
+              <select class="select" id="ds-s1" style="width:auto"><option>测试集 · 107 题</option><option>开发集 · 107 题</option><option>坏例 · 12 题</option></select>
+              <button type="button" class="btn btn-solid" data-open="dlg-run">运行评测</button>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2 class="panel-title">最近一次 · 11-14 13:20 · 测试集 107 题</h2><span class="mock">示例数值，不是实测</span></div>
+            <div class="table-wrap"><table class="table">
+              <caption class="sr-only">三组对照指标，示例数值</caption>
+              <thead><tr><th scope="col">指标</th><th scope="col" class="num">目标</th><th scope="col" class="num">A 改造前规则引擎</th><th scope="col" class="num">B Dify 直出</th><th scope="col" class="num">C 本系统</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">范围内回答正确率</th><td class="num">≥ 85%</td><td class="num">8.4%</td><td class="num">79.1%</td><td class="num"><span class="badge ok">88.4%</span></td></tr>
+                <tr><th scope="row">检索命中率 Hit@3</th><td class="num">≥ 90%</td><td class="num">—</td><td class="num">93.0%</td><td class="num"><span class="badge ok">93.0%</span></td></tr>
+                <tr><th scope="row">库外拒答率</th><td class="num">≥ 90%</td><td class="num">35.0%</td><td class="num">72.5%</td><td class="num"><span class="badge ok">95.0%</span></td></tr>
+                <tr><th scope="row">范围内误拒率</th><td class="num">≤ 10%</td><td class="num">91.6%</td><td class="num">4.7%</td><td class="num"><span class="badge ok">6.5%</span></td></tr>
+                <tr><th scope="row">重复引用同一文档</th><td class="num">0</td><td class="num">—</td><td class="num">11 次</td><td class="num"><span class="badge ok">0</span></td></tr>
+                <tr><th scope="row">首字时间 p50 / p95</th><td class="num">≤ 3 / 6 s</td><td class="num">0.2 / 0.4 s</td><td class="num">2.1 / 4.0 s</td><td class="num"><span class="badge warn">2.6 / 6.3 s</span></td></tr>
+              </tbody>
+            </table></div>
+            <div class="table-foot"><span>C 组 6 项里 5 项达标，首字 p95 超出目标 0.3 秒</span><span class="top-actions"><button type="button" class="btn btn-ghost btn-sm" data-toast="原型：导出 Markdown，可贴进报告 2.3 节">导出 Markdown</button><button type="button" class="btn btn-ghost btn-sm" data-toast="原型：导出逐题明细 CSV">导出 CSV</button></span></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2 class="panel-title">逐题明细 · C 组</h2>
+              <div class="seg" role="tablist" aria-label="明细筛选" style="width:320px">
+                <button type="button" role="tab" id="ef-all" aria-controls="ep-all" aria-selected="false" tabindex="-1">全部 107</button>
+                <button type="button" role="tab" id="ef-fail" aria-controls="ep-fail" aria-selected="true">未通过 9</button>
+                <button type="button" role="tab" id="ef-bad" aria-controls="ep-bad" aria-selected="false" tabindex="-1">坏例 12</button>
+              </div>
+            </div>
+            <div role="tabpanel" id="ep-fail" aria-labelledby="ef-fail" class="table-wrap"><table class="table">
+              <thead><tr><th scope="col">题号</th><th scope="col">问题</th><th scope="col">类型</th><th scope="col">期望</th><th scope="col">C 组结果</th><th scope="col">判分</th></tr></thead>
+              <tbody>
+                <tr><td>T-031</td><td class="clip">补考成绩是按实际分数算吗</td><td>范围内</td><td class="clip">FAQ-005 补考和重修有什么区别？</td><td class="clip">引用了 FAQ-071 缓考通过后在哪里看补考安排？</td><td><span class="badge bad">引用不对</span></td></tr>
+                <tr><td>T-058</td><td class="clip">研究生能借几本书</td><td>范围内</td><td class="clip">FAQ-012 如何借书和续借？</td><td class="clip">拒答：知识库没有</td><td><span class="badge bad">误拒</span></td></tr>
+                <tr><td>T-092</td><td class="clip">食堂能用微信付款吗</td><td>库外</td><td>拒答</td><td class="clip">回答了「校园卡可以在哪些场景使用」</td><td><span class="badge bad">该拒没拒</span></td></tr>
+              </tbody>
+            </table></div>
+            <div role="tabpanel" id="ep-all" aria-labelledby="ef-all" hidden><p class="empty">原型只列了未通过的题。</p></div>
+            <div role="tabpanel" id="ep-bad" aria-labelledby="ef-bad" hidden><p class="empty">坐席标记的坏例出现在这里，并进入下一次评测。</p></div>
+          </div>
+        </div>
+      </div>
+      <dialog id="dlg-run" aria-labelledby="dr-title">
+        <form data-demo="评测已开始，进度 0 / 321" data-toast="评测已开始（原型）">
+          <div class="panel-head"><h2 class="panel-title" id="dr-title">运行评测</h2><button type="button" class="icon-btn" data-close aria-label="关闭">×</button></div>
+          <div class="panel-body">
+            <fieldset class="radio-list"><legend class="legend">对照组</legend>
+              <label><input type="checkbox" checked> A 改造前规则引擎</label>
+              <label><input type="checkbox" checked> B Dify 直出</label>
+              <label><input type="checkbox" checked> C 本系统</label>
+            </fieldset>
+            <p class="small muted" style="margin-bottom:14px">测试集 107 题 × 3 组，预计约 6 分钟，模型费用约 1 元 <span class="mock">估算</span></p>
+            <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>取消</button><button type="submit" class="btn btn-solid">开始</button></div>
+          </div>
+        </form>
+      </dialog>
+    </section>
+  </div>
+  <div class="toast" id="toast" hidden><span id="toast-msg"></span><button type="button" class="icon-btn" id="toast-close" aria-label="关闭提示">×</button></div>
+  <p class="sr-only" id="live" role="status" aria-live="polite"></p>
+  <script src="../_shared/proto.js"></script>
+</body>
+</html>
