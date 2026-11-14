@@ -1,0 +1,9 @@
+{
+  "score_threshold": 0.5,
+  "max_citations": 3,
+  "refusal_text": "知识库里没有这条办事说明，我不能编规定。需要的话可以转人工，值班老师会回复你。",
+  "auto_ticket_on_refusal": false,
+  "probe_question": "在读证明如何办理？",
+  "probe_expect": "一网通办",
+  "probe_interval_seconds": 600
+}

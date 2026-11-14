@@ -1,0 +1,1254 @@
+{
+  "set": "dev",
+  "count": 105,
+  "source": "sample-kb/客服样例FAQ.md",
+  "note": "知识库是这一个文件里的 144 条，不是 144 个文件。基线 12 题只在 smoke-set.json。",
+  "items": [
+    {
+      "type": "in_scope",
+      "question": "同学想问，这个助手能办哪些校园事务？",
+      "expected_title": "这个助手能办哪些校园事务？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "校园客服面向在校同学，依"
+      ],
+      "should_refuse": false,
+      "id": "D-001"
+    },
+    {
+      "type": "in_scope",
+      "question": "成绩单想申请？",
+      "expected_title": "成绩单如何申请？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "2 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-002"
+    },
+    {
+      "type": "in_scope",
+      "question": "补考和重修差别在哪里？",
+      "expected_title": "补考和重修有什么区别？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "补考面向成绩不及格、且课"
+      ],
+      "should_refuse": false,
+      "id": "D-003"
+    },
+    {
+      "type": "in_scope",
+      "question": "要怎么去办转专业？",
+      "expected_title": "如何办理转专业？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-004"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，毕业审核要满足哪些条件？",
+      "expected_title": "毕业审核要满足哪些条件？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "5 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-005"
+    },
+    {
+      "type": "in_scope",
+      "question": "图书馆开放时间指的是什么？",
+      "expected_title": "图书馆开放时间是什么？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "8:00–22:00",
+        "23:00"
+      ],
+      "should_refuse": false,
+      "id": "D-006"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，图书超期怎么处理？",
+      "expected_title": "图书超期怎么处理？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "0.10 元",
+        "20 元"
+      ],
+      "should_refuse": false,
+      "id": "D-007"
+    },
+    {
+      "type": "in_scope",
+      "question": "自习座位怎么预约？",
+      "expected_title": "自习座位如何预约？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "30 分钟"
+      ],
+      "should_refuse": false,
+      "id": "D-008"
+    },
+    {
+      "type": "in_scope",
+      "question": "电子资源校外怎样访问？",
+      "expected_title": "电子资源校外如何访问？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "30 分钟"
+      ],
+      "should_refuse": false,
+      "id": "D-009"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，宿舍报修怎么提交？",
+      "expected_title": "宿舍报修怎么提交？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "1 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-010"
+    },
+    {
+      "type": "in_scope",
+      "question": "忘带校园卡进不了宿舍该如何处理？",
+      "expected_title": "忘带校园卡进不了宿舍怎么办？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-011"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，宿舍用电有什么限制？",
+      "expected_title": "宿舍用电有什么限制？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "禁止热得快、电热毯、电磁炉和私拉电线"
+      ],
+      "should_refuse": false,
+      "id": "D-012"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，假期留校怎么申请？",
+      "expected_title": "假期留校怎么申请？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "7 天",
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-013"
+    },
+    {
+      "type": "in_scope",
+      "question": "校园网怎样认证登录？",
+      "expected_title": "校园网如何认证登录？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "连接无线网 Nebula-Campus，或插宿舍有线网"
+      ],
+      "should_refuse": false,
+      "id": "D-014"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，宿舍有线网和无线网怎么选？",
+      "expected_title": "宿舍有线网和无线网怎么选？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "上网课、考试和传大文件优先宿舍有线网，网口在书桌下方"
+      ],
+      "should_refuse": false,
+      "id": "D-015"
+    },
+    {
+      "type": "in_scope",
+      "question": "VPN 怎么用？",
+      "expected_title": "VPN 如何使用？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "30 分钟"
+      ],
+      "should_refuse": false,
+      "id": "D-016"
+    },
+    {
+      "type": "in_scope",
+      "question": "学费怎样缴纳？",
+      "expected_title": "学费如何缴纳？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-017"
+    },
+    {
+      "type": "in_scope",
+      "question": "校园卡怎样补办？",
+      "expected_title": "校园卡如何补办？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "20 元"
+      ],
+      "should_refuse": false,
+      "id": "D-018"
+    },
+    {
+      "type": "in_scope",
+      "question": "校医院开放时间指的是什么？",
+      "expected_title": "校医院开放时间是什么？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "8:00–11:30",
+        "14:00–17:00"
+      ],
+      "should_refuse": false,
+      "id": "D-019"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，快递怎么取？",
+      "expected_title": "快递怎么取？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "10:00–19:00"
+      ],
+      "should_refuse": false,
+      "id": "D-020"
+    },
+    {
+      "type": "in_scope",
+      "question": "体育馆怎么预约？",
+      "expected_title": "体育馆如何预约？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "3 天",
+        "16:00–20:00"
+      ],
+      "should_refuse": false,
+      "id": "D-021"
+    },
+    {
+      "type": "in_scope",
+      "question": "办事进度在哪查？",
+      "expected_title": "办事进度如何查询？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-022"
+    },
+    {
+      "type": "in_scope",
+      "question": "校园网使用规范都包括什么？",
+      "expected_title": "校园网使用规范有哪些？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "7 天"
+      ],
+      "should_refuse": false,
+      "id": "D-023"
+    },
+    {
+      "type": "in_scope",
+      "question": "怎样撤销已提交的办事申请？",
+      "expected_title": "如何撤销已提交的办事申请？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-024"
+    },
+    {
+      "type": "in_scope",
+      "question": "学籍证明和在读证明差别在哪里？",
+      "expected_title": "学籍证明和在读证明有什么区别？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "3 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-025"
+    },
+    {
+      "type": "in_scope",
+      "question": "成绩一般何时发布？",
+      "expected_title": "成绩什么时候发布？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "10 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-026"
+    },
+    {
+      "type": "in_scope",
+      "question": "平均学分绩点（GPA）怎样计算？",
+      "expected_title": "平均学分绩点（GPA）如何计算？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "教务系统「成绩统计」自动计算 GPA"
+      ],
+      "should_refuse": false,
+      "id": "D-027"
+    },
+    {
+      "type": "in_scope",
+      "question": "学籍上的姓名或身份证号怎样更正？",
+      "expected_title": "学籍上的姓名或身份证号如何更正？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "9:00–11:30",
+        "14:00–16:30"
+      ],
+      "should_refuse": false,
+      "id": "D-028"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，应征入伍保留学籍怎么申请？",
+      "expected_title": "应征入伍保留学籍怎么申请？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "10 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-029"
+    },
+    {
+      "type": "in_scope",
+      "question": "课程免修想申请？",
+      "expected_title": "课程免修如何申请？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-030"
+    },
+    {
+      "type": "in_scope",
+      "question": "转专业后已修学分怎样认定？",
+      "expected_title": "转专业后已修学分如何认定？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "10 个工作日",
+        "5 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-031"
+    },
+    {
+      "type": "in_scope",
+      "question": "选课冲突该如何处理？",
+      "expected_title": "选课冲突怎么办？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "同一时间两门课，教务系统会拒绝保存"
+      ],
+      "should_refuse": false,
+      "id": "D-032"
+    },
+    {
+      "type": "in_scope",
+      "question": "补选时显示人数已满该如何处理？",
+      "expected_title": "补选时显示人数已满怎么办？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "3 天"
+      ],
+      "should_refuse": false,
+      "id": "D-033"
+    },
+    {
+      "type": "in_scope",
+      "question": "体育课怎样选择？",
+      "expected_title": "体育课如何选择？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "大一、大二每学期在教务系统选 1 个体育项目，先到先得"
+      ],
+      "should_refuse": false,
+      "id": "D-034"
+    },
+    {
+      "type": "in_scope",
+      "question": "考试时间和考场去哪儿查？",
+      "expected_title": "考试时间和考场在哪里查？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "考前 2 周，教务系统开"
+      ],
+      "should_refuse": false,
+      "id": "D-035"
+    },
+    {
+      "type": "in_scope",
+      "question": "缓考通过后去哪儿看补考安排？",
+      "expected_title": "缓考通过后在哪里看补考安排？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "缓考和补考一般安排在下学期开学前两周"
+      ],
+      "should_refuse": false,
+      "id": "D-036"
+    },
+    {
+      "type": "in_scope",
+      "question": "英语四六级怎样报名？",
+      "expected_title": "英语四六级如何报名？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "35 元"
+      ],
+      "should_refuse": false,
+      "id": "D-037"
+    },
+    {
+      "type": "in_scope",
+      "question": "国家助学贷款想申请？",
+      "expected_title": "国家助学贷款如何申请？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "9:00–11:30"
+      ],
+      "should_refuse": false,
+      "id": "D-038"
+    },
+    {
+      "type": "in_scope",
+      "question": "助学贷款每年怎样做年度确认？",
+      "expected_title": "助学贷款每年如何做年度确认？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-039"
+    },
+    {
+      "type": "in_scope",
+      "question": "勤工助学岗位想申请？",
+      "expected_title": "勤工助学岗位如何申请？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "12 元"
+      ],
+      "should_refuse": false,
+      "id": "D-040"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，家庭经济困难认定何时办理？",
+      "expected_title": "家庭经济困难认定何时办理？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "5 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-041"
+    },
+    {
+      "type": "in_scope",
+      "question": "学费减免想申请？",
+      "expected_title": "学费减免如何申请？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-042"
+    },
+    {
+      "type": "in_scope",
+      "question": "图书馆分馆开放时间指的是什么？",
+      "expected_title": "图书馆分馆开放时间是什么？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "8:30–21:30",
+        "8:30–21:00"
+      ],
+      "should_refuse": false,
+      "id": "D-043"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，图书荐购怎么提交？",
+      "expected_title": "图书荐购怎么提交？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "图书馆主页「读者荐购」填写书名、ISBN 和用途"
+      ],
+      "should_refuse": false,
+      "id": "D-044"
+    },
+    {
+      "type": "in_scope",
+      "question": "闭馆后怎样还书？",
+      "expected_title": "闭馆后如何还书？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "12:00"
+      ],
+      "should_refuse": false,
+      "id": "D-045"
+    },
+    {
+      "type": "in_scope",
+      "question": "学位论文怎样提交？",
+      "expected_title": "学位论文如何提交？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "3 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-046"
+    },
+    {
+      "type": "in_scope",
+      "question": "馆际互借想申请？",
+      "expected_title": "馆际互借如何申请？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "30 元"
+      ],
+      "should_refuse": false,
+      "id": "D-047"
+    },
+    {
+      "type": "in_scope",
+      "question": "宿舍水电费在哪查和缴纳？",
+      "expected_title": "宿舍水电费如何查询和缴纳？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "3 元"
+      ],
+      "should_refuse": false,
+      "id": "D-048"
+    },
+    {
+      "type": "in_scope",
+      "question": "宿舍访客怎样登记？",
+      "expected_title": "宿舍访客如何登记？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "9:00–17:00",
+        "17:00"
+      ],
+      "should_refuse": false,
+      "id": "D-049"
+    },
+    {
+      "type": "in_scope",
+      "question": "宿舍空调不制冷怎样报修？",
+      "expected_title": "宿舍空调不制冷如何报修？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "6:00–24:00",
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-050"
+    },
+    {
+      "type": "in_scope",
+      "question": "宿舍洗衣机怎么用和付费？",
+      "expected_title": "宿舍洗衣机如何使用和付费？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "2 元",
+        "30 分钟"
+      ],
+      "should_refuse": false,
+      "id": "D-051"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，宿舍突然停电怎么判断？",
+      "expected_title": "宿舍突然停电怎么判断？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "14:00–16:00",
+        "6677"
+      ],
+      "should_refuse": false,
+      "id": "D-052"
+    },
+    {
+      "type": "in_scope",
+      "question": "校园网认证页面打不开该如何处理？",
+      "expected_title": "校园网认证页面打不开怎么办？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "确认连接的是 Nebul"
+      ],
+      "should_refuse": false,
+      "id": "D-053"
+    },
+    {
+      "type": "in_scope",
+      "question": "新手机或电脑怎样绑定校园网？",
+      "expected_title": "新手机或电脑如何绑定校园网？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "不需要单独审批"
+      ],
+      "should_refuse": false,
+      "id": "D-054"
+    },
+    {
+      "type": "in_scope",
+      "question": "VPN 客户端去哪儿下载？",
+      "expected_title": "VPN 客户端在哪里下载？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "只从信息化办公室主页 i"
+      ],
+      "should_refuse": false,
+      "id": "D-055"
+    },
+    {
+      "type": "in_scope",
+      "question": "宿舍网口指示灯不亮怎样报修？",
+      "expected_title": "宿舍网口指示灯不亮如何报修？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-056"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，信息门户密码和校园网密码一样吗？",
+      "expected_title": "信息门户密码和校园网密码一样吗？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "信息门户、教务系统、校园网认证和 VPN 使用同一套密码"
+      ],
+      "should_refuse": false,
+      "id": "D-057"
+    },
+    {
+      "type": "in_scope",
+      "question": "校园卡余额和消费明细去哪儿查？",
+      "expected_title": "校园卡余额和消费明细在哪里查？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "180 天"
+      ],
+      "should_refuse": false,
+      "id": "D-058"
+    },
+    {
+      "type": "in_scope",
+      "question": "校园卡消磁或无法刷门禁该如何处理？",
+      "expected_title": "校园卡消磁或无法刷门禁怎么办？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "20 元"
+      ],
+      "should_refuse": false,
+      "id": "D-059"
+    },
+    {
+      "type": "in_scope",
+      "question": "临时校园卡怎样领取？",
+      "expected_title": "临时校园卡如何领取？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "20 元",
+        "7 天"
+      ],
+      "should_refuse": false,
+      "id": "D-060"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，捡到校园卡应该交到哪里？",
+      "expected_title": "捡到校园卡应该交到哪里？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "90 天"
+      ],
+      "should_refuse": false,
+      "id": "D-061"
+    },
+    {
+      "type": "in_scope",
+      "question": "校医院怎么预约挂号？",
+      "expected_title": "校医院如何预约挂号？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "3 天"
+      ],
+      "should_refuse": false,
+      "id": "D-062"
+    },
+    {
+      "type": "in_scope",
+      "question": "校医院转诊到校外该怎么办？",
+      "expected_title": "校医院转诊到校外怎么办理？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "3 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-063"
+    },
+    {
+      "type": "in_scope",
+      "question": "心理测评去哪儿做，结果谁能看？",
+      "expected_title": "心理测评在哪里做，结果谁能看？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "20 分钟"
+      ],
+      "should_refuse": false,
+      "id": "D-064"
+    },
+    {
+      "type": "in_scope",
+      "question": "办事进度状态分别指的是什么意思？",
+      "expected_title": "办事进度状态分别是什么意思？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "1 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-065"
+    },
+    {
+      "type": "in_scope",
+      "question": "办事超过时限怎样催办？",
+      "expected_title": "办事超过时限如何催办？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-066"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，一网通办「我的申请」和对话里查进度有何区别？",
+      "expected_title": "一网通办「我的申请」和对话里查进度有何区别？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-067"
+    },
+    {
+      "type": "in_scope",
+      "question": "同学想问，寒暑假校园作息怎么安排？",
+      "expected_title": "寒暑假校园作息怎么安排？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "9:00–17:00",
+        "9:00–11:30"
+      ],
+      "should_refuse": false,
+      "id": "D-068"
+    },
+    {
+      "type": "in_scope",
+      "question": "假期宿舍门禁和断电规则指的是什么？",
+      "expected_title": "假期宿舍门禁和断电规则是什么？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "6:00",
+        "23:30"
+      ],
+      "should_refuse": false,
+      "id": "D-069"
+    },
+    {
+      "type": "in_scope",
+      "question": "空闲教室在哪查？",
+      "expected_title": "空闲教室如何查询？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "教务系统「空闲教室」按日期、节次和楼栋筛选"
+      ],
+      "should_refuse": false,
+      "id": "D-070"
+    },
+    {
+      "type": "in_scope",
+      "question": "教室借用怎样取消或改期？",
+      "expected_title": "教室借用如何取消或改期？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "30 天"
+      ],
+      "should_refuse": false,
+      "id": "D-071"
+    },
+    {
+      "type": "in_scope",
+      "question": "假期食堂开放时间指的是什么？",
+      "expected_title": "假期食堂开放时间是什么？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "7:30–9:00",
+        "11:00–13:00"
+      ],
+      "should_refuse": false,
+      "id": "D-072"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "学生票优惠怎么核验",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-073"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "食堂饭菜不干净怎么投诉赔偿",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-074"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "快递丢了学校会赔吗",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-075"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "校内创业场地怎么申请",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-076"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "社团招新摊位怎么批",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-077"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "电动车允许进校园吗",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-078"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "校园停车怎么收费",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-079"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "校友卡怎么办理",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-080"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "签证邀请函怎么开",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-081"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "学校是托福考点吗",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-082"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "创新创业大赛怎么报名",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-083"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "体测不及格能不能毕业",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-084"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "交换生名额怎么申请",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-085"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "校外住宿怎么打申请",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-086"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "给辅导员发邮件请假用哪个模板",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-087"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "毕业论文盲审没过怎么办",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-088"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "英语角每周几举办",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-089"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "学校篮球联赛怎么报名",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-090"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "毕业照统一在哪拍",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-091"
+    },
+    {
+      "type": "out_of_scope",
+      "question": "考研报名费学校代收吗",
+      "expected_title": "",
+      "expected_doc": "",
+      "expected_facts": [],
+      "should_refuse": true,
+      "id": "D-092"
+    },
+    {
+      "type": "multi_turn",
+      "question": "转完学分怎么办",
+      "history": [
+        {
+          "role": "user",
+          "text": "如何办理转专业？"
+        },
+        {
+          "role": "assistant",
+          "text": "好，我按上一问的办事说明接着说。"
+        }
+      ],
+      "expected_title": "转专业后已修学分如何认定？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "10 个工作日",
+        "5 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-093"
+    },
+    {
+      "type": "multi_turn",
+      "question": "分馆呢",
+      "history": [
+        {
+          "role": "user",
+          "text": "图书馆开放时间是什么？"
+        },
+        {
+          "role": "assistant",
+          "text": "好，我按上一问的办事说明接着说。"
+        }
+      ],
+      "expected_title": "图书馆分馆开放时间是什么？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "8:30–21:30",
+        "8:30–21:00"
+      ],
+      "should_refuse": false,
+      "id": "D-094"
+    },
+    {
+      "type": "multi_turn",
+      "question": "那退学呢",
+      "history": [
+        {
+          "role": "user",
+          "text": "休学和复学怎么办理？"
+        },
+        {
+          "role": "assistant",
+          "text": "好，我按上一问的办事说明接着说。"
+        }
+      ],
+      "expected_title": "退学如何办理？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "5 个工作日"
+      ],
+      "should_refuse": false,
+      "id": "D-095"
+    },
+    {
+      "type": "multi_turn",
+      "question": "奖学金和励志有啥区别",
+      "history": [
+        {
+          "role": "user",
+          "text": "奖助学金如何申请？"
+        },
+        {
+          "role": "assistant",
+          "text": "好，我按上一问的办事说明接着说。"
+        }
+      ],
+      "expected_title": "国家奖学金和励志奖学金有什么区别？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "8000 元",
+        "5000 元"
+      ],
+      "should_refuse": false,
+      "id": "D-096"
+    },
+    {
+      "type": "multi_turn",
+      "question": "挂失后付款码呢",
+      "history": [
+        {
+          "role": "user",
+          "text": "校园卡如何充值和挂失？"
+        },
+        {
+          "role": "assistant",
+          "text": "好，我按上一问的办事说明接着说。"
+        }
+      ],
+      "expected_title": "校园卡挂失后付款码还能用吗？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办"
+      ],
+      "should_refuse": false,
+      "id": "D-097"
+    },
+    {
+      "type": "multi_turn",
+      "question": "客户端去哪下",
+      "history": [
+        {
+          "role": "user",
+          "text": "VPN 如何使用？"
+        },
+        {
+          "role": "assistant",
+          "text": "好，我按上一问的办事说明接着说。"
+        }
+      ],
+      "expected_title": "VPN 客户端在哪里下载？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "只从信息化办公室主页 i"
+      ],
+      "should_refuse": false,
+      "id": "D-098"
+    },
+    {
+      "type": "multi_turn",
+      "question": "怎么挂号",
+      "history": [
+        {
+          "role": "user",
+          "text": "校医院开放时间是什么？"
+        },
+        {
+          "role": "assistant",
+          "text": "好，我按上一问的办事说明接着说。"
+        }
+      ],
+      "expected_title": "校医院如何预约挂号？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "一网通办",
+        "3 天"
+      ],
+      "should_refuse": false,
+      "id": "D-099"
+    },
+    {
+      "type": "multi_turn",
+      "question": "食堂开不开",
+      "history": [
+        {
+          "role": "user",
+          "text": "假期留校怎么申请？"
+        },
+        {
+          "role": "assistant",
+          "text": "好，我按上一问的办事说明接着说。"
+        }
+      ],
+      "expected_title": "假期食堂开放时间是什么？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [
+        "7:30–9:00",
+        "11:00–13:00"
+      ],
+      "should_refuse": false,
+      "id": "D-100"
+    },
+    {
+      "type": "clarify",
+      "question": "教室想用一下",
+      "expected_titles": [
+        "教室借用怎么申请？",
+        "空闲教室如何查询？",
+        "教室借用如何取消或改期？"
+      ],
+      "expected_title": "教室借用怎么申请？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [],
+      "should_refuse": false,
+      "id": "D-101"
+    },
+    {
+      "type": "clarify",
+      "question": "奖学金怎么弄",
+      "expected_titles": [
+        "奖助学金如何申请？",
+        "国家奖学金和励志奖学金有什么区别？",
+        "助学金发放到哪里？"
+      ],
+      "expected_title": "奖助学金如何申请？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [],
+      "should_refuse": false,
+      "id": "D-102"
+    },
+    {
+      "type": "clarify",
+      "question": "书借不出来",
+      "expected_titles": [
+        "如何借书和续借？",
+        "借阅权限为什么被冻结？",
+        "图书超期怎么处理？"
+      ],
+      "expected_title": "如何借书和续借？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [],
+      "should_refuse": false,
+      "id": "D-103"
+    },
+    {
+      "type": "clarify",
+      "question": "转专业",
+      "expected_titles": [
+        "如何办理转专业？",
+        "转专业后已修学分如何认定？"
+      ],
+      "expected_title": "如何办理转专业？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [],
+      "should_refuse": false,
+      "id": "D-104"
+    },
+    {
+      "type": "clarify",
+      "question": "心理方面的事",
+      "expected_titles": [
+        "心理咨询如何预约？",
+        "心理咨询如何取消或改期？",
+        "心理测评在哪里做，结果谁能看？"
+      ],
+      "expected_title": "心理咨询如何预约？",
+      "expected_doc": "客服样例FAQ.md",
+      "expected_facts": [],
+      "should_refuse": false,
+      "id": "D-105"
+    }
+  ]
+}

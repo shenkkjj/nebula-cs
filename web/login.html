@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>登录 · 校园客服</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/staff.css" />
+</head>
+<body>
+  <main class="login-wrap">
+    <form class="panel login-card" id="loginForm">
+      <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role">坐席 / 管理员登录</span></div>
+      <p class="small muted">课程演示账号：管理员 admin / admin123，坐席 agent1 / agent123。密码只以哈希存在本机数据库。</p>
+      <label class="field"><span>账号</span><input class="input" name="username" autocomplete="username" required maxlength="40" /></label>
+      <label class="field"><span>密码</span><input class="input" name="password" type="password" autocomplete="current-password" required maxlength="80" /></label>
+      <p class="err" id="loginError" hidden></p>
+      <button class="btn btn-solid" type="submit">登录</button>
+    </form>
+  </main>
+  <script src="/login.js"></script>
+</body>
+</html>

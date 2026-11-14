@@ -31,13 +31,14 @@
 
     <div class="workspace">
       <section class="lounge" aria-label="对话区">
+        <div id="noticeBar" class="notice-bar warn" hidden></div>
         <div class="messages" id="messages" role="log" aria-live="polite"></div>
         <form class="composer" id="composer">
           <textarea
             id="queryInput"
             rows="1"
             maxlength="2000"
-            placeholder="在读证明、算一道题、查 SW20260001，或说「转人工」…"
+            placeholder="在读证明、图书馆、宿舍报修，或说「转人工」…"
             autocomplete="off"
           ></textarea>
           <button type="button" class="stop-btn" id="btnStop" hidden>停止生成</button>
@@ -82,7 +83,7 @@
         <h3 id="ticketTitle">转人工坐席</h3>
         <button type="button" class="icon-btn" id="btnCloseTicket" aria-label="关闭">×</button>
       </header>
-      <p class="modal-desc">登记一条演示工单（本地存根，不会真正派单）。请不要填写身份证号、银行卡号或病历。也可以在对话里直接说「转人工」。</p>
+      <p class="modal-desc">登记到坐席队列。请不要填写身份证号、银行卡号或病历。也可以在对话里直接说「转人工」。</p>
       <form id="ticketForm">
         <label>主题
           <input type="text" name="subject" required maxlength="80" placeholder="例如：在读证明领取时间" />
