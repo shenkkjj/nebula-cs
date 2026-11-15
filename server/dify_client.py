@@ -339,7 +339,7 @@ def hit_test(query: str) -> list[dict]:
     _status, payload = _dataset_request(
         "POST",
         f"/datasets/{dataset_id}/hit-testing",
-        {"query": query, "retrieval_model": {"search_method": "semantic_search", "top_k": 3}},
+        {"query": query},
         timeout=40,
     )
     records = []

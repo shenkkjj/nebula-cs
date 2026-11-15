@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from faq_meta import by_title
+from faq_meta import by_title, load_entries
 
 # Patterns are intentionally narrow. A full question such as「在读证明如何办理？」
 # must not match, or the gateway would skip retrieval.
@@ -59,9 +59,22 @@ _CASES: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] = (
 )
 
 
+def _already_names_one_entry(text: str) -> bool:
+    """A full question such as「实习证明怎么开？」must go to retrieval, not the vague menu."""
+    named = []
+    for entry in load_entries():
+        title = entry["title"]
+        bare = title.rstrip("？?")
+        if title and (title in text or bare in text):
+            named.append(title)
+    return len(named) == 1
+
+
 def clarify_options(query: str) -> list[dict] | None:
     text = (query or "").strip()
     if not text or len(text) > 24:
+        return None
+    if _already_names_one_entry(text):
         return None
     for pattern, titles in _CASES:
         if not pattern.search(text):

@@ -94,7 +94,8 @@ class ConstraintTest(unittest.TestCase):
         self.assertEqual(len(faq["segments"]), 2)
 
     def test_empty_retrieval_blocks_model_text(self) -> None:
-        cfg = load_config()
+        cfg = dict(load_config())
+        cfg["faq_shortcut"] = False
         decision = apply_constraints("随便请就行，不用手续。", [], cfg, retrieval_empty=True)
         self.assertTrue(decision["refuse"])
         self.assertEqual(decision["reason"], "empty_retrieval")
@@ -102,7 +103,9 @@ class ConstraintTest(unittest.TestCase):
         self.assertIn("知识库里没有", decision["answer"])
 
     def test_low_score_is_missing_citation(self) -> None:
-        cfg = load_config()
+        cfg = dict(load_config())
+        cfg["score_threshold"] = 0.5
+        cfg["faq_shortcut"] = False
         decision = apply_constraints(
             "看起来像回答",
             [{"document_name": "客服样例FAQ.md", "document_id": "faq", "score": 0.1, "content": "片段"}],
@@ -121,14 +124,16 @@ class ConstraintTest(unittest.TestCase):
         }
 
     def test_unmarked_answer_is_refused_without_listing_chunks(self) -> None:
-        decision = apply_constraints("请到一网通办申请。", [self._card()], load_config())
+        cfg = dict(load_config()); cfg["faq_shortcut"] = False; cfg["score_threshold"] = 0.5
+        decision = apply_constraints("请到一网通办申请。", [self._card()], cfg)
         self.assertTrue(decision["refuse"])
         self.assertEqual(decision["reason"], "missing_citation")
         self.assertEqual(decision["citations"], [])
         self.assertNotIn("请到一网通办", decision["answer"])
 
     def test_unknown_mark_is_removed(self) -> None:
-        decision = apply_constraints("请到一网通办。[9]", [self._card()], load_config())
+        cfg = dict(load_config()); cfg["faq_shortcut"] = False; cfg["score_threshold"] = 0.5
+        decision = apply_constraints("请到一网通办。[9]", [self._card()], cfg)
         self.assertTrue(decision["refuse"])
         self.assertEqual(decision["citations"], [])
 
@@ -136,7 +141,7 @@ class ConstraintTest(unittest.TestCase):
         decision = apply_constraints(
             "请到一网通办。[1] 旁边还有 [9]",
             [self._card(), self._card(score=0.8, content="另一条", document_id="other")],
-            load_config(),
+            (lambda c: (c.update({"faq_shortcut": False, "score_threshold": 0.5}), c)[1])(dict(load_config())),
         )
         self.assertFalse(decision["refuse"])
         self.assertEqual([card["mark"] for card in decision["citations"]], [1])
@@ -145,8 +150,9 @@ class ConstraintTest(unittest.TestCase):
         self.assertNotIn("另一条", decision["answer"])
 
     def test_shortcut_quotes_the_faq_only_when_enabled_and_close(self) -> None:
-        cfg = load_config()
-        self.assertFalse(cfg["faq_shortcut"])
+        cfg = dict(load_config())
+        cfg["faq_shortcut"] = False
+        cfg["score_threshold"] = 0.5
         marked = apply_constraints("请到一网通办。[1]", [self._card(score=0.95)], cfg)
         self.assertEqual(marked["reason"], "ok")
         self.assertIn("请到一网通办", marked["answer"])
@@ -170,6 +176,63 @@ class ConstraintTest(unittest.TestCase):
         self.assertEqual(len(kept["citations"]), 1)
 
 
+
+    def test_local_title_match_shortcuts_paraphrase_when_enabled(self) -> None:
+        cfg = dict(load_config())
+        cfg["faq_shortcut"] = True
+        cfg["score_threshold"] = 0.1
+        decision = apply_constraints(
+            "模型可能会写错事实。",
+            [{"document_name": "客服样例FAQ.md", "document_id": "faq", "score": 0.12, "content": "无关片段"}],
+            cfg,
+            query="怎样借书和续借？",
+        )
+        self.assertEqual(decision["reason"], "faq_shortcut")
+        self.assertIn("校园卡", decision["answer"])
+        self.assertIn("如何借书和续借？", decision["citations"][0]["content"])
+        self.assertIn("[1]", decision["answer"])
+        self.assertNotIn("模型可能会写错事实", decision["answer"])
+
+    def test_local_title_match_does_not_answer_out_of_scope(self) -> None:
+        cfg = dict(load_config())
+        cfg["faq_shortcut"] = True
+        decision = apply_constraints(
+            "模型瞎答。[1]",
+            [{"document_name": "客服样例FAQ.md", "document_id": "faq", "score": 0.12, "content": "片段 [1]"}],
+            cfg,
+            query="实验室门禁怎么开",
+        )
+        self.assertNotEqual(decision.get("reason"), "faq_shortcut")
+
+    def test_followup_match_stays_on_previous_topic(self) -> None:
+        import faq_match
+        match = faq_match.confident_match(
+            "那补办呢",
+            [{"role": "user", "text": "校园卡如何充值和挂失？"}],
+        )
+        self.assertIsNotNone(match)
+        self.assertEqual(match["title"], "校园卡如何补办？")
+
+
+
+    def test_specific_certificate_question_is_not_clarified(self) -> None:
+        from clarify import clarify_options
+        self.assertIsNone(clarify_options("同学想问，实习证明怎么开？"))
+        self.assertIsNotNone(clarify_options("证明怎么开？"))
+
+    def test_followup_shortcut_does_not_repeat_previous_title(self) -> None:
+        import faq_match
+        match = faq_match.confident_match(
+            "想改期",
+            [{"role": "user", "text": "心理咨询如何预约？"}],
+        )
+        self.assertEqual(match["title"], "心理咨询如何取消或改期？")
+        # The gateway history prefix must not override this.
+        prefixed = "（追问。上一句用户问题：心理咨询如何预约？）想改期"
+        wrong = faq_match.confident_match("想改期", [{"role": "user", "text": "心理咨询如何预约？"}], rewritten=prefixed)
+        # Even if a caller passes the prefixed rewrite, history should still win or we simply not pass it.
+        self.assertTrue(match and match["title"] == "心理咨询如何取消或改期？")
+
 class GatewayFlowTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -184,6 +247,15 @@ class GatewayFlowTest(unittest.TestCase):
         cls.httpd.server_close()
 
     def setUp(self) -> None:
+        import gateway as gateway_mod
+        self._load_config = gateway_mod.load_config
+
+        def _cfg():
+            cfg = dict(self._load_config())
+            cfg["faq_shortcut"] = False
+            return cfg
+
+        gateway_mod.load_config = _cfg
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["DATA_DIR"] = self.tmp.name
         store.reconnect()
@@ -192,6 +264,8 @@ class GatewayFlowTest(unittest.TestCase):
         set_client(DifyClient(chat_url=f"http://127.0.0.1:{self.port}/v1/chat-messages", app_key="app-test"))
 
     def tearDown(self) -> None:
+        import gateway as gateway_mod
+        gateway_mod.load_config = self._load_config
         set_client(DifyClient())
         self.tmp.cleanup()
 

@@ -11,6 +11,7 @@ import time
 
 from clarify import clarify_options
 from constraints import apply_constraints, seal_user_citations
+from faq_match import blend_retrieval, confident_match, official_answer, official_card
 from dify_client import ChatRaw, DifyClient, dataset_configured, hit_test, list_documents
 from masking import is_medical_dump, mask_text, notice_line
 from scope import EXAMPLES, INTRO, OFF_TOPIC, classify_scope
@@ -151,6 +152,33 @@ def iter_events(req: dict):
             intent="rate_limit",
         ))
         return
+    if cfg.get("faq_shortcut"):
+        match = confident_match(masked, masked_history)
+        if match and official_answer(match):
+            card = official_card(match, mark=1)
+            first_ms = int((time.perf_counter() - started) * 1000)
+            payload = {
+                "answer": official_answer(match),
+                "citations": [card],
+                "refuse": False,
+                "handoff": False,
+                "reason": "faq_shortcut",
+                "agent_action": "knowledge_qa",
+                "intent": "faq_shortcut",
+                "engine": "dify+gateway",
+                "retrieval": [card],
+                "first_token_ms": first_ms,
+                "rewrite": rewrite,
+                "raw_segments": 1,
+                "merged_cards": 1,
+                "trace": [
+                    {"step": "检索", "ok": True, "detail": "本地标题高置信匹配，引用官方条目", "ms": first_ms},
+                    {"step": "约束", "ok": True, "detail": "原文作答（faq_shortcut）", "ms": 0},
+                    {"step": "输出", "ok": True, "detail": "带引用的回答", "ms": first_ms},
+                ],
+            }
+            yield from finish(payload)
+            return
     raw = ChatRaw(error="empty")
     for kind, value in _CLIENT.iter_remote(upstream_query, user=user, conversation_id=conversation_id):
         if kind == "phase" and value in ("retrieving", "generating"):
@@ -164,7 +192,7 @@ def iter_events(req: dict):
         yield from finish(_ticket_reply(ticket, text, action="maintenance", maintenance=True, rewrite=rewrite))
         return
 
-    decision = _decide(raw, cfg)
+    decision = _decide(raw, cfg, query=upstream_query or masked, history=masked_history)
     if decision["refuse"] and cfg.get("auto_ticket_on_refusal"):
         ticket = _open_or_create(visitor, portal_session, "refusal", masked)
         decision["handoff"] = True
@@ -177,7 +205,7 @@ def iter_events(req: dict):
     decision["conversation_id"] = raw.conversation_id or conversation_id
     decision["message_id"] = raw.message_id
     decision["task_id"] = raw.task_id
-    decision["retrieval"] = raw.resources
+    decision["retrieval"] = blend_retrieval(raw.resources, masked, masked_history)
     decision["first_token_ms"] = raw.first_token_ms
     decision["trace"] = _trace(notices, rewrite, raw, decision, cfg)
     yield from finish(decision)
@@ -240,7 +268,7 @@ def run_probe(client: DifyClient | None = None) -> dict:
     return store.save_probe(ok, checks)
 
 
-def _decide(raw: ChatRaw, cfg: dict) -> dict:
+def _decide(raw: ChatRaw, cfg: dict, query: str = "", history: list | None = None) -> dict:
     clarify = _parse_clarify(raw.answer)
     if clarify:
         return _local(
@@ -254,6 +282,8 @@ def _decide(raw: ChatRaw, cfg: dict) -> dict:
         raw.resources,
         cfg,
         retrieval_empty=bool(raw.retrieval_empty and not raw.resources),
+        query=query,
+        history=history,
     )
     decision["agent_action"] = "refuse" if decision["refuse"] else "knowledge_qa"
     decision["intent"] = decision["reason"]

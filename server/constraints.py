@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 
 from faq_meta import load_entries
+from faq_match import align_resources_to_answer, confident_match, official_answer, official_card
 
 _MARK_RE = re.compile(r"\[(\d+)\]")
 
@@ -122,8 +123,21 @@ def seal_user_citations(payload: dict) -> dict:
     return payload
 
 
-def apply_constraints(answer: str, resources: list, cfg: dict, retrieval_empty: bool = False) -> dict:
+def apply_constraints(answer: str, resources: list, cfg: dict, retrieval_empty: bool = False, query: str = "", history: list | None = None) -> dict:
     """Decide whether the model text may be shown."""
+    if query and cfg.get("faq_shortcut"):
+        match = confident_match(query, history)
+        if match and official_answer(match):
+            card = official_card(match, mark=1)
+            return {
+                "action": "answer",
+                "answer": official_answer(match),
+                "citations": [card],
+                "refuse": False,
+                "reason": "faq_shortcut",
+                "raw_segments": len(resources or []),
+                "merged_cards": 1,
+            }
     normalized = []
     for raw in resources or []:
         item = normalize_resource(raw)
@@ -168,7 +182,8 @@ def apply_constraints(answer: str, resources: list, cfg: dict, retrieval_empty: 
             "raw_segments": len(normalized),
             "merged_cards": 1,
         }
-    marked, kept = _keep_marked_cards(answer, merged)
+    aligned = _align_visible_cards(merged, answer, query)
+    marked, kept = _keep_marked_cards(answer, aligned)
     if not kept:
         return {
             "action": "refuse",
@@ -237,3 +252,33 @@ def _shortcut_text(cards: list[dict], cfg: dict) -> str | None:
                 return None
             return f"{body} [1]"
     return None
+
+def _align_visible_cards(cards: list[dict], answer: str, query: str = "") -> list[dict]:
+    """Show the segment that supports the answer, not only the highest score."""
+    if not cards:
+        return cards
+    reordered = align_resources_to_answer(list(cards), answer, query)
+    out = []
+    for card in reordered:
+        item = dict(card)
+        segments = list(item.get("segments") or [])
+        if segments:
+            # Prefer a segment mentioned in the answer, else the first after reorder.
+            chosen = None
+            for seg in segments:
+                content = (seg.get("content") if isinstance(seg, dict) else "") or ""
+                title_like = content.split("\n", 1)[0]
+                if title_like and title_like.rstrip("？?") in (answer or ""):
+                    chosen = seg
+                    break
+            if chosen is None:
+                chosen = segments[0]
+            if isinstance(chosen, dict) and chosen.get("content"):
+                item["content"] = chosen["content"]
+                if chosen.get("segment_id"):
+                    item["segment_id"] = chosen["segment_id"]
+                if chosen.get("score") is not None:
+                    item["score"] = chosen["score"]
+        out.append(item)
+    return out
+
