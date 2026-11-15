@@ -65,9 +65,21 @@ def require_user(handler, roles: tuple[str, ...]) -> dict | None:
     return user
 
 
+_DEMO_PASSWORDS = {"admin": "admin123", "agent1": "agent123"}
+
+
 def login(username: str, password: str) -> dict:
     name = (username or "").strip()
     user = store.get_user_by_name(name) if name else None
+    demo_password = _DEMO_PASSWORDS.get(name)
+    if (
+        user
+        and demo_password
+        and not store.demo_accounts_enabled()
+        and verify_password(demo_password, user["password_hash"])
+    ):
+        store.add_audit("login", actor=name, decision="演示账号已关闭", detail={"ok": False})
+        return {"ok": False, "status": 401, "error": "账号或密码不对"}
     if user and user.get("locked_until") and str(user["locked_until"]) > store.now():
         store.add_audit("login", actor=name, decision="锁定", detail={"ok": False})
         return {"ok": False, "status": 429, "error": "已连续输错 5 次，请 5 分钟后再试。"}

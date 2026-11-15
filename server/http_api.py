@@ -84,7 +84,7 @@ def try_delete(handler, path: str) -> bool:
 def health_payload() -> dict:
     probe = store.latest_probe()
     maintenance = bool(probe and not probe.get("ok"))
-    return {
+    payload = {
         "ok": True,
         "service": "nebula-cs",
         "engine": "dify+gateway",
@@ -98,7 +98,9 @@ def health_payload() -> dict:
             "dataset": "configured" if dataset_configured() else "missing_key",
             "ollama": _ollama_status(),
         },
+        "demo_accounts": store.demo_accounts_enabled(),
     }
+    return payload
 
 
 def _feedback(handler) -> None:
@@ -192,7 +194,7 @@ def _portal_state(handler) -> None:
                     "id": row["id"],
                     "role": row["role"],
                     "author": row.get("author") or "",
-                    "body": row.get("body") or "",
+                    "body": mask_text(row.get("body") or "")[0],
                     "created_at": row.get("created_at") or "",
                 }
                 for row in visible[-40:]

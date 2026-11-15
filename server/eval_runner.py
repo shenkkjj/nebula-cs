@@ -300,6 +300,7 @@ def answer_group_c(item: dict) -> dict:
             "visitor": fields["visitor"],
             "portal_session": fields["portal_session"],
             "conversation_id": fields["conversation_id"],
+            "eval_run": True,
         }
     )
     return outcome

@@ -29,6 +29,9 @@ if (stored.title !== title) process.exit(5);
 if (stored.messages[0].text.includes("13800138000")) process.exit(6);
 if (again !== subject) process.exit(7);
 if (mask.maskPhone("坐席已是 138****8000").includes("13800138000")) process.exit(8);
+const glued = mask.maskPhone("联系方式+8613800138000");
+if (glued.includes("13800138000") || glued.includes("+86")) process.exit(9);
+if (!glued.includes("138****8000")) process.exit(10);
 process.stdout.write(JSON.stringify({ title, subject }));
 """
         result = subprocess.run(

@@ -144,7 +144,7 @@ def iter_events(req: dict):
         return
 
     upstream_query, rewrite = _prepare_query(masked, masked_history, conversation_id)
-    if not ratelimit.allow(visitor, user, cfg):
+    if not ratelimit.allow(visitor, user, cfg, exempt=bool(req.get("eval_run"))):
         yield from finish(_local(
             "问得有点密，先休息一下再问。我还在，不着急。",
             action="rate_limit",
@@ -322,7 +322,9 @@ def _parse_clarify(answer: str) -> list[dict] | None:
 
 
 def _prepare_query(masked: str, history: list, conversation_id: str) -> tuple[str, dict | None]:
-    if conversation_id or not history:
+    # A Dify conversation id is not proof that this sentence continues the last topic.
+    del conversation_id
+    if not history:
         return masked, None
     previous = ""
     for item in reversed(history):

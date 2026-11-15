@@ -8,12 +8,11 @@ _LOCK = threading.Lock()
 _BUCKETS: dict[str, dict] = {}
 
 
-def allow(visitor: str, user: str, cfg: dict) -> bool:
-    if not cfg.get("rate_limit_enabled", True):
+def allow(visitor: str, user: str, cfg: dict, exempt: bool = False) -> bool:
+    """Exempt only when the eval runner sets it in-process. Client user strings are not trusted."""
+    if exempt or not cfg.get("rate_limit_enabled", True):
         return True
     identity = (visitor or user or "").strip()
-    if identity.startswith("eval-") or (user or "").startswith("eval-"):
-        return True
     if not identity:
         identity = "anonymous"
     burst = float(cfg.get("rate_limit_burst") or 20)

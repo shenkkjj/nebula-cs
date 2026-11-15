@@ -12,6 +12,7 @@ services:
       - .env
     environment:
       LITE_MODE: "0"
+      DEMO_ACCOUNTS: "1"
       PORTAL_HOST: 0.0.0.0
       PORTAL_PORT: "8080"
       DATA_DIR: /data

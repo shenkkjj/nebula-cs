@@ -38,6 +38,10 @@ class AgentApiTest(unittest.TestCase):
         conn = store.connection()
         conn.execute(
             "INSERT INTO users (username, password_hash, role, display_name) VALUES (?, ?, 'agent', ?)",
+            ("agent1", hash_password("agent123"), "王老师"),
+        )
+        conn.execute(
+            "INSERT INTO users (username, password_hash, role, display_name) VALUES (?, ?, 'agent', ?)",
             ("agent2", hash_password("agent123"), "李老师"),
         )
         conn.commit()
@@ -65,9 +69,11 @@ class AgentApiTest(unittest.TestCase):
         self.assertIn("王老师", conflict["error"])
         status, empty = agent_api.reply(self.ticket["public_id"], agent, "  ")
         self.assertEqual(status, 400)
-        status, replied = agent_api.reply(self.ticket["public_id"], agent, "先在一网通办提交请假。")
+        status, replied = agent_api.reply(self.ticket["public_id"], agent, "请回拨 +8613800138000")
         self.assertEqual(status, 200)
-        self.assertTrue(any(item["role"] == "agent" for item in replied["messages"]))
+        bodies = " ".join(item["body"] for item in replied["messages"])
+        self.assertNotIn("13800138000", bodies)
+        self.assertIn("138****8000", bodies)
         status, denied = agent_api.close(self.ticket["public_id"], agent, "   ")
         self.assertEqual(status, 400)
         self.assertIn("处理说明", denied["error"])

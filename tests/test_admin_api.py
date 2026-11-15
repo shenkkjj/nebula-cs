@@ -114,6 +114,36 @@ class AdminApiTest(unittest.TestCase):
             os.environ.pop("DIFY_DATASET_ID", None)
         self.assertEqual(documents[0]["segment_count"], 145)
 
+    def test_failed_segment_lookup_stays_unknown(self) -> None:
+        os.environ["DIFY_DATASET_API_KEY"] = "dataset-test"
+        os.environ["DIFY_DATASET_ID"] = "ds-1"
+        original_list = admin_api.list_documents
+        original_hit = admin_api.hit_test
+
+        def broken_list():
+            raise RuntimeError("segments_unreachable")
+
+        def no_count():
+            return [{"id": "doc-1", "name": "客服样例FAQ.md", "segment_count": None}]
+
+        admin_api.list_documents = broken_list
+        admin_api.hit_test = lambda _title: []
+        try:
+            failed = admin_api.faq_check()
+            admin_api.list_documents = no_count
+            empty = admin_api.faq_check()
+        finally:
+            admin_api.list_documents = original_list
+            admin_api.hit_test = original_hit
+            os.environ.pop("DIFY_DATASET_API_KEY", None)
+            os.environ.pop("DIFY_DATASET_ID", None)
+        self.assertIsNone(failed["segment_count"])
+        self.assertIsNone(empty["segment_count"])
+        self.assertNotIn("145", failed.get("warning") or "")
+        self.assertNotIn("145", empty.get("warning") or "")
+        label = (ROOT / "web" / "admin.js").read_text(encoding="utf-8")
+        self.assertIn('data.segment_count == null ? "还不知道"', label)
+
     def test_audit_hides_secrets_and_probe_records_failure(self) -> None:
         store.add_audit("qa", actor="访客", question="手机138****5678", decision="通过")
         text = admin_api.audit_csv()

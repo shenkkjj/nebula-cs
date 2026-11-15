@@ -2,7 +2,17 @@
 (() => {
   const form = document.getElementById("loginForm");
   const error = document.getElementById("loginError");
+  const hint = document.getElementById("demoHint");
   const next = new URLSearchParams(location.search).get("next") || "";
+
+  fetch("/api/health")
+    .then((res) => res.json())
+    .then((data) => {
+      if (!hint || !data || !data.demo_accounts) return;
+      hint.hidden = false;
+      hint.textContent = "本机演示模式已打开。账号写在课程说明里，不会从接口返回。";
+    })
+    .catch(() => {});
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
