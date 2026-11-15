@@ -1,28 +1,30 @@
 # 校园客服 · 开发计划
 
-- **版本 / 日期**：v1.0 | 2026-11-14
-- **依据基准**：PRD v1.0（2026-11-14 已确认）｜DESIGN v1.0（2026-11-14 已确认）｜推进节奏 standard
-- **整体交付入口与承诺宿主**：H1 用户访问 `http://localhost:8080/`，坐席访问 `/agent`，管理员访问 `/admin`，登录访问 `/login`；H2 生产部署通过 Docker Compose 启动 Dify + 本地代理
+- **版本 / 日期**：v1.1 | 2026-11-15（v1.0 的阶段划分未改，只改宿主）
+- **依据基准**：PRD v1.1（2026-11-15 宿主变更）｜DESIGN v1.0（2026-11-14 已确认）｜推进节奏 standard
+- **整体交付入口与承诺宿主**：H1 在共享 Linux 课程机上。用户访问 `http://localhost:8080/`，坐席访问 `/agent`，管理员访问 `/admin`，登录访问 `/login`。界面用这台机器上的桌面浏览器，窗口宽 ≥ 1280px。Docker、Ollama、Python 和 Dify 1.19.0 都在这台机器上，Dify 历史上在 `/workspace/dify`。线上部署仍到 release 再定（「做完再说」）。
 
 ## 1. 用户确认记录
 
-- **状态**：已确认
-- **确认方式**：整版确认后进入 build
-- **用户原话 / 来源与日期**：2026-11-14 23:13，产品负责人要求按 vibe 流程做完剩余工作，PLAN v1.0 视为已确认（不再停在「待确认」）。
+- **状态**：已确认（v1.1 只追加宿主变更）
+- **确认方式**：v1.0 整版确认后进入 build；v1.1 为增量确认
+- **用户原话 / 来源与日期**：
+  - 2026-11-14 23:13，产品负责人要求按 vibe 流程做完剩余工作，PLAN v1.0 视为已确认（不再停在「待确认」）。
+  - 2026-11-15（Asia/Shanghai），所有者先问「为什么要用我电脑」，随后说「把方案改了吧」。据此把 H1 从所有者的 Windows 11 + Docker Desktop 改到共享 Linux 课程机。2026-11-14 对那台 Windows 电脑的勘察保留为历史事实，不再作为演示宿主。
 
 ## 2. 技术基础决策
 
 | 维度 | 本项目确定选择、路径或真实命令 |
 |---|---|
-| 平台与目录树 | Windows 本地开发，生产 Docker Compose；根目录 `nebula-cs/`，前端 `web/`，后端 `server/`，设计原型 `docs/design/`，测试集 `tests/eval/` |
+| 平台与目录树 | 共享 Linux 课程机（Docker、Ollama、Python、Dify 1.19.0 都在这台机器上）。根目录 `nebula-cs/`，前端 `web/`，后端 `server/`，设计原型 `docs/design/`，测试集 `tests/eval/`。不在所有者的 Windows 电脑上开发或演示 |
 | 语言与运行时 | Python 3.11+（后端代理、评测脚本）；原生 HTML/CSS/JS（前端，无构建） |
-| Dify 引擎 | Dify 1.19.0 docker-compose 本地部署（需 Docker Desktop），课程机 `/workspace/dify` 或本地新建 |
-| 模型与嵌入 | DeepSeek Chat（已有 key）；Ollama bge-m3（本地嵌入，`ollama pull bge-m3`） |
+| Dify 引擎 | Dify 1.19.0，在这台 Linux 课程机上用 docker compose 启动。历史目录是 `/workspace/dify`。不要求 Docker Desktop，也不要求所有者在 Windows 上创建 Dify 管理员 |
+| 模型与嵌入 | DeepSeek Chat 生成回答（密钥由所有者提供，只存在这台课程机的 Dify 里，不进仓库）；Ollama bge-m3 在同一台机器上做嵌入（`ollama pull bge-m3`） |
 | 依赖安装 | `pip install -r requirements.txt`（Flask, httpx, python-dotenv）；前端无依赖 |
-| 环境变量与密钥 | `DIFY_APP_API_KEY`（从 Dify 应用获取）、`DEEPSEEK_API_KEY`（评测用）、`DIFY_CHAT_URL`（默认 `http://127.0.0.1/v1/chat-messages`） |
-| 启动命令 | 开发：`python server/proxy.py`（默认 8080 端口）；生产：`docker-compose up -d` |
+| 环境变量与密钥 | 只放在课程机：`DIFY_APP_API_KEY`（从该机 Dify 应用获取）、评测需要时的 `DEEPSEEK_API_KEY`、`DIFY_CHAT_URL`（默认 `http://127.0.0.1/v1/chat-messages`）。DeepSeek 密钥本身只在该机 Dify 的模型设置里 |
+| 启动命令 | 在课程机上：`python server/proxy.py`（默认 8080）；Dify 在同一台机器上 `docker compose up -d`。线上部署不在这次 |
 | 测试与验证 | 评测：`python server/eval_runner.py --dataset tests/eval/test-set.json`；操作验证见各阶段 |
-| 复核工具 | Playwright（交互自动化）、Edge/Chrome 手动验收 |
+| 复核工具 | Playwright（交互自动化）；课程机上的桌面浏览器手动验收，窗口宽 ≥ 1280px |
 
 ## 3. 需求与设计覆盖检查
 
@@ -61,8 +63,8 @@
 
 - **范围与不做**：实现 `server/gateway.py`（接收门户请求 → 调 Dify → 约束层判定 → 返回）；约束层包括 R-201 引用校验、R-202 空检索拦截、R-203 按文档合并、R-205 打码。**不做**：坐席工单、后台、评测。
 - **运行入口与数据前提**：
-  - Dify 本地运行（`docker-compose up -d`），已创建 Chatflow 应用并绑定知识库，环境变量 `DIFY_APP_API_KEY` 已设置
-  - `python server/proxy.py`，浏览器访问 `http://localhost:8080/`
+  - 在共享 Linux 课程机上启动 Dify 1.19.0（历史目录 `/workspace/dify`，`docker compose up -d`），已创建 Chatflow 应用并绑定知识库，环境变量 `DIFY_APP_API_KEY` 已设在这台机器上
+  - `python server/proxy.py`，在这台机器的桌面浏览器打开 `http://localhost:8080/`（窗口宽 ≥ 1280px）
   - 测试输入：「在读证明如何办理？」（应返回引用）、「怎么请病假？」（空检索，应拦截）
 - **验收动作 / 预期 / 失败信号**：
   - 输入范围内问题 → 流式回答 + 引用卡显示来源文档；失败信号：无引用或引用重复（R-101, R-102, D1）
@@ -163,17 +165,17 @@
   - 初始用户：`admin/admin123`（管理员）、`agent1/agent123`（坐席）
 - **验收动作 / 预期 / 失败信号**：
   - 访问 `/agent` 或 `/admin` 未登录 → 302 跳转到 `/login`；登录成功 → 302 跳转回原页面；失败信号：未登录可访问（SEC-002）
-  - `docker-compose up -d` → Dify + 代理 + 数据库全部启动；访问 `http://localhost:8080/` → 门户正常；失败信号：容器启动失败（H2）
+  - 在共享 Linux 课程机上 `docker compose up -d` → 该机上的 Dify + 代理 + 数据库全部启动；访问 `http://localhost:8080/` → 门户正常；失败信号：容器启动失败。线上部署不在这一步
 - **自检与独立复核范围**：
   - 单元测试 `tests/test_auth.py`：登录逻辑、会话验证
-  - Docker 验收：全新环境 `docker-compose up`，检查所有功能
+  - Docker 验收：在这台 Linux 课程机上 `docker compose up`，检查所有功能
   - 截图证据 `docs/evidence/T6-login-deploy.png`（登录页 + 成功跳转）
 - **执行记录**：候选提交 `<hash>`｜自检证据 `<路径>`｜审查报告 `<路径>`
 
 ### T7 — 最终验收与证据
 
 - **范围与不做**：回归测试所有 R-ID 和 D-ID，补全缺失证据，生成最终报告附件。**不做**：新开发。
-- **运行入口与数据前提**：T1-T6 全部完成，Docker Compose 环境干净启动
+- **运行入口与数据前提**：T1-T6 全部完成。在共享 Linux 课程机上干净启动 Docker、Ollama 和 Dify，门户为 `http://localhost:8080/`。验收浏览器是这台机器上的桌面浏览器，窗口宽 ≥ 1280px。不是所有者的 Windows 11，也不要求所有者启动 Docker Desktop
 - **验收动作 / 预期 / 失败信号**：
   - 遍历 DESIGN.md 表 4 所有检查 ID（D1-D13），逐项操作并截图；失败信号：任一项不符合设计约定
   - 遍历 PRD.md 表 3.1-3.5 所有 R-ID，逐项验证并记录；失败信号：任一必过项未实现
@@ -184,19 +186,21 @@
   - 最终截图集 `docs/evidence/final-screenshots/`（门户、坐席、后台、评测各主要页面）
 - **执行记录**：候选提交 `<hash>`｜自检证据 `<路径>`｜审查报告 `<路径>`
 
-## 5. 用户需要做的事（门槛与验证）
+## 5. 环境与仍可能请所有者看的事
 
-| 事项 | 时机 | 具体动作 | 验证通过条件 |
+装环境、起 Dify、拉嵌入模型、创建 Dify 管理员、跑 compose，都在共享 Linux 课程机上做。所有者不必在 Windows 上做这些。
+
+| 事项 | 在哪做 | 具体动作 | 验证通过条件 |
 |---|---|---|---|
-| 安装 Docker Desktop | T1 前 | 下载安装并启动 Docker Desktop | `docker --version` 和 `docker-compose --version` 有输出 |
-| 部署 Dify 本地实例 | T1 前 | 课程机 `/workspace/dify` 或本地 `git clone` Dify 仓库，`docker-compose up -d` | 访问 `http://127.0.0.1` 打开 Dify 控制台 |
-| 创建 Chatflow 应用 | T1 前 | Dify 控制台创建应用，类型 Chatflow，绑定知识库，添加 Knowledge Retrieval 节点，获取 API key | API key 形如 `app-xxx...`，长度 > 20 |
-| 上传知识库文档 | T1 前 | Dify 控制台创建知识库「星云大学办事」，导入 **一个文件** `sample-kb/客服样例FAQ.md`（里面 144 条）。2026-11-14 进入 build 时更正：不是 144 个文件 | 这一篇索引完成，按标题能检索到条目 |
-| 安装 Ollama 并拉取 bge-m3 | T1 前 | `ollama pull bge-m3` | `ollama list` 显示 bge-m3 |
-| 配置环境变量 | T1 前 | 新建 `.env` 文件：`DIFY_APP_API_KEY=app-xxx`、`DEEPSEEK_API_KEY=sk-xxx`、`DIFY_CHAT_URL=http://127.0.0.1/v1/chat-messages` | `python server/proxy.py` 启动无报错 |
-| 准备测试集 | T5 前 | 确认 `tests/eval/test-set.json` 和 `tests/eval/dev-set.json` 已就绪（107 题） | 文件存在且 JSON 格式正确 |
-| 人工判分 30 题 | T5 中 | 随机抽 30 题，人工判断回答是否正确，记录到 `tests/eval/human-labels.json` | 30 条记录，格式 `{"question_id": "T-001", "human_label": true}` |
-| 最终验收操作 | T7 | 按 T7 验收清单逐项操作（门户问答、坐席处理、后台审计、评测运行） | 所有截图和指标符合 PRD/DESIGN |
+| 确认课程机运行时 | H1 | 这台 Linux 机器上已有 Docker、Ollama、Python。Dify 1.19.0 用该机的 Docker 启动，历史目录 `/workspace/dify` | `docker --version` 有输出；`http://127.0.0.1` 能打开 Dify 控制台 |
+| 嵌入模型 | 同一台课程机 | `ollama pull bge-m3` | `ollama list` 显示 bge-m3 |
+| Chatflow 与知识库 | 同一台课程机 | 在该机的 Dify 里创建 Chatflow，绑定知识库，加上 Knowledge Retrieval，取得应用 API key。知识库只导入一个文件 `sample-kb/客服样例FAQ.md`（144 条都在里面） | API key 形如 `app-…`；这一篇索引完成，按标题能检索到条目 |
+| DeepSeek 密钥 | 所有者提供，只放在课程机的 Dify 里 | 写入该机 Dify 的模型设置。网关只用应用 key，放在课程机的 `.env`，不进仓库 | 仓库里搜不到密钥 |
+| 网关环境变量 | 同一台课程机 | `.env`：`DIFY_APP_API_KEY`、`DIFY_CHAT_URL=http://127.0.0.1/v1/chat-messages`。评测若要直连模型再设 `DEEPSEEK_API_KEY`，同样不进仓库 | `python server/proxy.py` 启动后，浏览器打开 `http://localhost:8080/` |
+| 测试集 | 仓库里已有 | `tests/eval/test-set.json`（107 题）和 `tests/eval/dev-set.json` | 文件存在且 JSON 格式正确 |
+| 人工判分 30 题 | 可选，请所有者判断，不是装机器 | 随机抽 30 题，判断回答是否正确，写入 `tests/eval/human-labels.json` | 30 条记录，格式 `{"question_id": "T-001", "human_label": true}` |
+| 看结果 | 可选 | 审这个 PR，或看课程机上的演示 / 截图 | 所有者不需要自己把栈跑起来 |
+| 最终验收操作 | T7，在课程机上 | 按 T7 清单操作门户、坐席、后台和评测。浏览器窗口宽 ≥ 1280px | 截图和指标符合 PRD/DESIGN；线上部署不在这一步 |
 
 ## 6. 风险与待验证
 

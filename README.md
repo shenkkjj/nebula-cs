@@ -2,7 +2,7 @@
 
 > 课程项目 · 团队：**沈凯杰、王瑞康**  
 > 演示场景：虚构 **星云大学** 校园办事私有知识库  
-> 演示门户：http://127.0.0.1:8787/
+> 演示门户：http://127.0.0.1:8080/（共享 Linux 课程机；`LITE_MODE=1` 的旧入口仍是 8787）
 
 ## 问题
 
@@ -26,7 +26,7 @@
 
 ## 本机启动（当前主线）
 
-答辩和日常开发在你的 Windows 电脑上：Docker Desktop、Ollama（`bge-m3`）、Python 3.11+。线上 Render 先不动，`DEPLOY-RENDER.md` 只描述旧的轻量镜像。
+答辩和运行在共享 Linux 课程机上：Docker、Ollama（`bge-m3`）、Python 3.11+ 和 Dify 1.19.0 都在这台机器上（Dify 历史上在 `/workspace/dify`）。门户是 `http://localhost:8080/`，用这台机器上的桌面浏览器，窗口宽至少 1280px。不需要所有者的 Windows 电脑或 Docker Desktop。线上 Render 先不动，`DEPLOY-RENDER.md` 只描述旧的轻量镜像。DeepSeek 密钥只放在这台课程机的 Dify 里。
 
 ```bash
 cp .env.example .env          # 填入 DIFY_APP_API_KEY，不要把 .env 提交
