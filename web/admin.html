@@ -17,6 +17,7 @@
       <nav>
         <a class="item" href="#docs" data-nav="docs">知识库文档</a>
         <a class="item" href="#probe" data-nav="probe">绑定自检</a>
+        <a class="item" href="#feedback" data-nav="feedback">用户评价</a>
         <a class="item" href="#audit" data-nav="audit">审计日志</a>
         <a class="item" href="#config" data-nav="config">约束参数</a>
         <a class="item" href="#eval" data-nav="eval">评测</a>
@@ -34,11 +35,20 @@
           <button class="btn btn-solid" type="submit">上传</button>
         </form>
         <p class="form-status" id="uploadStatus" hidden></p>
+        <div class="panel" id="faqCheck"><p class="empty">正在核对本地条目和知识库分段。</p></div>
         <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>文档</th><th>来源</th><th>索引</th><th></th></tr></thead><tbody id="docsBody"></tbody></table></div></div>
       </section>
       <section data-page="probe" hidden>
         <div class="page-head"><div><h1 class="page-title">绑定自检</h1><p class="page-sub">启动时、每 10 分钟，以及你点「立即自检」。</p></div><button type="button" class="btn btn-solid" id="btnProbe">立即自检</button></div>
         <div class="panel" id="probeBox"><p class="empty">还没有自检记录。</p></div>
+      </section>
+      <section data-page="feedback" hidden>
+        <div class="page-head"><div><h1 class="page-title">用户评价</h1><p class="page-sub">门户里的「有帮助 / 没解决」。差评不会自动写进知识库。</p></div></div>
+        <form class="filters" id="feedbackFilters">
+          <label class="field"><span>筛选</span><select class="select" name="helpful"><option value="">全部</option><option value="1">有帮助</option><option value="0">没解决</option></select></label>
+          <button class="btn btn-ghost" type="submit">查看</button>
+        </form>
+        <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>时间</th><th>评价</th><th>问题</th><th>回答</th></tr></thead><tbody id="feedbackBody"></tbody></table></div></div>
       </section>
       <section data-page="audit" hidden>
         <div class="page-head"><div><h1 class="page-title">审计日志</h1><p class="page-sub">问题里的手机号和证件号已打码。</p></div><a class="btn btn-ghost" id="auditExport" href="/api/admin/audit.csv">导出 CSV</a></div>
@@ -70,7 +80,7 @@
             <label class="sr-only" for="evalSet">数据集</label>
             <select class="select" id="evalSet"></select>
             <label class="sr-only" for="evalGroup">对照组</label>
-            <select class="select" id="evalGroup"><option value="A">A 改造前规则引擎</option><option value="B">B Dify 直出</option><option value="C">C 本系统</option></select>
+            <select class="select" id="evalGroup"><option value="A">A 改造前规则引擎</option><option value="B">B 知识库直出</option><option value="C">C 本系统</option></select>
             <button type="button" class="btn btn-solid" id="btnEval">运行评测</button>
           </div>
         </div>

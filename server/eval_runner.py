@@ -240,8 +240,22 @@ def answer_group_a(item: dict) -> dict:
     }
 
 
+def isolation_fields(item: dict, group: str) -> dict:
+    """One fresh caller per item. No shared Dify conversation id."""
+    ident = f"eval-{group}-{(item.get('id') or 'x')}"
+    return {
+        "query": item.get("question") or "",
+        "user": ident,
+        "visitor": ident,
+        "portal_session": ident,
+        "conversation_id": "",
+        "history": list(item.get("history") or []),
+    }
+
+
 def answer_group_b(item: dict, client) -> dict:
-    raw = client.chat(_eval_query(item), user="eval-b")
+    fields = isolation_fields(item, "B")
+    raw = client.chat(_eval_query(item), user=fields["user"], conversation_id="")
     if raw.error:
         raise RuntimeError(f"Dify 直出失败：{raw.error}")
     return {
@@ -262,13 +276,15 @@ def answer_group_c(item: dict) -> dict:
     probe = store.latest_probe()
     if probe is None or not probe.get("ok"):
         raise RuntimeError("知识库自检未通过，C 组不记分。先让探针变绿，再跑评测。")
+    fields = isolation_fields(item, "C")
     outcome = run_chat(
         {
-            "query": item.get("question") or "",
-            "history": item.get("history") or [],
-            "user": "eval-c",
-            "visitor": "eval-c",
-            "portal_session": f"eval-{item.get('id')}",
+            "query": fields["query"],
+            "history": fields["history"],
+            "user": fields["user"],
+            "visitor": fields["visitor"],
+            "portal_session": fields["portal_session"],
+            "conversation_id": fields["conversation_id"],
         }
     )
     return outcome

@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "server"))
 
 import eval_runner
-from eval_runner import agreement, load_dataset, score_item, summarize
+from eval_runner import agreement, isolation_fields, load_dataset, score_item, summarize
 
 
 class ScoreTest(unittest.TestCase):
@@ -68,6 +68,33 @@ class ScoreTest(unittest.TestCase):
         self.assertEqual(result["compared"], 2)
         self.assertEqual(result["agreement"], 0.5)
         self.assertFalse(agreement(rows, [])["ran"])
+
+    def test_out_of_scope_fails_when_a_citation_is_attached(self) -> None:
+        row = score_item(
+            {"id": "T-9", "type": "out_of_scope", "question": "写诗", "expected_title": "", "expected_facts": []},
+            {
+                "answer": "知识库里没有这条办事说明，我不能编。",
+                "refuse": True,
+                "citations": [{"document_name": "客服样例FAQ.md", "content": "在读证明"}],
+            },
+        )
+        self.assertTrue(row["refused"])
+        self.assertFalse(row["pass"])
+
+    def test_each_item_gets_its_own_caller(self) -> None:
+        first = isolation_fields(
+            {"id": "T-001", "question": "在读证明怎么开？", "history": [{"role": "user", "text": "上一问"}]},
+            "C",
+        )
+        second = isolation_fields({"id": "T-002", "question": "图书馆几点开门？"}, "C")
+        self.assertNotEqual(first["user"], second["user"])
+        self.assertEqual(first["conversation_id"], "")
+        self.assertEqual(second["conversation_id"], "")
+        self.assertEqual(first["portal_session"], first["user"])
+        self.assertEqual(first["visitor"], first["user"])
+        self.assertEqual(first["history"], [{"role": "user", "text": "上一问"}])
+        self.assertEqual(second["history"], [])
+        self.assertEqual(first["query"], "在读证明怎么开？")
 
 
 class DatasetAndGroupATest(unittest.TestCase):

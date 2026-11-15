@@ -66,6 +66,16 @@ class AdminApiTest(unittest.TestCase):
         self.assertFalse(listed["configured"])
         self.assertIn("一个文件", listed["hint"])
 
+    def test_faq_check_shows_local_count_without_a_dataset(self) -> None:
+        os.environ.pop("DIFY_DATASET_API_KEY", None)
+        os.environ.pop("DIFY_DATASET_ID", None)
+        payload = admin_api.faq_check()
+        self.assertTrue(payload["ok"])
+        self.assertGreater(payload["local_count"], 100)
+        self.assertIsNone(payload["segment_count"])
+        self.assertIn("本地", payload["warning"])
+        self.assertTrue(payload["title_sample"])
+
     def test_audit_hides_secrets_and_probe_records_failure(self) -> None:
         store.add_audit("qa", actor="访客", question="手机138****5678", decision="通过")
         text = admin_api.audit_csv()

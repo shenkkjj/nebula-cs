@@ -108,6 +108,13 @@ def merge_citations(resources: list, max_cards: int = 3) -> list[dict]:
     return cards
 
 
+def seal_user_citations(payload: dict) -> dict:
+    """A refusal never keeps citation cards. The structured refuse flag decides this."""
+    if payload.get("refuse"):
+        payload["citations"] = []
+    return payload
+
+
 def apply_constraints(answer: str, resources: list, cfg: dict, retrieval_empty: bool = False) -> dict:
     """Decide whether the model text may be shown."""
     normalized = []

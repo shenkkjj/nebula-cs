@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 import admin_api
 import agent_api
 import auth
+from feedback import submit_feedback
 from auth import SESSION_COOKIE, cookie_header, current_user, ensure_visitor, require_user, safe_next
 from dify_client import dataset_configured
 from gateway import _handoff_source
@@ -49,6 +50,9 @@ def try_post(handler, path: str) -> bool:
     if path == "/api/logout":
         auth.logout(handler)
         handler._json_response(200, {"ok": True})
+        return True
+    if path == "/api/feedback":
+        _feedback(handler)
         return True
     if path == "/api/ticket":
         return False
@@ -95,6 +99,28 @@ def health_payload() -> dict:
             "ollama": _ollama_status(),
         },
     }
+
+
+def _feedback(handler) -> None:
+    visitor = ensure_visitor(handler)
+    try:
+        data = handler._read_json()
+    except ValueError as exc:
+        handler._json_error(400, str(exc))
+        return
+    try:
+        message_id = int(data.get("message_id"))
+    except (TypeError, ValueError):
+        handler._json_error(400, "缺少要评价的回答")
+        return
+    status, payload = submit_feedback(
+        visitor,
+        message_id,
+        bool(data.get("helpful")),
+        str(data.get("comment") or ""),
+        str(data.get("portal_session") or "")[:80],
+    )
+    handler._json_response(status, payload)
 
 
 def create_portal_ticket(handler, subject: str, detail: str, contact: str, portal_session: str) -> None:
@@ -234,6 +260,17 @@ def _admin_get(handler, raw: str, user: dict) -> bool:
     del user
     if raw in ("/api/admin/documents", "/api/admin/documents/"):
         handler._json_response(200, admin_api.document_list())
+        return True
+    if raw in ("/api/admin/faq-check", "/api/admin/faq-check/"):
+        handler._json_response(200, admin_api.faq_check())
+        return True
+    if raw in ("/api/admin/feedback", "/api/admin/feedback/"):
+        kind = ""
+        if "?" in handler.path:
+            for part in handler.path.split("?", 1)[1].split("&"):
+                if part.startswith("helpful="):
+                    kind = unquote(part.split("=", 1)[1])
+        handler._json_response(200, admin_api.feedback_rows(kind))
         return True
     if raw in ("/api/admin/probe", "/api/admin/probe/"):
         probe = store.latest_probe()

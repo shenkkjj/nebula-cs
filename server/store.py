@@ -108,6 +108,17 @@ CREATE TABLE IF NOT EXISTS writebacks (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY,
+  visitor_token TEXT NOT NULL,
+  portal_session TEXT NOT NULL,
+  message_id INTEGER NOT NULL,
+  helpful INTEGER NOT NULL,
+  comment TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE (visitor_token, message_id)
+);
 """
 
 
@@ -661,6 +672,73 @@ def update_writeback(row_id: int, status: str, dify_document_id: str = "", error
         )
         conn.commit()
     return get_writeback(row_id)
+
+
+def previous_user_text(visitor: str, portal_session: str, before_id: int) -> str:
+    with _LOCK:
+        row = connection().execute(
+            """
+            SELECT body FROM messages
+            WHERE visitor_token = ? AND portal_session = ? AND role = 'user' AND id < ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (visitor, portal_session or "", before_id),
+        ).fetchone()
+    return (row["body"] if row else "") or ""
+
+
+def upsert_feedback(visitor: str, portal_session: str, message_id: int, helpful: bool, comment: str) -> dict:
+    stamp = now()
+    with _LOCK:
+        conn = connection()
+        conn.execute(
+            """
+            INSERT INTO feedback (
+              visitor_token, portal_session, message_id, helpful, comment, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(visitor_token, message_id) DO UPDATE SET
+              helpful = excluded.helpful,
+              comment = excluded.comment,
+              portal_session = excluded.portal_session,
+              updated_at = excluded.updated_at
+            """,
+            (visitor, portal_session or "", message_id, 1 if helpful else 0, comment[:200], stamp, stamp),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM feedback WHERE visitor_token = ? AND message_id = ?",
+            (visitor, message_id),
+        ).fetchone()
+    return dict(row) if row else {}
+
+
+def list_feedback(helpful: int | None = None, limit: int = 100) -> list[dict]:
+    clauses = []
+    args: list = []
+    if helpful is not None:
+        clauses.append("f.helpful = ?")
+        args.append(helpful)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    args.append(max(1, min(limit, 200)))
+    with _LOCK:
+        rows = connection().execute(
+            f"""
+            SELECT f.*, m.body AS answer, m.visitor_token AS message_visitor, m.portal_session AS message_session
+            FROM feedback f
+            JOIN messages m ON m.id = f.message_id
+            {where}
+            ORDER BY f.updated_at DESC, f.id DESC
+            LIMIT ?
+            """,
+            args,
+        ).fetchall()
+    items = []
+    for row in rows:
+        item = dict(row)
+        item["helpful"] = bool(item["helpful"])
+        item["question"] = previous_user_text(item["visitor_token"], item.get("portal_session") or "", item["message_id"])
+        items.append(item)
+    return items
 
 
 def get_writeback(row_id: int) -> dict | None:

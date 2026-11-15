@@ -10,7 +10,7 @@ import secrets
 import time
 
 from clarify import clarify_options
-from constraints import apply_constraints
+from constraints import apply_constraints, seal_user_citations
 from dify_client import ChatRaw, DifyClient, dataset_configured, hit_test, list_documents
 from masking import is_medical_dump, mask_text, notice_line
 from scope import EXAMPLES, INTRO, OFF_TOPIC, classify_scope
@@ -69,6 +69,7 @@ def iter_events(req: dict):
     def finish(payload: dict):
         elapsed = int((time.perf_counter() - started) * 1000)
         payload = dict(payload)
+        seal_user_citations(payload)
         payload.setdefault("citations", [])
         payload.setdefault("suggestions", [])
         payload.setdefault("refuse", False)
@@ -83,7 +84,7 @@ def iter_events(req: dict):
             if payload.get("answer") and "已隐去" not in payload["answer"]:
                 payload["answer"] = notice + "\n\n" + payload["answer"]
         payload["type"] = "done"
-        _persist(visitor, portal_session, masked, payload, elapsed)
+        payload["server_message_id"] = _persist(visitor, portal_session, masked, payload, elapsed)
         yield {"type": "start", "conversation_id": payload.get("conversation_id") or "", "task_id": payload.get("task_id") or "", "agent_action": payload.get("agent_action") or ""}
         answer = payload.get("answer") or ""
         step = 48
@@ -142,7 +143,12 @@ def iter_events(req: dict):
         return
 
     upstream_query, rewrite = _prepare_query(masked, masked_history, conversation_id)
-    raw = _CLIENT.chat(upstream_query, user=user, conversation_id=conversation_id)
+    raw = ChatRaw(error="empty")
+    for kind, value in _CLIENT.iter_remote(upstream_query, user=user, conversation_id=conversation_id):
+        if kind == "phase" and value in ("retrieving", "generating"):
+            yield {"type": "status", "phase": value}
+        elif kind == "raw" and isinstance(value, ChatRaw):
+            raw = value
     if raw.error:
         store.save_probe(False, [{"name": "chat", "ok": False, "detail": "这次调用知识引擎失败：" + raw.error}])
         ticket = _open_or_create(visitor, portal_session, "maintenance", masked)
@@ -403,7 +409,7 @@ def _constraint_detail(decision: dict) -> str:
     return "引用来自检索结果，相关度达到阈值（R-201）"
 
 
-def _persist(visitor: str, portal_session: str, question: str, payload: dict, latency_ms: int) -> None:
+def _persist(visitor: str, portal_session: str, question: str, payload: dict, latency_ms: int) -> int:
     if not visitor or visitor == "anonymous":
         visitor = "anonymous"
         store.create_visitor(visitor)
@@ -459,6 +465,7 @@ def _persist(visitor: str, portal_session: str, question: str, payload: dict, la
         latency_ms=latency_ms,
         detail={"trace": trace, "ticket_id": payload.get("ticket_id") or ""},
     )
+    return message_id
 
 
 def new_visitor_token() -> str:

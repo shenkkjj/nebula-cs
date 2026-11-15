@@ -12,8 +12,10 @@ from dify_client import (
     create_text_document,
     dataset_configured,
     delete_document,
+    hit_test,
     list_documents,
 )
+from faq_meta import load_entries
 from eval_runner import RESULTS_DIR, load_dataset, render_csv, render_markdown, run_group
 from gateway import run_probe
 from settings import ROOT, load_config, save_config
@@ -42,6 +44,95 @@ _UPLOAD_TYPES = {
 }
 _MAX_UPLOAD = 15 * 1024 * 1024
 FAQ_HINT = "样例知识库是 sample-kb/客服样例FAQ.md 这一个文件（144 条都在里面）。导入这一篇，不要拆成 144 个文件。"
+
+
+def feedback_rows(kind: str = "") -> dict:
+    helpful = None
+    if kind in ("1", "true", "有帮助"):
+        helpful = 1
+    elif kind in ("0", "false", "没解决"):
+        helpful = 0
+    rows = []
+    for item in store.list_feedback(helpful):
+        rows.append(
+            {
+                "id": item.get("id"),
+                "helpful": bool(item.get("helpful")),
+                "question": item.get("question") or "",
+                "answer": item.get("answer") or "",
+                "comment": item.get("comment") or "",
+                "updated_at": item.get("updated_at") or "",
+                "session": (item.get("portal_session") or "")[:24],
+            }
+        )
+    return {"ok": True, "rows": rows}
+
+
+def faq_check() -> dict:
+    """Compare the local FAQ file with knowledge-base segments. Never raises."""
+    entries = load_entries()
+    titles = [item["title"] for item in entries]
+    if len(titles) > 3:
+        sample = [titles[0], titles[len(titles) // 2], titles[-1]]
+    else:
+        sample = titles
+    payload = {
+        "ok": True,
+        "local_count": len(entries),
+        "document": "客服样例FAQ.md",
+        "title_sample": sample,
+        "segment_count": None,
+        "document_count": None,
+        "title_hits": [],
+        "warning": "",
+    }
+    if not dataset_configured():
+        payload["warning"] = "当前没有连上知识库，只显示本地 FAQ 条数。"
+        return payload
+    try:
+        documents = list_documents()
+        overview = _segment_overview(documents)
+    except Exception:  # noqa: BLE001
+        payload["warning"] = "知识库分段暂时读不到，本地条数仍然有效。"
+        return payload
+    payload["document_count"] = overview["documents"]
+    payload["segment_count"] = overview["segments"]
+    local_count = payload["local_count"]
+    segments = overview["segments"]
+    if segments == 1 and local_count > 20:
+        payload["warning"] = "知识库看起来整篇只有一段。请在知识库设置里改用自定义分隔，例如按 ## 。"
+    elif segments is not None and local_count and segments >= local_count * 4:
+        payload["warning"] = "分段数比本地 FAQ 条数多出很多，可能切得太碎。请在知识库设置里改用自定义分隔，例如按 ## 。"
+    hits = []
+    for title in sample:
+        matched = None
+        try:
+            found = hit_test(title)
+            blob = " ".join((item.get("content") or "") for item in found)
+            matched = title.rstrip("？?") in blob or title in blob
+        except Exception:  # noqa: BLE001
+            matched = None
+        hits.append({"title": title, "seen": matched})
+    payload["title_hits"] = hits
+    if payload["warning"] == "" and any(item["seen"] is None for item in hits):
+        payload["warning"] = "标题抽查没有连上检索，本地条数和分段数仍然有效。"
+    return payload
+
+
+def _segment_overview(documents: list[dict]) -> dict:
+    """Count segments only when the upstream sent a segment count."""
+    total = 0
+    known = False
+    for doc in documents:
+        raw = doc.get("segment_count")
+        if raw is None:
+            continue
+        try:
+            total += int(raw)
+        except (TypeError, ValueError):
+            continue
+        known = True
+    return {"documents": len(documents), "segments": total if known else None}
 
 
 def document_list() -> dict:

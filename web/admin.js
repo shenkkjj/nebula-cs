@@ -29,13 +29,35 @@
       else item.removeAttribute("aria-current");
     }
     if (page === "docs") loadDocs();
+    if (page === "feedback") loadFeedback();
     if (page === "probe") loadProbe();
     if (page === "audit") loadAudit();
     if (page === "config") loadConfig();
     if (page === "eval") loadEval();
   }
 
+  function renderFaqCheck(data) {
+    const box = document.getElementById("faqCheck");
+    if (!box) return;
+    const segments = data.segment_count == null ? "还不知道" : String(data.segment_count);
+    const hits = (data.title_hits || []).map((item) => {
+      const mark = item.seen == null ? "未核对" : item.seen ? "片段里能看到" : "片段里没看到";
+      return `<li>${escapeHtml(item.title)} · ${mark}</li>`;
+    }).join("");
+    const sample = (data.title_sample || []).map((title) => `<li>${escapeHtml(title)}</li>`).join("");
+    box.innerHTML = `<div class="panel-body">
+      <p>本地 FAQ <strong>${data.local_count || 0}</strong> 条（${escapeHtml(data.document || "")}）· 知识库分段 <strong>${escapeHtml(segments)}</strong></p>
+      ${data.warning ? `<p class="form-status pending">${escapeHtml(data.warning)}</p>` : ""}
+      <p class="small muted">标题抽查</p>
+      <ul class="small">${hits || sample || "<li>没有标题</li>"}</ul>
+    </div>`;
+  }
+
   async function loadDocs() {
+    api("/api/admin/faq-check").then(renderFaqCheck).catch(() => {
+      const box = document.getElementById("faqCheck");
+      if (box) box.innerHTML = '<p class="empty">条数核对暂时失败，文档列表仍可查看。</p>';
+    });
     const data = await api("/api/admin/documents");
     document.getElementById("docsHint").textContent = data.hint || data.error || "";
     const body = document.getElementById("docsBody");
@@ -46,6 +68,23 @@
     body.innerHTML = data.documents.map((doc) => `<tr>
       <td>${escapeHtml(doc.name)}</td><td>${escapeHtml(doc.source)}</td><td>${escapeHtml(doc.indexing_status || "")}</td>
       <td><button type="button" class="btn btn-quiet btn-sm" data-del="${escapeHtml(doc.id)}">删除</button></td>
+    </tr>`).join("");
+  }
+
+  async function loadFeedback() {
+    const form = document.getElementById("feedbackFilters");
+    const helpful = form ? new FormData(form).get("helpful") : "";
+    const data = await api("/api/admin/feedback" + (helpful ? "?helpful=" + encodeURIComponent(helpful) : ""));
+    const body = document.getElementById("feedbackBody");
+    if (!data.rows.length) {
+      body.innerHTML = '<tr><td colspan="4">还没有评价。</td></tr>';
+      return;
+    }
+    body.innerHTML = data.rows.map((row) => `<tr>
+      <td>${escapeHtml(row.updated_at)}</td>
+      <td>${row.helpful ? "有帮助" : "没解决"}</td>
+      <td class="clip">${escapeHtml(row.question)}</td>
+      <td class="clip">${escapeHtml(row.answer)}</td>
     </tr>`).join("");
   }
 
@@ -111,7 +150,7 @@
       if (!byGroup[item.group]) byGroup[item.group] = item;
     }
     if (!latest || !latest.length) {
-      box.innerHTML = '<p class="empty">还没有实测结果。选数据集和组别后运行。B、C 需要本机 Dify，没跑就不填数。</p>';
+      box.innerHTML = '<p class="empty">还没有实测结果。选数据集和组别后运行。B、C 需要连上知识库，没跑就不填数。</p>';
       document.getElementById("evalExport").hidden = true;
       return;
     }
@@ -124,7 +163,7 @@
       ["first_token_p50_ms", "首字 p50", "≤ 3 秒"],
       ["first_token_p95_ms", "首字 p95", "≤ 6 秒"],
     ];
-    const head = "<tr><th>指标</th><th>目标</th><th>A 改造前规则引擎</th><th>B Dify 直出</th><th>C 本系统</th></tr>";
+    const head = "<tr><th>指标</th><th>目标</th><th>A 改造前规则引擎</th><th>B 知识库直出</th><th>C 本系统</th></tr>";
     const rows = keys.map(([key, label, goal]) => `<tr><th>${label}</th><td>${goal}</td>` + ["A", "B", "C"].map((group) => {
       const item = byGroup[group];
       return `<td>${item ? metricCell(key, item.metrics, item.targets) : "未运行"}</td>`;
@@ -182,6 +221,10 @@
     document.getElementById("probeBox").innerHTML = '<p class="empty">正在自检…</p>';
     await api("/api/admin/probe", { method: "POST" });
     loadProbe();
+  });
+  document.getElementById("feedbackFilters").addEventListener("submit", (event) => {
+    event.preventDefault();
+    loadFeedback().catch((err) => alert(err.message));
   });
   document.getElementById("auditFilters").addEventListener("submit", (event) => {
     event.preventDefault();

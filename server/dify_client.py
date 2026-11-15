@@ -58,6 +58,14 @@ class DifyClient:
         return bool(self._app_key())
 
     def chat(self, query: str, user: str, conversation_id: str = "", inputs: dict | None = None) -> ChatRaw:
+        found = ChatRaw(error="empty")
+        for kind, value in self.iter_remote(query, user, conversation_id, inputs):
+            if kind == "raw" and isinstance(value, ChatRaw):
+                found = value
+        return found
+
+    def iter_remote(self, query: str, user: str, conversation_id: str = "", inputs: dict | None = None):
+        """Yield ('phase', 'retrieving'|'generating') while reading, then ('raw', ChatRaw)."""
         started = time.perf_counter()
         body = {
             "inputs": inputs or {},
@@ -72,7 +80,9 @@ class DifyClient:
         if not key:
             raw.error = "missing_app_key"
             raw.latency_ms = int((time.perf_counter() - started) * 1000)
-            return raw
+            yield ("raw", raw)
+            return
+        yield ("phase", "retrieving")
         req = urllib.request.Request(
             self._chat_url(),
             data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
@@ -91,18 +101,22 @@ class DifyClient:
             raw.http_status = exc.code
             raw.answer = detail
             raw.latency_ms = int((time.perf_counter() - started) * 1000)
-            return raw
+            yield ("raw", raw)
+            return
         except urllib.error.URLError as exc:
             raw.error = "unreachable"
             raw.answer = str(getattr(exc, "reason", exc))[:300]
             raw.latency_ms = int((time.perf_counter() - started) * 1000)
-            return raw
+            yield ("raw", raw)
+            return
         except Exception as exc:  # noqa: BLE001
             raw.error = type(exc).__name__
             raw.latency_ms = int((time.perf_counter() - started) * 1000)
-            return raw
+            yield ("raw", raw)
+            return
         parts: list[str] = []
         node_resources: list = []
+        announced_generating = False
         try:
             for event in _iter_sse(resp):
                 if event.get("conversation_id"):
@@ -113,6 +127,9 @@ class DifyClient:
                     raw.task_id = event["task_id"]
                 kind = event.get("event") or ""
                 if kind in ("message", "agent_message"):
+                    if not announced_generating:
+                        announced_generating = True
+                        yield ("phase", "generating")
                     if raw.first_token_ms is None:
                         raw.first_token_ms = int((time.perf_counter() - started) * 1000)
                     parts.append(event.get("answer") or "")
@@ -127,6 +144,9 @@ class DifyClient:
                         raw.retrieval_seen = True
                         node_resources = found
                         raw.retrieval_empty = not found
+                        if not announced_generating:
+                            announced_generating = True
+                            yield ("phase", "generating")
                 elif kind == "workflow_finished":
                     outputs = (event.get("data") or {}).get("outputs") or {}
                     clarify = outputs.get("clarify")
@@ -147,7 +167,7 @@ class DifyClient:
         if text:
             raw.answer = text
         raw.latency_ms = int((time.perf_counter() - started) * 1000)
-        return raw
+        yield ("raw", raw)
 
     def stop(self, task_id: str, user: str) -> bool:
         if not task_id or not self._app_key():
@@ -225,7 +245,7 @@ def list_documents() -> list[dict]:
                 "name": row.get("name") or "未命名文档",
                 "source": _doc_source(row.get("name") or ""),
                 "indexing_status": row.get("indexing_status") or row.get("display_status") or "",
-                "segment_count": row.get("segment_count") or row.get("tokens") or row.get("word_count") or 0,
+                "segment_count": row.get("segment_count") if row.get("segment_count") is not None else row.get("tokens"),
                 "error": row.get("error") or "",
             }
         )

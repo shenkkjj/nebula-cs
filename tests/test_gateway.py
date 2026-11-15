@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "server"))
 
 import store
-from constraints import apply_constraints, merge_citations
+from constraints import apply_constraints, merge_citations, seal_user_citations
 from dify_client import DifyClient
 from gateway import iter_events, run_chat, set_client
 from masking import mask_text
@@ -110,6 +110,13 @@ class ConstraintTest(unittest.TestCase):
         )
         self.assertTrue(decision["refuse"])
         self.assertEqual(decision["reason"], "missing_citation")
+        self.assertEqual(decision["citations"], [])
+
+    def test_seal_clears_cards_when_refused(self) -> None:
+        leaked = seal_user_citations({"refuse": True, "citations": [{"document_name": "客服样例FAQ.md"}]})
+        self.assertEqual(leaked["citations"], [])
+        kept = seal_user_citations({"refuse": False, "citations": [{"document_name": "客服样例FAQ.md"}]})
+        self.assertEqual(len(kept["citations"]), 1)
 
 
 class GatewayFlowTest(unittest.TestCase):
@@ -151,7 +158,18 @@ class GatewayFlowTest(unittest.TestCase):
         self.assertTrue(done["refuse"])
         self.assertEqual(done["reason"], "empty_retrieval")
         self.assertNotIn("随便请", done["answer"])
+        self.assertEqual(done["citations"], [])
         self.assertTrue(any(item.get("query") == "转人工" for item in done["suggestions"]))
+
+    def test_stream_announces_lookup_before_the_answer(self) -> None:
+        events = list(iter_events({"query": "在读证明如何办理？", "visitor": "v9", "portal_session": "s9", "user": "v9"}))
+        phases = [event.get("phase") for event in events if event.get("type") == "status"]
+        self.assertIn("retrieving", phases)
+        self.assertIn("generating", phases)
+        self.assertLess(phases.index("retrieving"), phases.index("generating"))
+        done = next(event for event in events if event.get("type") == "done")
+        self.assertFalse(done["refuse"])
+        self.assertTrue(done.get("server_message_id"))
 
     def test_phone_is_masked_before_dify_and_audit(self) -> None:
         done = run_chat(

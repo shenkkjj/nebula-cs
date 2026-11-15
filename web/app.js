@@ -132,6 +132,33 @@
     return out.join("\n");
   }
 
+  function linkCitationMarks(html, count) {
+    const total = Number(count) || 0;
+    if (total < 1) return html;
+    return String(html).replace(/\[(\d+)\]/g, (all, raw) => {
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < 1 || n > total) return all;
+      return `<button type="button" class="cite-mark" data-cite="${n - 1}" aria-label="查看出处 ${n}">[${n}]</button>`;
+    });
+  }
+
+  const PHASE_TEXT = { retrieving: "正在查找依据", generating: "正在作答" };
+
+  function tagServerMessage(id) {
+    if (!id) return;
+    const rows = el.messages.querySelectorAll(".msg.bot, .msg.agent-msg");
+    const row = rows[rows.length - 1];
+    if (row) row.dataset.messageId = String(id);
+  }
+
+  function showPhase(phase) {
+    const label = PHASE_TEXT[phase];
+    if (!label) return;
+    setStatus(label);
+    const body = document.querySelector("#streamRow .stream-body");
+    if (body && !body.dataset.answer) body.textContent = label;
+  }
+
   function loadSessions() {
     try {
       const raw = localStorage.getItem(LS_KEY);
@@ -240,14 +267,16 @@
       if (m.role === "user") {
         appendMessage("user", escapeHtml(m.text), { persist: false });
       } else {
-        appendMessage("bot", formatAnswer(m.text), {
+        const row = appendMessage("bot", formatAnswer(m.text), {
           refuse: !!m.refuse,
           suggestions: m.suggestions || [],
           clarify: m.action === "clarify",
           agent: m.role === "agent",
           who: m.role === "agent" ? (m.author || "人工客服") + " · 人工客服" : "",
+          citeCount: m.citeCount || 0,
           persist: false,
         });
+        if (row && m.serverMessageId) row.dataset.messageId = String(m.serverMessageId);
       }
     });
   }
@@ -313,7 +342,7 @@
     const wrap = document.createElement("div");
     wrap.className = "msg " + (opts.agent ? "agent-msg" : role) + (opts.refuse ? " refuse" : "");
     const who = opts.who || (role === "user" ? "同学" : "校园助手");
-    wrap.innerHTML = `<div class="who">${escapeHtml(who)}</div><div class="bubble">${html}</div>`;
+    wrap.innerHTML = `<div class="who">${escapeHtml(who)}</div><div class="bubble">${linkCitationMarks(html, opts.citeCount)}</div>`;
     if (opts.refuse) {
       const actions = document.createElement("div");
       actions.className = "msg-actions";
@@ -389,7 +418,10 @@
     const row = document.getElementById("streamRow");
     if (!row) return;
     const body = row.querySelector(".stream-body");
-    if (body) body.innerHTML = formatAnswer(text);
+    if (body) {
+      body.dataset.answer = "1";
+      body.innerHTML = formatAnswer(text);
+    }
     el.messages.scrollTop = el.messages.scrollHeight;
   }
 
@@ -409,7 +441,7 @@
     }
     if (opts.refuse) row.classList.add("refuse");
     const bubble = row.querySelector(".bubble");
-    if (bubble) bubble.innerHTML = formatAnswer(text);
+    if (bubble) bubble.innerHTML = linkCitationMarks(formatAnswer(text), opts.citeCount);
     const cursor = row.querySelector(".stream-cursor");
     if (cursor) cursor.remove();
     if (opts.refuse && !row.querySelector(".msg-actions")) {
@@ -489,43 +521,58 @@
     return "";
   }
 
-  function recordFeedback(row, helpful) {
+  async function recordFeedback(row, helpful) {
     const note = row.querySelector(".feedback-note");
     if (note) note.remove();
-    const entry = {
-      at: Date.now(),
-      helpful: !!helpful,
-      topic: lastUserText(),
-    };
-    try {
-      const key = "nebula-cs-feedback-v1";
-      const prev = JSON.parse(localStorage.getItem(key) || "[]");
-      const list = Array.isArray(prev) ? prev : [];
-      list.unshift(entry);
-      localStorage.setItem(key, JSON.stringify(list.slice(0, 40)));
-    } catch {
-      /* quota or private mode: still tell the user nothing was sent */
-    }
     const line = document.createElement("p");
     line.className = "feedback-note";
+    const messageId = Number(row.dataset.messageId || 0);
+    if (!messageId) {
+      line.textContent = "这条回答还没有编号，评价没有送出。";
+      row.appendChild(line);
+      return;
+    }
+    line.textContent = "正在记下…";
+    row.appendChild(line);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message_id: messageId,
+          helpful: !!helpful,
+          comment: "",
+          portal_session: state.sessionId || "",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        line.textContent = data.error || "评价没有送出。";
+        return;
+      }
+    } catch {
+      line.textContent = "评价没有送出，请稍后再试。";
+      return;
+    }
     if (helpful) {
-      line.textContent = "已记在本机，没有交给工作人员。";
+      line.textContent = "已交给工作人员。";
+      setStatus("已交给工作人员：有帮助");
     } else {
-      line.textContent = "已记在本机，没有交给工作人员。可以换一种问法，或转人工。";
-      if (!row.querySelector(".msg-actions")) {
+      line.textContent = "已记下。可以换一种问法，或转人工。";
+      setStatus("已记下：没解决 · 可转人工");
+      if (!row.querySelector('[data-action="ticket"]')) {
         const actions = document.createElement("div");
         actions.className = "msg-actions";
         const button = document.createElement("button");
         button.type = "button";
         button.className = "solid";
+        button.dataset.action = "ticket";
         button.textContent = "转人工坐席";
         button.addEventListener("click", openTicket);
         actions.appendChild(button);
         row.appendChild(actions);
       }
     }
-    row.appendChild(line);
-    setStatus(helpful ? "本机记录：有帮助" : "本机记录：没解决 · 可转人工");
   }
 
   function exportConversation() {
@@ -841,7 +888,12 @@
         const handoff = !!data.handoff;
         if (data.rewrite) noteRewrite(data.rewrite);
         const suggestions = data.suggestions || [];
-        finishBotStream(answer, { refuse: refuse || handoff, suggestions, clarify: data.agent_action === "clarify" });
+        finishBotStream(answer, {
+          refuse: refuse || handoff,
+          suggestions,
+          clarify: data.agent_action === "clarify",
+          citeCount: (data.citations || []).length,
+        });
         state.messages.push({
           role: "bot",
           text: answer,
@@ -849,7 +901,10 @@
           handoff,
           action: data.agent_action,
           suggestions,
+          citeCount: (data.citations || []).length,
+          serverMessageId: data.server_message_id || 0,
         });
+        tagServerMessage(data.server_message_id);
         noteTurn(data);
         if (data.agent_action === "restart") {
           state.historyCutoff = state.messages.length;
@@ -909,6 +964,8 @@
             if (ev.rewrite) noteRewrite(ev.rewrite);
             if (ev.agent_action === "human_handoff") setStatus("正在登记人工…");
             if (ev.agent_action === "order_lookup") setStatus("正在查询办事进度…");
+          } else if (ev.type === "status") {
+            showPhase(ev.phase);
           } else if (ev.type === "delta") {
             acc += ev.text || "";
             updateBotStream(acc);
@@ -928,7 +985,12 @@
       const action = (finalPayload && finalPayload.agent_action) || "";
       const suggestions = (finalPayload && finalPayload.suggestions) || [];
       if (finalPayload && finalPayload.rewrite) noteRewrite(finalPayload.rewrite);
-      finishBotStream(answer, { refuse: refuse || handoff, suggestions, clarify: action === "clarify" });
+      finishBotStream(answer, {
+        refuse: refuse || handoff,
+        suggestions,
+        clarify: action === "clarify",
+        citeCount: citations.length,
+      });
       // 转人工也给出一键工单按钮
       if (handoff) {
         const row = el.messages.lastElementChild;
@@ -952,7 +1014,10 @@
         handoff,
         action,
         suggestions,
+        citeCount: citations.length,
+        serverMessageId: (finalPayload && finalPayload.server_message_id) || 0,
       });
+      tagServerMessage(finalPayload && finalPayload.server_message_id);
       noteTurn(finalPayload);
       if (action === "restart") {
         state.historyCutoff = state.messages.length;
@@ -1134,6 +1199,15 @@
       /* 门户仍可继续提问 */
     }
   }
+
+  el.messages.addEventListener("click", (event) => {
+    const mark = event.target.closest(".cite-mark");
+    if (!mark || !el.citeList) return;
+    const card = el.citeList.querySelector('.cite-card[data-idx="' + mark.dataset.cite + '"]');
+    if (!card) return;
+    if (!card.classList.contains("open")) card.click();
+    card.focus();
+  });
 
   buildChips();
 

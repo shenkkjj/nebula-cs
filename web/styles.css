@@ -528,6 +528,21 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 .bot-tools .mini:hover { border-color: var(--gold); }
 .feedback-note { margin: 8px 0 0; font-size: 0.78rem; color: var(--mute); }
+.cite-mark {
+  display: inline;
+  margin: 0 1px;
+  padding: 0 5px;
+  font: inherit;
+  font-size: 0.72em;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--champagne);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  vertical-align: super;
+}
+.cite-mark:hover { background: var(--champagne-soft); }
 .ticket-result {
   margin: 12px 0 0; padding: 10px 12px;
   border-radius: var(--radius-control);
