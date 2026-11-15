@@ -48,8 +48,8 @@ body::before {
     radial-gradient(ellipse 50% 40% at 90% 80%, var(--glow-champagne), transparent 50%);
 }
 :focus-visible {
-  outline: 1px solid var(--gold);
-  outline-offset: 3px;
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
 }
 button:active, .solid:active, .ghost:active, .composer button:active { filter: brightness(0.94); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }

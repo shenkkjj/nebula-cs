@@ -229,6 +229,26 @@ def _dataset_request(method: str, path: str, payload: dict | None = None, timeou
     return status, parsed
 
 
+def _positive_count(value) -> int | None:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def segment_count_from_document(row: dict, segments_payload: dict | None = None) -> int | None:
+    """Use a real segment total. A zero on the document row is not a count."""
+    if isinstance(row, dict):
+        for key in ("segment_count", "segments_count"):
+            found = _positive_count(row.get(key))
+            if found:
+                return found
+    if isinstance(segments_payload, dict):
+        return _positive_count(segments_payload.get("total"))
+    return None
+
+
 def list_documents() -> list[dict]:
     dataset_id = dify_dataset_id()
     _status, payload = _dataset_request("GET", f"/datasets/{dataset_id}/documents?page=1&limit=100")
@@ -239,13 +259,24 @@ def list_documents() -> list[dict]:
     for row in rows:
         if not isinstance(row, dict):
             continue
+        count = segment_count_from_document(row)
+        if count is None and row.get("id"):
+            try:
+                _seg_status, seg_payload = _dataset_request(
+                    "GET",
+                    f"/datasets/{dataset_id}/documents/{row.get('id')}/segments?page=1&limit=1",
+                    timeout=20,
+                )
+            except Exception:  # noqa: BLE001
+                seg_payload = None
+            count = segment_count_from_document(row, seg_payload if isinstance(seg_payload, dict) else None)
         documents.append(
             {
                 "id": row.get("id") or "",
                 "name": row.get("name") or "未命名文档",
                 "source": _doc_source(row.get("name") or ""),
                 "indexing_status": row.get("indexing_status") or row.get("display_status") or "",
-                "segment_count": row.get("segment_count") if row.get("segment_count") is not None else row.get("tokens"),
+                "segment_count": count,
                 "error": row.get("error") or "",
             }
         )

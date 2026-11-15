@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 
 from dify_client import create_text_document, dataset_configured
+from masking import mask_text
 from settings import ROOT
 import store
 
@@ -35,7 +36,7 @@ def detail(public_id: str) -> tuple[int, dict]:
     if not ticket:
         return 404, {"ok": False, "error": "没有这张工单"}
     messages = store.list_messages(ticket_id=ticket["id"])
-    judgments = store.list_judgments(ticket_id=ticket["id"])
+    judgments = _ticket_judgments(ticket)
     return 200, {
         "ok": True,
         "ticket": _card(ticket),
@@ -242,14 +243,27 @@ def _write_bad_cases(rows: list) -> None:
     BAD_CASES_PATH.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _ticket_judgments(ticket: dict) -> list[dict]:
+    """Keep this ticket's steps, and any earlier steps from the same chat."""
+    owned = store.list_judgments(ticket_id=ticket["id"])
+    session_rows = store.list_session_judgments(ticket.get("visitor_token") or "", ticket.get("portal_session") or "")
+    merged = {item["id"]: item for item in session_rows}
+    for item in owned:
+        merged[item["id"]] = item
+    if not merged:
+        return owned
+    return sorted(merged.values(), key=lambda item: item["id"])
+
+
 def _card(ticket: dict) -> dict:
+    question, _notices = mask_text(ticket.get("first_question") or "")
     return {
         "id": ticket["id"],
         "public_id": ticket["public_id"],
         "status": ticket["status"],
         "source": ticket["source"],
         "source_label": SOURCE_LABEL.get(ticket["source"], ticket["source"]),
-        "first_question": ticket["first_question"],
+        "first_question": question,
         "assignee_name": ticket.get("assignee_name") or "",
         "assignee_id": ticket.get("assignee_id"),
         "created_at": ticket["created_at"],
@@ -266,7 +280,7 @@ def _public_message(item: dict) -> dict:
         "id": item["id"],
         "role": item["role"],
         "author": item.get("author") or "",
-        "body": item.get("body") or "",
+        "body": mask_text(item.get("body") or "")[0],
         "created_at": item.get("created_at") or "",
         "meta": item.get("meta") or {},
     }

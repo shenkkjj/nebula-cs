@@ -59,17 +59,29 @@ def content_key(text: str) -> str:
     return t.strip()
 
 
+_TOPIC_NOISE = re.compile(
+    r"如何|怎么|怎样|怎么办|办理|申请|处理|查询|改期|取消|补办|续借|挂失|充值|多久|几点|在哪|哪里|哪儿|想|要|可以|能否|是否|请|的|了|吗|呢|呀|啊|吧"
+)
+
+
+def _has_own_topic(text: str) -> bool:
+    """A short but complete errand question names its own subject."""
+    leftover = _TOPIC_NOISE.sub("", content_key(text))
+    return len(leftover) >= 2
+
+
 def is_followup(query: str, history: list | None) -> bool:
+    """True only for a real continuation, not for every short question."""
     text = (query or "").strip()
-    if not text:
+    if not text or not _last_user(history):
         return False
-    if not _last_user(history):
-        return False
-    if len(text) <= 16 or _FOLLOW_LEAD.match(text):
+    if _FOLLOW_LEAD.match(text):
         return True
     if text.endswith("呢") or text.endswith("呢？") or text.endswith("呢?"):
         return True
-    return False
+    if _has_own_topic(text):
+        return False
+    return len(text) <= 8
 
 
 def _last_user(history: list | None) -> str:

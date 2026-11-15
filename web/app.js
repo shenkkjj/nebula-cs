@@ -201,7 +201,7 @@
     const entry = {
       id: state.sessionId,
       conversationId: state.conversationId || "",
-      title: String(title).slice(0, 40),
+      title: maskPhone(String(title)).slice(0, 40),
       updatedAt: Date.now(),
       historyCutoff: state.historyCutoff || 0,
       messages: state.messages.slice(-40),
@@ -228,7 +228,7 @@
       .map((s) => {
         const active = s.id === state.sessionId ? " active" : "";
         return `<button type="button" class="session-item${active}" data-sid="${escapeHtml(s.id)}">
-          <div class="t">${escapeHtml(s.title || "未命名")}</div>
+          <div class="t">${escapeHtml(maskPhone(s.title || "未命名"))}</div>
           <div class="d">${escapeHtml(fmtTime(s.updatedAt))} · ${s.messages ? s.messages.length : 0} 条</div>
         </button>`;
       })
@@ -703,6 +703,14 @@
     if (box.childElementCount) row.appendChild(box);
   }
 
+  function maskPhone(text) {
+    return String(text || "").replace(/(?<!\d)1[3-9]\d[\s-]?\d{4}[\s-]?\d{4}(?!\d)/g, (match) => {
+      const digits = match.replace(/\D/g, "");
+      if (digits.length !== 11) return match;
+      return digits.slice(0, 3) + "****" + digits.slice(-4);
+    });
+  }
+
   function scrubLocal(text) {
     const raw = String(text || "");
     const med = /(病历|病例|化验单|出院小结|出院记录|诊断证明|诊断书)/;
@@ -711,6 +719,7 @@
     }
     let next = raw.replace(/(?<!\d)\d{17}[\dXx](?!\d)/g, "［身份证号已隐去］");
     next = next.replace(/(?<!\d)\d{16,19}(?!\d)/g, "［卡号已隐去］");
+    next = maskPhone(next);
     return next === raw ? null : next;
   }
 
@@ -1089,7 +1098,7 @@
     const first = el.ticketForm.querySelector("input[name=subject]");
     const lastUser = [...state.messages].reverse().find((m) => m.role === "user");
     if (first && lastUser && !first.value) {
-      first.value = ("跟进：" + String(lastUser.text || "")).slice(0, 80);
+      first.value = maskPhone("跟进：" + String(lastUser.text || "")).slice(0, 80);
     }
     if (first) first.focus();
   }

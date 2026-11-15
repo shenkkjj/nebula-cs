@@ -10,6 +10,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from masking import mask_text
 from passwords import hash_password
 from settings import data_dir
 
@@ -283,6 +284,7 @@ def _next_public_id(conn: sqlite3.Connection) -> str:
 
 
 def create_ticket(visitor: str, portal_session: str, source: str, question: str) -> dict:
+    question, _notices = mask_text(question or "")
     with _LOCK:
         conn = connection()
         public_id = _next_public_id(conn)
@@ -297,16 +299,50 @@ def create_ticket(visitor: str, portal_session: str, source: str, question: str)
             (public_id, visitor, portal_session or "", source, question[:500], stamp, stamp),
         )
         ticket_id = cur.lastrowid
-        conn.execute(
-            """
-            UPDATE messages SET ticket_id = ?
-            WHERE visitor_token = ? AND portal_session = ? AND ticket_id IS NULL
-            """,
-            (ticket_id, visitor, portal_session or ""),
-        )
+        _claim_open_records(conn, ticket_id, visitor, portal_session or "")
         conn.commit()
     ticket = get_ticket(public_id)
     return ticket or {"public_id": public_id, "id": ticket_id}
+
+
+def claim_session_judgments(ticket_id: int, visitor: str, portal_session: str) -> None:
+    """Hang earlier answers from this chat onto the ticket that was just opened."""
+    with _LOCK:
+        conn = connection()
+        _claim_open_records(conn, ticket_id, visitor, portal_session or "")
+        conn.commit()
+
+
+def _claim_open_records(conn: sqlite3.Connection, ticket_id: int, visitor: str, portal_session: str) -> None:
+    conn.execute(
+        """
+        UPDATE messages SET ticket_id = ?
+        WHERE visitor_token = ? AND portal_session = ? AND ticket_id IS NULL
+        """,
+        (ticket_id, visitor, portal_session),
+    )
+    conn.execute(
+        """
+        UPDATE judgments SET ticket_id = ?
+        WHERE visitor_token = ? AND portal_session = ? AND ticket_id IS NULL
+        """,
+        (ticket_id, visitor, portal_session),
+    )
+
+
+def list_session_judgments(visitor: str, portal_session: str) -> list[dict]:
+    if not visitor or not portal_session:
+        return []
+    with _LOCK:
+        rows = connection().execute(
+            """
+            SELECT * FROM judgments
+            WHERE visitor_token = ? AND portal_session = ?
+            ORDER BY id ASC
+            """,
+            (visitor, portal_session),
+        ).fetchall()
+    return [_judgment(row) for row in rows]
 
 
 def get_ticket(public_id: str) -> dict | None:
@@ -535,15 +571,16 @@ def list_judgments(ticket_id: int | None = None, visitor: str | None = None) -> 
             f"SELECT * FROM judgments {where} ORDER BY id ASC",
             args,
         ).fetchall()
-    items = []
-    for row in rows:
-        item = dict(row)
-        try:
-            item["trace"] = json.loads(item.pop("trace_json") or "[]")
-        except json.JSONDecodeError:
-            item["trace"] = []
-        items.append(item)
-    return items
+    return [_judgment(row) for row in rows]
+
+
+def _judgment(row) -> dict:
+    item = dict(row)
+    try:
+        item["trace"] = json.loads(item.pop("trace_json") or "[]")
+    except json.JSONDecodeError:
+        item["trace"] = []
+    return item
 
 
 def add_audit(

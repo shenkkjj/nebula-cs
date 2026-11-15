@@ -233,6 +233,22 @@ class ConstraintTest(unittest.TestCase):
         # Even if a caller passes the prefixed rewrite, history should still win or we simply not pass it.
         self.assertTrue(match and match["title"] == "心理咨询如何取消或改期？")
 
+    def test_a_short_new_errand_is_not_a_followup(self) -> None:
+        import faq_match
+        from gateway import _prepare_query
+
+        history = [{"role": "user", "text": "在读证明如何办理？"}, {"role": "assistant", "text": "到一网通办。"}]
+        self.assertIsNone(faq_match.confident_match("怎么请病假？", history))
+        plain, meta = _prepare_query("怎么请病假？", history, "")
+        self.assertEqual(plain, "怎么请病假？")
+        self.assertIsNone(meta)
+        rewritten, follow = _prepare_query("那成绩单呢？", history, "")
+        self.assertIsNotNone(follow)
+        self.assertIn("在读证明如何办理？", rewritten)
+        self.assertIn("那成绩单呢？", rewritten)
+        grade = faq_match.confident_match("那成绩单呢？", history)
+        self.assertEqual(grade["title"], "成绩单如何申请？")
+
 class GatewayFlowTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -341,6 +357,52 @@ class GatewayFlowTest(unittest.TestCase):
         self.assertTrue(done["ticket_id"])
         self.assertEqual(_FakeDify.seen, [])
         self.assertTrue(any(event["type"] == "delta" for event in events))
+
+    def test_sick_leave_after_a_certificate_does_not_reuse_that_entry(self) -> None:
+        import gateway as gateway_mod
+
+        gateway_mod.load_config = lambda: {**self._load_config(), "faq_shortcut": True}
+        history = [{"role": "user", "text": "在读证明如何办理？"}, {"role": "assistant", "text": "到一网通办。"}]
+        done = run_chat(
+            {
+                "query": "怎么请病假？",
+                "history": history,
+                "visitor": "v-sick",
+                "portal_session": "s-sick",
+                "user": "v-sick",
+            }
+        )
+        self.assertTrue(done["refuse"])
+        self.assertEqual(done.get("citations"), [])
+        self.assertNotIn("在读证明", done.get("answer") or "")
+        self.assertNotEqual(done.get("reason"), "faq_shortcut")
+
+    def test_handoff_keeps_the_earlier_four_steps(self) -> None:
+        import agent_api
+        import gateway as gateway_mod
+
+        gateway_mod.load_config = lambda: {**self._load_config(), "faq_shortcut": True}
+        first = run_chat({"query": "在读证明如何办理？", "visitor": "v-trace", "portal_session": "s-trace", "user": "v-trace"})
+        self.assertEqual([step["step"] for step in first["trace"]], ["改写", "检索", "约束", "输出"])
+        self.assertEqual(first["trace"][0]["detail"], "按原问题检索")
+        handoff = run_chat({"query": "转人工", "visitor": "v-trace", "portal_session": "s-trace", "user": "v-trace"})
+        status, detail = agent_api.detail(handoff["ticket_id"])
+        self.assertEqual(status, 200)
+        names = [step["step"] for item in detail["judgments"] for step in item["trace"]]
+        for required in ("改写", "检索", "约束", "输出"):
+            self.assertIn(required, names)
+        self.assertTrue(any(item["decision"] == "human_handoff" for item in detail["judgments"]))
+
+    def test_ticket_subject_is_stored_masked(self) -> None:
+        import agent_api
+
+        ticket = store.create_ticket("v-phone", "s-phone", "user", "在读证明怎么办，我的手机是13800138000")
+        self.assertNotIn("13800138000", ticket["first_question"])
+        self.assertIn("138****8000", ticket["first_question"])
+        status, detail = agent_api.detail(ticket["public_id"])
+        self.assertEqual(status, 200)
+        self.assertNotIn("13800138000", detail["ticket"]["first_question"])
+        self.assertIn("138****8000", detail["ticket"]["first_question"])
 
     def test_rate_limit_rests_before_the_model(self) -> None:
         import ratelimit

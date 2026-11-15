@@ -76,6 +76,44 @@ class AdminApiTest(unittest.TestCase):
         self.assertIn("本地", payload["warning"])
         self.assertTrue(payload["title_sample"])
 
+    def test_zero_segment_field_uses_the_segments_total(self) -> None:
+        import dify_client
+
+        self.assertEqual(
+            dify_client.segment_count_from_document({"segment_count": 0, "tokens": 0}, {"total": 145}),
+            145,
+        )
+        self.assertEqual(dify_client.segment_count_from_document({"segment_count": 145}), 145)
+        self.assertIsNone(dify_client.segment_count_from_document({"tokens": 0}))
+        os.environ["DIFY_DATASET_API_KEY"] = "dataset-test"
+        os.environ["DIFY_DATASET_ID"] = "ds-1"
+        original = dify_client._dataset_request
+
+        def fake(method, path, payload=None, timeout=30):
+            del method, payload, timeout
+            if "/segments" in path:
+                return 200, {"data": [], "total": 145, "page": 1, "limit": 1}
+            return 200, {
+                "data": [
+                    {
+                        "id": "doc-1",
+                        "name": "客服样例FAQ.md",
+                        "indexing_status": "completed",
+                        "segment_count": 0,
+                        "tokens": 0,
+                    }
+                ]
+            }
+
+        dify_client._dataset_request = fake
+        try:
+            documents = dify_client.list_documents()
+        finally:
+            dify_client._dataset_request = original
+            os.environ.pop("DIFY_DATASET_API_KEY", None)
+            os.environ.pop("DIFY_DATASET_ID", None)
+        self.assertEqual(documents[0]["segment_count"], 145)
+
     def test_audit_hides_secrets_and_probe_records_failure(self) -> None:
         store.add_audit("qa", actor="访客", question="手机138****5678", decision="通过")
         text = admin_api.audit_csv()

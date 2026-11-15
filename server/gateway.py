@@ -11,7 +11,7 @@ import time
 
 from clarify import clarify_options
 from constraints import apply_constraints, seal_user_citations
-from faq_match import blend_retrieval, confident_match, official_answer, official_card
+from faq_match import blend_retrieval, confident_match, is_followup, official_answer, official_card
 from dify_client import ChatRaw, DifyClient, dataset_configured, hit_test, list_documents
 from masking import is_medical_dump, mask_text, notice_line
 from scope import EXAMPLES, INTRO, OFF_TOPIC, classify_scope
@@ -21,7 +21,6 @@ from settings import load_config
 
 _HANDOFF_RE = re.compile(r"(转\s*人工|人工\s*客服|人工\s*坐席|转接\s*人工|找\s*人工|联系\s*人工|有没有真人)")
 _HANDOFF_QUESTION_RE = re.compile(r"(什么情况|什么时候|何时|如何|怎么|哪些|要不要|是否).{0,12}转\s*人工|转\s*人工.{0,8}(什么|哪些|条件|情况)")
-_FOLLOW_RE = re.compile(r"^(那|这|还有|然后|另外|同|同样)")
 _RESTART_RE = re.compile(r"^(重新开始|重新来过|换个话题|清空对话|开始新对话)[。.!！]?$")
 
 MAINTENANCE_TEXT = "知识库维护中，机器人暂时不能回答办事问题。已为你登记人工，坐席上线后回复。"
@@ -172,6 +171,12 @@ def iter_events(req: dict):
                 "raw_segments": 1,
                 "merged_cards": 1,
                 "trace": [
+                    {
+                        "step": "改写",
+                        "ok": True,
+                        "detail": rewrite["rewritten"] if rewrite else "按原问题检索",
+                        "ms": 0,
+                    },
                     {"step": "检索", "ok": True, "detail": "本地标题高置信匹配，引用官方条目", "ms": first_ms},
                     {"step": "约束", "ok": True, "detail": "原文作答（faq_shortcut）", "ms": 0},
                     {"step": "输出", "ok": True, "detail": "带引用的回答", "ms": first_ms},
@@ -328,10 +333,7 @@ def _prepare_query(masked: str, history: list, conversation_id: str) -> tuple[st
         if role in ("user", "human") and text and text != masked:
             previous = text
             break
-    if not previous:
-        return masked, None
-    short = len(masked) <= 16 or bool(_FOLLOW_RE.match(masked))
-    if not short:
+    if not previous or not is_followup(masked, history):
         return masked, None
     rewritten = f"（追问。上一句用户问题：{previous[:80]}）{masked}"
     return rewritten, {"original": masked, "rewritten": rewritten, "method": "history-prefix"}
@@ -395,6 +397,7 @@ def _handoff_source(visitor: str, portal_session: str) -> str:
 def _open_or_create(visitor: str, portal_session: str, source: str, question: str, source_if_new: str | None = None) -> dict:
     existing = store.open_ticket(visitor, portal_session)
     if existing:
+        store.claim_session_judgments(existing["id"], visitor, portal_session)
         return existing
     return store.create_ticket(visitor, portal_session, source_if_new or source, question)
 
