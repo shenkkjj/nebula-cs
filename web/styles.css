@@ -48,8 +48,8 @@ body::before {
     radial-gradient(ellipse 50% 40% at 90% 80%, var(--glow-champagne), transparent 50%);
 }
 :focus-visible {
-  outline: 1px solid var(--gold);
-  outline-offset: 3px;
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
 }
 button:active, .solid:active, .ghost:active, .composer button:active { filter: brightness(0.94); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -297,7 +297,14 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 .composer textarea::placeholder, .composer input::placeholder { color: var(--mute); }
 .composer textarea:focus, .composer input:focus {
-  outline: none; border-color: var(--gold);
+  border-color: var(--gold);
+}
+.composer textarea:focus-visible, .composer input:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.composer textarea:focus:not(:focus-visible), .composer input:focus:not(:focus-visible) {
+  outline: none;
 }
 .composer button {
   font: inherit; font-weight: 700; cursor: pointer;
@@ -494,7 +501,14 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   background: var(--ink); color: var(--text); font: inherit; padding: 10px 12px;
 }
 .modal input:focus, .modal textarea:focus {
-  outline: none; border-color: var(--gold);
+  border-color: var(--gold);
+}
+.modal input:focus-visible, .modal textarea:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.modal input:focus:not(:focus-visible), .modal textarea:focus:not(:focus-visible) {
+  outline: none;
 }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .nav-modal { width: min(560px, 100%); }
@@ -528,6 +542,21 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 .bot-tools .mini:hover { border-color: var(--gold); }
 .feedback-note { margin: 8px 0 0; font-size: 0.78rem; color: var(--mute); }
+.cite-mark {
+  display: inline;
+  margin: 0 1px;
+  padding: 0 5px;
+  font: inherit;
+  font-size: 0.72em;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--champagne);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  vertical-align: super;
+}
+.cite-mark:hover { background: var(--champagne-soft); }
 .ticket-result {
   margin: 12px 0 0; padding: 10px 12px;
   border-radius: var(--radius-control);
@@ -603,3 +632,35 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .msg.refuse .msg-actions .solid {
   background: linear-gradient(180deg, #c9a86a, var(--gold));
 }
+
+.notice-bar {
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  background: rgba(227, 168, 87, .12);
+  border: 1px solid rgba(227, 168, 87, .45);
+  color: #e3a857;
+  font-size: 0.86rem;
+}
+.notice-bar strong { margin-right: 8px; }
+.meta.warn {
+  color: #e3a857;
+  border-color: rgba(227, 168, 87, .7);
+}
+.meta.warn::before { background: #e3a857; box-shadow: 0 0 0 3px rgba(227, 168, 87, .18); }
+.sys-line {
+  align-self: center;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--mute);
+}
+.msg.agent-msg .who { color: #e3a857; }
+.msg.agent-msg .bubble { border-color: rgba(227, 168, 87, .45); }
+.cite-card .snip-more {
+  display: none;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--cite-rule);
+  color: var(--mute);
+  font-size: 0.82rem;
+}
+.cite-card.open .snip-more { display: block; }

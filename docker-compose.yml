@@ -1,0 +1,27 @@
+# Gateway plus a persistent SQLite volume.
+# Dify itself stays in its own compose (Dify 1.19.0). scripts/up-local.sh starts that
+# directory when it exists, then starts this file.
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file:
+      - .env
+    environment:
+      LITE_MODE: "0"
+      PORTAL_HOST: 0.0.0.0
+      PORTAL_PORT: "8080"
+      DATA_DIR: /data
+      DIFY_CHAT_URL: ${DIFY_CHAT_URL:-http://host.docker.internal/v1/chat-messages}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - nebula-data:/data
+    restart: unless-stopped
+
+volumes:
+  nebula-data:

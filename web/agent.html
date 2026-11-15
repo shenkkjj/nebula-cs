@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>坐席工作台 · 校园客服</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/staff.css" />
+</head>
+<body class="desk-page">
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <div class="s-agent" id="main">
+    <header class="topbar">
+      <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role">坐席工作台</span></div>
+      <div class="top-actions">
+        <span class="pill" id="kbPill">知识库状态待查</span>
+        <span class="who" id="who">坐席</span>
+        <button type="button" class="btn btn-quiet btn-sm" id="btnLogout">退出</button>
+      </div>
+    </header>
+    <div class="desk">
+      <aside class="panel queue" aria-labelledby="q-title">
+        <div class="panel-head"><h2 class="panel-title" id="q-title">转人工队列</h2><span class="small muted">每 5 秒刷新</span></div>
+        <div class="seg" role="tablist" aria-label="工单状态">
+          <button type="button" role="tab" id="tab-waiting" data-status="waiting" aria-selected="true">待接入</button>
+          <button type="button" role="tab" id="tab-active" data-status="active" aria-selected="false" tabindex="-1">处理中</button>
+          <button type="button" role="tab" id="tab-closed" data-status="closed" aria-selected="false" tabindex="-1">已结束</button>
+        </div>
+        <div class="list" id="queue" role="tabpanel"></div>
+      </aside>
+      <section class="panel conv" aria-labelledby="c-title">
+        <div class="conv-head">
+          <div>
+            <h1 class="panel-title" id="c-title">选择一张工单</h1>
+            <p class="small muted" id="c-sub">左侧队列里点一张，对话会出现在这里。</p>
+          </div>
+          <div class="top-actions">
+            <span class="badge" id="c-badge" hidden></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnClose" hidden>结束工单</button>
+          </div>
+        </div>
+        <div class="thread" id="thread" aria-label="对话记录"><p class="empty">还没有选中工单。</p></div>
+        <form class="composer" id="replyForm" hidden>
+          <label class="sr-only" for="reply">回复访客</label>
+          <textarea class="textarea" id="reply" rows="1" maxlength="800" required placeholder="回复访客，Enter 发送，Shift+Enter 换行"></textarea>
+          <button class="btn btn-solid" type="submit">发送</button>
+        </form>
+        <p class="form-status" id="replyStatus" hidden></p>
+      </section>
+      <aside class="panel ctx" aria-label="判定与工单操作">
+        <div class="tabs" role="tablist" aria-label="工单操作">
+          <button type="button" role="tab" id="tab-trace" data-panel="trace" aria-selected="true">判定详情</button>
+          <button type="button" role="tab" id="tab-write" data-panel="write" aria-selected="false" tabindex="-1">回写知识库</button>
+          <button type="button" role="tab" id="tab-bad" data-panel="bad" aria-selected="false" tabindex="-1">标记坏例</button>
+        </div>
+        <div class="tabpanel" id="panel-trace"><p class="empty">接入工单后，这里按时间列出打码、改写、检索、约束和输出。</p></div>
+        <div class="tabpanel" id="panel-write" hidden>
+          <form id="writeForm">
+            <p class="small muted">写入后成为一篇独立文档，来源标「坐席回写」。管理员可以删除。</p>
+            <label class="field"><span>问题</span><input class="input" name="question" required maxlength="120" /></label>
+            <label class="field"><span>标准答法</span><textarea class="textarea" name="answer" rows="6" required maxlength="800"></textarea></label>
+            <div class="form-actions"><button class="btn btn-solid" type="submit">写入知识库</button></div>
+            <p class="form-status" id="writeStatus" role="status" hidden></p>
+          </form>
+        </div>
+        <div class="tabpanel" id="panel-bad" hidden>
+          <form id="badForm">
+            <p class="small muted" id="badTarget">先在对话里点一条机器人回答。</p>
+            <input type="hidden" name="message_id" id="badMessage" />
+            <fieldset class="radio-list">
+              <legend class="legend">问题类型</legend>
+              <label><input type="radio" name="kind" value="wrong" required /> 答错</label>
+              <label><input type="radio" name="kind" value="cite" /> 引用不对</label>
+              <label><input type="radio" name="kind" value="miss-refuse" /> 该拒没拒</label>
+              <label><input type="radio" name="kind" value="over-refuse" /> 不该拒却拒</label>
+              <label><input type="radio" name="kind" value="other" /> 其他</label>
+            </fieldset>
+            <label class="field"><span>期望结果（选填）</span><textarea class="textarea" name="expect" rows="3" maxlength="400"></textarea></label>
+            <div class="form-actions"><button class="btn btn-solid" type="submit">加入评测集</button></div>
+            <p class="form-status" id="badStatus" role="status" hidden></p>
+          </form>
+        </div>
+      </aside>
+    </div>
+  </div>
+  <dialog id="closeDialog" aria-labelledby="closeTitle">
+    <form id="closeForm">
+      <div class="panel-head"><h2 class="panel-title" id="closeTitle">结束工单</h2><button type="button" class="icon-btn" id="closeCancel" aria-label="关闭">×</button></div>
+      <div class="panel-body">
+        <label class="field"><span>处理说明（必填）</span><textarea class="textarea" name="note" rows="3" required maxlength="300" placeholder="例如：已告知办理窗口，并回写知识库"></textarea></label>
+        <p class="err" id="closeError" hidden></p>
+        <div class="form-actions"><button type="button" class="btn btn-ghost" id="closeDismiss">取消</button><button type="submit" class="btn btn-solid">结束工单</button></div>
+      </div>
+    </form>
+  </dialog>
+  <script src="/agent.js"></script>
+</body>
+</html>

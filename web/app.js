@@ -30,7 +30,7 @@
     { label: "助学贷款", query: "国家助学贷款如何申请？" },
     { label: "宿舍报修", query: "宿舍报修怎么提交？" },
     { label: "校园网", query: "校园网如何认证登录？" },
-    { label: "查办事进度", query: "查询办事进度 SW20260001" },
+    { label: "办事进度", query: "办事进度如何查询？" },
     { label: "转人工", query: "转人工" },
   ];
 
@@ -62,6 +62,8 @@
     btnCloseTicket: document.getElementById("btnCloseTicket"),
     btnCancelTicket: document.getElementById("btnCancelTicket"),
     btnToggleFaq: document.getElementById("btnToggleFaq"),
+    noticeBar: document.getElementById("noticeBar"),
+    onlinePill: document.getElementById("onlinePill"),
   };
 
   const state = {
@@ -73,6 +75,9 @@
     sessionId: "",
     messages: [], // {role, text, refuse?, suggestions?}
     historyCutoff: 0,
+    ticketId: "",
+    maintenance: false,
+    seenServerIds: {},
   };
 
   function loadUserId() {
@@ -127,11 +132,54 @@
     return out.join("\n");
   }
 
+  function citeSpan(citations) {
+    if (!citations || !citations.length) return 0;
+    return citations.reduce((max, item, index) => Math.max(max, Number(item && item.mark) || index + 1), 0);
+  }
+
+  function linkCitationMarks(html, count) {
+    const total = Number(count) || 0;
+    if (total < 1) return html;
+    return String(html).replace(/\[(\d+)\]/g, (all, raw) => {
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < 1 || n > total) return all;
+      return `<button type="button" class="cite-mark" data-cite="${n - 1}" aria-label="查看出处 ${n}">[${n}]</button>`;
+    });
+  }
+
+  const PHASE_TEXT = { retrieving: "正在查找依据", generating: "正在作答" };
+
+  function tagServerMessage(id) {
+    if (!id) return;
+    const rows = el.messages.querySelectorAll(".msg.bot, .msg.agent-msg");
+    const row = rows[rows.length - 1];
+    if (row) row.dataset.messageId = String(id);
+  }
+
+  function showPhase(phase) {
+    const label = PHASE_TEXT[phase];
+    if (!label) return;
+    setStatus(label);
+    const body = document.querySelector("#streamRow .stream-body");
+    if (body && !body.dataset.answer) body.textContent = label;
+  }
+
+  function maskPhone(text) {
+    return globalThis.nebulaMask.maskPhone(text);
+  }
+
   function loadSessions() {
     try {
       const raw = localStorage.getItem(LS_KEY);
       const list = raw ? JSON.parse(raw) : [];
-      return Array.isArray(list) ? list : [];
+      if (!Array.isArray(list)) return [];
+      const cleaned = list.map((item) => globalThis.nebulaMask.maskStoredSession(item));
+      const changed = cleaned.some((item, index) => {
+        const before = list[index] || {};
+        return item.title !== before.title || JSON.stringify(item.messages) !== JSON.stringify(before.messages);
+      });
+      if (changed) saveSessions(cleaned);
+      return cleaned;
     } catch {
       return [];
     }
@@ -159,16 +207,17 @@
     if (!state.sessionId) return;
     const list = loadSessions();
     const idx = list.findIndex((s) => s.id === state.sessionId);
-    const title =
-      (state.messages.find((m) => m.role === "user") || {}).text || "新对话";
-    const entry = {
+    state.messages = state.messages.map((message) => {
+      if (!message || message.role !== "user") return message;
+      return Object.assign({}, message, { text: maskPhone(message.text) });
+    });
+    const entry = globalThis.nebulaMask.maskStoredSession({
       id: state.sessionId,
       conversationId: state.conversationId || "",
-      title: String(title).slice(0, 40),
       updatedAt: Date.now(),
       historyCutoff: state.historyCutoff || 0,
       messages: state.messages.slice(-40),
-    };
+    });
     if (idx >= 0) list[idx] = entry;
     else list.unshift(entry);
     list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -191,7 +240,7 @@
       .map((s) => {
         const active = s.id === state.sessionId ? " active" : "";
         return `<button type="button" class="session-item${active}" data-sid="${escapeHtml(s.id)}">
-          <div class="t">${escapeHtml(s.title || "未命名")}</div>
+          <div class="t">${escapeHtml(globalThis.nebulaMask.sessionTitle(s.title || "未命名"))}</div>
           <div class="d">${escapeHtml(fmtTime(s.updatedAt))} · ${s.messages ? s.messages.length : 0} 条</div>
         </button>`;
       })
@@ -209,7 +258,8 @@
     state.sessionId = s.id;
     state.conversationId = s.conversationId || "";
     state.historyCutoff = s.historyCutoff || 0;
-    state.messages = Array.isArray(s.messages) ? s.messages.slice() : [];
+    const stored = globalThis.nebulaMask.maskStoredSession(s);
+    state.messages = stored.messages.slice();
     try {
       localStorage.setItem(LS_ACTIVE, sid);
     } catch {
@@ -228,14 +278,23 @@
       return;
     }
     state.messages.forEach((m) => {
+      if (m.role === "system") {
+        appendSystem(m.text);
+        return;
+      }
       if (m.role === "user") {
         appendMessage("user", escapeHtml(m.text), { persist: false });
       } else {
-        appendMessage("bot", formatAnswer(m.text), {
+        const row = appendMessage("bot", formatAnswer(m.text), {
           refuse: !!m.refuse,
           suggestions: m.suggestions || [],
+          clarify: m.action === "clarify",
+          agent: m.role === "agent",
+          who: m.role === "agent" ? (m.author || "人工客服") + " · 人工客服" : "",
+          citeCount: m.citeCount || 0,
           persist: false,
         });
+        if (row && m.serverMessageId) row.dataset.messageId = String(m.serverMessageId);
       }
     });
   }
@@ -299,9 +358,9 @@
     if (empty) empty.remove();
 
     const wrap = document.createElement("div");
-    wrap.className = "msg " + role + (opts.refuse ? " refuse" : "");
-    const who = role === "user" ? "同学" : "校园助手";
-    wrap.innerHTML = `<div class="who">${who}</div><div class="bubble">${html}</div>`;
+    wrap.className = "msg " + (opts.agent ? "agent-msg" : role) + (opts.refuse ? " refuse" : "");
+    const who = opts.who || (role === "user" ? "同学" : "校园助手");
+    wrap.innerHTML = `<div class="who">${escapeHtml(who)}</div><div class="bubble">${linkCitationMarks(html, opts.citeCount)}</div>`;
     if (opts.refuse) {
       const actions = document.createElement("div");
       actions.className = "msg-actions";
@@ -309,11 +368,56 @@
       actions.querySelector("button").addEventListener("click", openTicket);
       wrap.appendChild(actions);
     }
-    mountSuggestions(wrap, opts.suggestions);
-    if (role === "bot") mountBotTools(wrap);
+    mountSuggestions(wrap, opts.suggestions, opts.clarify);
+    if (role === "bot" && !opts.agent) mountBotTools(wrap);
     el.messages.appendChild(wrap);
     el.messages.scrollTop = el.messages.scrollHeight;
     return wrap;
+  }
+
+  function appendSystem(text) {
+    const empty = el.messages.querySelector(".empty-state");
+    if (empty) empty.remove();
+    const line = document.createElement("p");
+    line.className = "sys-line";
+    line.textContent = text;
+    el.messages.appendChild(line);
+    el.messages.scrollTop = el.messages.scrollHeight;
+  }
+
+  function showMaintenance(on) {
+    state.maintenance = !!on;
+    if (!el.noticeBar || !el.onlinePill) return;
+    if (!on) {
+      el.noticeBar.hidden = true;
+      if (!state.ticketId) {
+        el.onlinePill.textContent = "助手在线";
+        el.onlinePill.classList.remove("warn");
+      }
+      return;
+    }
+    el.noticeBar.hidden = false;
+    el.noticeBar.innerHTML = "<strong>知识库维护中</strong>机器人暂时不能回答办事问题。你的提问会登记给坐席，上线后回复。";
+    el.onlinePill.textContent = "知识库维护中";
+    el.onlinePill.classList.add("warn");
+  }
+
+  function noteTurn(data) {
+    if (!data) return;
+    if (data.ticket_id) {
+      state.ticketId = data.ticket_id;
+      if (el.statusText && data.agent_action !== "maintenance") {
+        el.statusText.textContent = "工单 " + data.ticket_id + " · 坐席上线后回复";
+      }
+    }
+    if (data.maintenance) showMaintenance(true);
+    if (data.ticket_id && (data.agent_action === "human_handoff" || data.agent_action === "maintenance")) {
+      const line = data.agent_action === "maintenance"
+        ? "已为你登记人工工单 " + data.ticket_id + "，坐席上线后回复"
+        : "已登记工单 " + data.ticket_id + "，排队中";
+      appendSystem(line);
+      state.messages.push({ role: "system", text: line });
+    }
   }
 
   function beginBotStream() {
@@ -332,7 +436,10 @@
     const row = document.getElementById("streamRow");
     if (!row) return;
     const body = row.querySelector(".stream-body");
-    if (body) body.innerHTML = formatAnswer(text);
+    if (body) {
+      body.dataset.answer = "1";
+      body.innerHTML = formatAnswer(text);
+    }
     el.messages.scrollTop = el.messages.scrollHeight;
   }
 
@@ -345,9 +452,14 @@
       return;
     }
     row.id = "";
+    if (opts.agent) row.classList.add("agent-msg");
+    if (opts.who) {
+      const who = row.querySelector(".who");
+      if (who) who.textContent = opts.who;
+    }
     if (opts.refuse) row.classList.add("refuse");
     const bubble = row.querySelector(".bubble");
-    if (bubble) bubble.innerHTML = formatAnswer(text);
+    if (bubble) bubble.innerHTML = linkCitationMarks(formatAnswer(text), opts.citeCount);
     const cursor = row.querySelector(".stream-cursor");
     if (cursor) cursor.remove();
     if (opts.refuse && !row.querySelector(".msg-actions")) {
@@ -357,7 +469,7 @@
       actions.querySelector("button").addEventListener("click", openTicket);
       row.appendChild(actions);
     }
-    mountSuggestions(row, opts.suggestions);
+    mountSuggestions(row, opts.suggestions, opts.clarify);
     mountBotTools(row);
     el.messages.scrollTop = el.messages.scrollHeight;
   }
@@ -427,43 +539,58 @@
     return "";
   }
 
-  function recordFeedback(row, helpful) {
+  async function recordFeedback(row, helpful) {
     const note = row.querySelector(".feedback-note");
     if (note) note.remove();
-    const entry = {
-      at: Date.now(),
-      helpful: !!helpful,
-      topic: lastUserText(),
-    };
-    try {
-      const key = "nebula-cs-feedback-v1";
-      const prev = JSON.parse(localStorage.getItem(key) || "[]");
-      const list = Array.isArray(prev) ? prev : [];
-      list.unshift(entry);
-      localStorage.setItem(key, JSON.stringify(list.slice(0, 40)));
-    } catch {
-      /* quota or private mode: still tell the user nothing was sent */
-    }
     const line = document.createElement("p");
     line.className = "feedback-note";
+    const messageId = Number(row.dataset.messageId || 0);
+    if (!messageId) {
+      line.textContent = "这条回答还没有编号，评价没有送出。";
+      row.appendChild(line);
+      return;
+    }
+    line.textContent = "正在记下…";
+    row.appendChild(line);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message_id: messageId,
+          helpful: !!helpful,
+          comment: "",
+          portal_session: state.sessionId || "",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        line.textContent = data.error || "评价没有送出。";
+        return;
+      }
+    } catch {
+      line.textContent = "评价没有送出，请稍后再试。";
+      return;
+    }
     if (helpful) {
-      line.textContent = "已记在本机，没有交给工作人员。";
+      line.textContent = "已交给工作人员。";
+      setStatus("已交给工作人员：有帮助");
     } else {
-      line.textContent = "已记在本机，没有交给工作人员。可以换一种问法，或转人工。";
-      if (!row.querySelector(".msg-actions")) {
+      line.textContent = "已记下。可以换一种问法，或转人工。";
+      setStatus("已记下：没解决 · 可转人工");
+      if (!row.querySelector('[data-action="ticket"]')) {
         const actions = document.createElement("div");
         actions.className = "msg-actions";
         const button = document.createElement("button");
         button.type = "button";
         button.className = "solid";
+        button.dataset.action = "ticket";
         button.textContent = "转人工坐席";
         button.addEventListener("click", openTicket);
         actions.appendChild(button);
         row.appendChild(actions);
       }
     }
-    row.appendChild(line);
-    setStatus(helpful ? "本机记录：有帮助" : "本机记录：没解决 · 可转人工");
   }
 
   function exportConversation() {
@@ -568,12 +695,13 @@
     });
   }
 
-  function mountSuggestions(row, suggestions) {
+  function mountSuggestions(row, suggestions, clarify) {
     if (!row || !suggestions || !suggestions.length || row.querySelector(".suggest-chips")) return;
     const box = document.createElement("div");
     box.className = "suggest-chips";
     box.setAttribute("role", "group");
-    box.setAttribute("aria-label", "可选问题");
+    box.classList.toggle("clarify-opts", !!clarify);
+    box.setAttribute("aria-label", clarify ? "澄清选项" : "可选问题");
     suggestions.forEach((item) => {
       const label = (item && (item.label || item.query)) || "";
       const q = (item && (item.query || item.label)) || "";
@@ -596,6 +724,7 @@
     }
     let next = raw.replace(/(?<!\d)\d{17}[\dXx](?!\d)/g, "［身份证号已隐去］");
     next = next.replace(/(?<!\d)\d{16,19}(?!\d)/g, "［卡号已隐去］");
+    next = maskPhone(next);
     return next === raw ? null : next;
   }
 
@@ -613,11 +742,13 @@
           typeof c.score === "number" ? (c.score * 100).toFixed(1) + "%" : "—";
         const snip = c.content || "";
         const preview = snip.replace(/\s+/g, " ").slice(0, 64);
-        return `<article class="cite-card" data-idx="${i}" tabindex="0" role="button" aria-expanded="false">
+        const mark = Number(c.mark) || i + 1;
+        return `<article class="cite-card" data-idx="${mark - 1}" tabindex="0" role="button" aria-expanded="false">
           <div class="doc"><span>${escapeHtml(c.document_name || "文档")}</span><span class="score">${score}</span></div>
-          <div class="meta"><span>${escapeHtml(c.dataset_name || "知识库")} · #${i + 1}</span><span class="chev">▶ 展开</span></div>
+          <div class="meta"><span>${escapeHtml(c.dataset_name || "知识库")} · #${mark}</span><span class="chev">▶ 展开</span></div>
           ${preview ? `<div class="snip-preview">${escapeHtml(preview)}${snip.length > 64 ? "…" : ""}</div>` : ""}
           <div class="snip">${escapeHtml(snip) || "（无原文片段）"}</div>
+          ${(c.segments || []).slice(1).map((seg) => `<div class="snip-more">${escapeHtml((seg.content || "").slice(0, 800))}</div>`).join("")}
         </article>`;
       })
       .join("");
@@ -702,7 +833,7 @@
     const start = state.historyCutoff || 0;
     return state.messages.slice(start).slice(-10).map((m) => ({
       role: m.role === "bot" ? "assistant" : "user",
-      text: String(m.text || "").slice(0, 500),
+      text: maskPhone(String(m.text || "")).slice(0, 500),
     }));
   }
 
@@ -721,7 +852,7 @@
     const typed = (raw || el.input.value || "").trim();
     if (!typed || state.busy) return;
     const scrubbed = scrubLocal(typed);
-    const query = scrubbed || typed;
+    const query = maskPhone(scrubbed || typed);
 
     if (!state.sessionId) state.sessionId = newSessionId();
 
@@ -750,6 +881,7 @@
           query,
           user: state.userId,
           conversation_id: state.conversationId || undefined,
+          portal_session: state.sessionId,
           stream: true,
           history: historyPayload(),
         }),
@@ -776,7 +908,12 @@
         const handoff = !!data.handoff;
         if (data.rewrite) noteRewrite(data.rewrite);
         const suggestions = data.suggestions || [];
-        finishBotStream(answer, { refuse: refuse || handoff, suggestions });
+        finishBotStream(answer, {
+          refuse: refuse || handoff,
+          suggestions,
+          clarify: data.agent_action === "clarify",
+          citeCount: citeSpan(data.citations),
+        });
         state.messages.push({
           role: "bot",
           text: answer,
@@ -784,14 +921,18 @@
           handoff,
           action: data.agent_action,
           suggestions,
+          citeCount: citeSpan(data.citations),
+          serverMessageId: data.server_message_id || 0,
         });
+        tagServerMessage(data.server_message_id);
+        noteTurn(data);
         if (data.agent_action === "restart") {
           state.historyCutoff = state.messages.length;
           state.conversationId = "";
         }
         renderCitations(data.citations || []);
         if (handoff) {
-          setStatus("已转人工 · 工单 " + (data.ticket_id || "") + "（演示存根）");
+          setStatus("已登记 · 工单 " + (data.ticket_id || "") + " · 坐席上线后回复");
         } else if (data.agent_action === "order_lookup") {
           setStatus(data.order_found ? "办事进度已查出 · 演示存根" : "办事单未找到 · 可转人工");
         } else if (data.agent_action === "clarify") {
@@ -841,8 +982,10 @@
             if (ev.conversation_id) state.conversationId = ev.conversation_id;
             if (ev.task_id) state.taskId = ev.task_id;
             if (ev.rewrite) noteRewrite(ev.rewrite);
-            if (ev.agent_action === "human_handoff") setStatus("正在转接人工（演示）…");
+            if (ev.agent_action === "human_handoff") setStatus("正在登记人工…");
             if (ev.agent_action === "order_lookup") setStatus("正在查询办事进度…");
+          } else if (ev.type === "status") {
+            showPhase(ev.phase);
           } else if (ev.type === "delta") {
             acc += ev.text || "";
             updateBotStream(acc);
@@ -862,7 +1005,12 @@
       const action = (finalPayload && finalPayload.agent_action) || "";
       const suggestions = (finalPayload && finalPayload.suggestions) || [];
       if (finalPayload && finalPayload.rewrite) noteRewrite(finalPayload.rewrite);
-      finishBotStream(answer, { refuse: refuse || handoff, suggestions });
+      finishBotStream(answer, {
+        refuse: refuse || handoff,
+        suggestions,
+        clarify: action === "clarify",
+        citeCount: citeSpan(citations),
+      });
       // 转人工也给出一键工单按钮
       if (handoff) {
         const row = el.messages.lastElementChild;
@@ -874,7 +1022,7 @@
           actions.querySelector("button").addEventListener("click", () => {
             openTicket();
             const subj = el.ticketForm.querySelector("input[name=subject]");
-            if (subj && !subj.value) subj.value = tid ? "跟进工单 " + tid : "转人工跟进";
+            if (subj && !subj.value) subj.value = maskPhone(tid ? "跟进工单 " + tid : "转人工跟进");
           });
           row.appendChild(actions);
         }
@@ -886,7 +1034,11 @@
         handoff,
         action,
         suggestions,
+        citeCount: citeSpan(citations),
+        serverMessageId: (finalPayload && finalPayload.server_message_id) || 0,
       });
+      tagServerMessage(finalPayload && finalPayload.server_message_id);
+      noteTurn(finalPayload);
       if (action === "restart") {
         state.historyCutoff = state.messages.length;
         state.conversationId = "";
@@ -894,7 +1046,7 @@
       renderCitations(citations);
       if (handoff) {
         setStatus(
-          "已转人工 · 工单 " + ((finalPayload && finalPayload.ticket_id) || "") + "（演示存根）"
+          "已登记 · 工单 " + ((finalPayload && finalPayload.ticket_id) || "") + " · 坐席上线后回复"
         );
       } else if (action === "order_lookup") {
         setStatus(
@@ -951,7 +1103,7 @@
     const first = el.ticketForm.querySelector("input[name=subject]");
     const lastUser = [...state.messages].reverse().find((m) => m.role === "user");
     if (first && lastUser && !first.value) {
-      first.value = ("跟进：" + String(lastUser.text || "")).slice(0, 80);
+      first.value = globalThis.nebulaMask.handoffSubject(lastUser.text || "");
     }
     if (first) first.focus();
   }
@@ -998,10 +1150,20 @@
   el.ticketForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(el.ticketForm);
+    const subject = maskPhone(String(fd.get("subject") || "").trim()).slice(0, 80);
+    const detail = maskPhone(String(fd.get("detail") || "").trim());
+    const contact = maskPhone(String(fd.get("contact") || "").trim());
+    const subjectInput = el.ticketForm.querySelector("input[name=subject]");
+    const detailInput = el.ticketForm.querySelector("textarea[name=detail]");
+    const contactInput = el.ticketForm.querySelector("input[name=contact]");
+    if (subjectInput) subjectInput.value = subject;
+    if (detailInput) detailInput.value = detail;
+    if (contactInput) contactInput.value = contact;
     const payload = {
-      subject: String(fd.get("subject") || "").trim(),
-      detail: String(fd.get("detail") || "").trim(),
-      contact: String(fd.get("contact") || "").trim(),
+      subject: subject,
+      detail: detail,
+      contact: contact,
+      portal_session: state.sessionId || "",
     };
     try {
       const res = await fetch("/api/ticket", {
@@ -1026,6 +1188,56 @@
     });
   }
 
+  async function pollPortal() {
+    if (!state.sessionId) return;
+    try {
+      const res = await fetch("/api/portal/state?session=" + encodeURIComponent(state.sessionId));
+      if (!res.ok) return;
+      const data = await res.json();
+      showMaintenance(!!data.maintenance);
+      if (data.ticket && data.ticket.status !== "closed") {
+        state.ticketId = data.ticket.public_id;
+        if (data.ticket.status === "active" && el.onlinePill && !data.maintenance) {
+          el.onlinePill.textContent = "人工接入中";
+          el.onlinePill.classList.remove("warn");
+        }
+        if (el.statusText) {
+          const who = data.ticket.assignee_name ? data.ticket.assignee_name + " 接入中 · " : "";
+          el.statusText.textContent = who + "工单 " + data.ticket.public_id;
+        }
+      }
+      let added = false;
+      (data.messages || []).forEach((msg) => {
+        if (!msg || state.seenServerIds[msg.id]) return;
+        state.seenServerIds[msg.id] = true;
+        if (msg.role === "agent") {
+          appendMessage("bot", formatAnswer(msg.body), {
+            agent: true,
+            who: (msg.author || "人工客服") + " · 人工客服",
+          });
+          state.messages.push({ role: "agent", text: msg.body, author: msg.author || "人工客服", serverId: msg.id });
+          added = true;
+        } else if (msg.role === "system") {
+          appendSystem(msg.body);
+          state.messages.push({ role: "system", text: msg.body, serverId: msg.id });
+          added = true;
+        }
+      });
+      if (added) persistCurrentSession();
+    } catch {
+      /* 门户仍可继续提问 */
+    }
+  }
+
+  el.messages.addEventListener("click", (event) => {
+    const mark = event.target.closest(".cite-mark");
+    if (!mark || !el.citeList) return;
+    const card = el.citeList.querySelector('.cite-card[data-idx="' + mark.dataset.cite + '"]');
+    if (!card) return;
+    if (!card.classList.contains("open")) card.click();
+    card.focus();
+  });
+
   buildChips();
 
   // 恢复上次活动会话（若有消息）；否则空态
@@ -1047,8 +1259,10 @@
   } else {
     state.sessionId = newSessionId();
     renderEmpty();
-    setStatus("就绪 · 智能客服助手 · 改写 / 转人工 / 办事进度已启用");
+    setStatus("就绪 · 校园助手 · 流式经本地代理转发");
   }
   renderSessionList();
+  pollPortal();
+  setInterval(pollPortal, 2000);
   el.input.focus();
 })();
