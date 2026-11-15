@@ -84,7 +84,7 @@ def try_delete(handler, path: str) -> bool:
 def health_payload() -> dict:
     probe = store.latest_probe()
     maintenance = bool(probe and not probe.get("ok"))
-    return {
+    payload = {
         "ok": True,
         "service": "nebula-cs",
         "engine": "dify+gateway",
@@ -98,7 +98,11 @@ def health_payload() -> dict:
             "dataset": "configured" if dataset_configured() else "missing_key",
             "ollama": _ollama_status(),
         },
+        "demo_accounts": store.demo_accounts_enabled(),
     }
+    if store.demo_accounts_enabled():
+        payload["demo_hint"] = "本机演示模式已打开：管理员 admin / admin123，坐席 agent1 / agent123。"
+    return payload
 
 
 def _feedback(handler) -> None:

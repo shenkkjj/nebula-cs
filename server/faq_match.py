@@ -70,10 +70,24 @@ def _has_own_topic(text: str) -> bool:
     return len(leftover) >= 2
 
 
+_COMPLETE_Q = re.compile(r"怎么|如何|怎样|为何|为什么|能不能|可不可以")
+
+
+def _is_complete_question(text: str) -> bool:
+    folded = _PREFIX.sub("", (text or "").strip())
+    return bool(_COMPLETE_Q.search(folded))
+
+
 def is_followup(query: str, history: list | None) -> bool:
-    """True only for a real continuation, not for every short question."""
+    """True only for a real continuation, not for every short question.
+
+    A complete errand that already names its subject stays a new question,
+    even when it starts with 那/这 or ends with 呢.
+    """
     text = (query or "").strip()
     if not text or not _last_user(history):
+        return False
+    if _has_own_topic(text) and _is_complete_question(text):
         return False
     if _FOLLOW_LEAD.match(text):
         return True

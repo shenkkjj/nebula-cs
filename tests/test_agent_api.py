@@ -38,6 +38,10 @@ class AgentApiTest(unittest.TestCase):
         conn = store.connection()
         conn.execute(
             "INSERT INTO users (username, password_hash, role, display_name) VALUES (?, ?, 'agent', ?)",
+            ("agent1", hash_password("agent123"), "王老师"),
+        )
+        conn.execute(
+            "INSERT INTO users (username, password_hash, role, display_name) VALUES (?, ?, 'agent', ?)",
             ("agent2", hash_password("agent123"), "李老师"),
         )
         conn.commit()

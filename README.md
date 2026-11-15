@@ -37,8 +37,8 @@ python3 server/proxy.py       # 默认 http://127.0.0.1:8080/
 ```
 
 - 门户 `http://127.0.0.1:8080/`
-- 坐席 `http://127.0.0.1:8080/agent`（演示账号 `agent1` / `agent123`）
-- 后台 `http://127.0.0.1:8080/admin`（`admin` / `admin123`）
+- 坐席 `http://127.0.0.1:8080/agent`、后台 `http://127.0.0.1:8080/admin`
+- 课程演示账号只在 `DEMO_ACCOUNTS=1` 时创建：`admin` / `admin123`，`agent1` / `agent123`。`scripts/start-portal.sh` 和本地 `docker-compose.yml` 会打开这个开关。公网或 Render 不设置它，就不会有这组默认密码。登录页也不会写死密码。
 - 登录 `http://127.0.0.1:8080/login`
 - Chatflow 草稿：`dify/campus-cs.chatflow.yml`（导入后绑定上面那一篇知识库，并换成你的 DeepSeek 模型）
 - 评测：`python3 server/eval_runner.py --dataset tests/eval/test-set.json --group A`（B、C 需要本机 Dify，没跑就不要填数）

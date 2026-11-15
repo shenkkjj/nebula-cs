@@ -5,6 +5,7 @@ The database file lives under DATA_DIR and is not committed.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import threading
 from datetime import datetime, timedelta, timezone
@@ -159,7 +160,14 @@ def connection() -> sqlite3.Connection:
         return conn
 
 
+def demo_accounts_enabled() -> bool:
+    """Course demo accounts exist only when this is set. Public deploys leave it unset."""
+    return (os.environ.get("DEMO_ACCOUNTS") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _seed(conn: sqlite3.Connection) -> None:
+    if not demo_accounts_enabled():
+        return
     demo = (
         ("admin", "admin123", "admin", "陈老师"),
         ("agent1", "agent123", "agent", "王老师"),

@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import re
 
-# Continuous 11-digit mobiles. Order numbers such as SW20260001 do not match.
-_PHONE_RE = re.compile(r"(?<!\d)1[3-9]\d[\s-]?\d{4}[\s-]?\d{4}(?!\d)")
+# 11-digit mobiles, including a glued +86 / 86 prefix. Order numbers such as SW20260001 do not match.
+_PHONE_RE = re.compile(r"(?<![\d])(?:\+?86[\s-]?)?(1[3-9]\d[\s-]?\d{4}[\s-]?\d{4})(?!\d)")
 _ID_RE = re.compile(r"(?<!\d)\d{17}[\dXx](?!\d)")
 _MED_RE = re.compile(r"(病历|病例|化验单|出院小结|出院记录|诊断证明|诊断书)")
 _LONG_DIGIT_RE = re.compile(r"\d{6,}")
@@ -23,7 +23,7 @@ def mask_text(text: str) -> tuple[str, list[str]]:
     notices: list[str] = []
 
     def _phone(match: re.Match[str]) -> str:
-        digits = re.sub(r"\D", "", match.group(0))
+        digits = re.sub(r"\D", "", match.group(1))
         if len(digits) != 11:
             return match.group(0)
         if "手机号" not in notices:

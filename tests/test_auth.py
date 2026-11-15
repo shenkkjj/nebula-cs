@@ -24,7 +24,9 @@ class LoginTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.prev_data = os.environ.get("DATA_DIR")
+        self.prev_demo = os.environ.get("DEMO_ACCOUNTS")
         os.environ["DATA_DIR"] = self.tmp.name
+        os.environ["DEMO_ACCOUNTS"] = "1"
         store.reconnect()
 
     def tearDown(self) -> None:
@@ -32,6 +34,10 @@ class LoginTest(unittest.TestCase):
             os.environ.pop("DATA_DIR", None)
         else:
             os.environ["DATA_DIR"] = self.prev_data
+        if self.prev_demo is None:
+            os.environ.pop("DEMO_ACCOUNTS", None)
+        else:
+            os.environ["DEMO_ACCOUNTS"] = self.prev_demo
         store.reconnect()
         self.tmp.cleanup()
 
@@ -54,7 +60,9 @@ class HttpAuthTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.prev_data = os.environ.get("DATA_DIR")
+        self.prev_demo = os.environ.get("DEMO_ACCOUNTS")
         os.environ["DATA_DIR"] = self.tmp.name
+        os.environ["DEMO_ACCOUNTS"] = "1"
         store.reconnect()
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), PortalHandler)
         self.port = self.httpd.server_address[1]
@@ -68,6 +76,10 @@ class HttpAuthTest(unittest.TestCase):
             os.environ.pop("DATA_DIR", None)
         else:
             os.environ["DATA_DIR"] = self.prev_data
+        if self.prev_demo is None:
+            os.environ.pop("DEMO_ACCOUNTS", None)
+        else:
+            os.environ["DEMO_ACCOUNTS"] = self.prev_demo
         store.reconnect()
         self.tmp.cleanup()
 
@@ -100,6 +112,31 @@ class HttpAuthTest(unittest.TestCase):
         self.assertEqual(data["tickets"], [])
         bare, _data, _cookie = self._exchange("GET", "/api/admin/audit")
         self.assertEqual(bare, 401)
+
+
+class PublicDeploySeedTest(unittest.TestCase):
+    def test_demo_passwords_are_not_created_unless_asked(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        prev_data = os.environ.get("DATA_DIR")
+        prev_demo = os.environ.get("DEMO_ACCOUNTS")
+        os.environ["DATA_DIR"] = tmp.name
+        os.environ.pop("DEMO_ACCOUNTS", None)
+        store.reconnect()
+        try:
+            missing = login("admin", "admin123")
+            self.assertFalse(missing["ok"])
+            self.assertNotEqual(missing["status"], 200)
+        finally:
+            if prev_data is None:
+                os.environ.pop("DATA_DIR", None)
+            else:
+                os.environ["DATA_DIR"] = prev_data
+            if prev_demo is None:
+                os.environ.pop("DEMO_ACCOUNTS", None)
+            else:
+                os.environ["DEMO_ACCOUNTS"] = prev_demo
+            store.reconnect()
 
 
 if __name__ == "__main__":

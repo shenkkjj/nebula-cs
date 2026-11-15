@@ -2,7 +2,17 @@
 (() => {
   const form = document.getElementById("loginForm");
   const error = document.getElementById("loginError");
+  const hint = document.getElementById("demoHint");
   const next = new URLSearchParams(location.search).get("next") || "";
+
+  fetch("/api/health")
+    .then((res) => res.json())
+    .then((data) => {
+      if (!hint || !data || !data.demo_accounts || !data.demo_hint) return;
+      hint.hidden = false;
+      hint.textContent = data.demo_hint;
+    })
+    .catch(() => {});
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();

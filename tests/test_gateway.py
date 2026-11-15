@@ -75,6 +75,10 @@ class ConstraintTest(unittest.TestCase):
         self.assertIn("证件号", notices)
         self.assertNotIn("13812345678", masked)
         self.assertNotIn("110101199001011234", masked)
+        glued, _notices = mask_text("联系方式+8613800138000")
+        self.assertNotIn("13800138000", glued)
+        self.assertIn("138****8000", glued)
+        self.assertNotIn("+86", glued)
         self.assertIn("138****5678", masked)
         self.assertIn("已隐去", masked)
 
@@ -248,6 +252,15 @@ class ConstraintTest(unittest.TestCase):
         self.assertIn("那成绩单呢？", rewritten)
         grade = faq_match.confident_match("那成绩单呢？", history)
         self.assertEqual(grade["title"], "成绩单如何申请？")
+        for fresh in ("怎么请病假呢？", "那怎么请病假？", "同学想问，怎么请病假？"):
+            self.assertFalse(faq_match.is_followup(fresh, history), fresh)
+            text, meta = _prepare_query(fresh, history, "conv-already")
+            self.assertEqual(text, fresh, fresh)
+            self.assertIsNone(meta, fresh)
+            self.assertIsNone(faq_match.confident_match(fresh, history))
+        still, follow_meta = _prepare_query("那成绩单呢？", history, "conv-already")
+        self.assertIsNotNone(follow_meta)
+        self.assertIn("在读证明", still)
 
 class GatewayFlowTest(unittest.TestCase):
     @classmethod
@@ -428,7 +441,9 @@ class GatewayFlowTest(unittest.TestCase):
         cfg = {"rate_limit_enabled": True, "rate_limit_burst": 8, "rate_limit_per_minute": 8}
         self.assertTrue(all(ratelimit.allow("person", "person", cfg) for _ in range(8)))
         self.assertFalse(ratelimit.allow("person", "person", cfg))
-        self.assertTrue(ratelimit.allow("eval-C-T-001", "eval-C-T-001", cfg))
+        self.assertTrue(all(ratelimit.allow("eval-C-T-001", "eval-C-T-001", cfg) for _ in range(8)))
+        self.assertFalse(ratelimit.allow("eval-C-T-001", "eval-C-T-001", cfg))
+        self.assertTrue(ratelimit.allow("eval-C-T-001", "eval-C-T-001", cfg, exempt=True))
 
 
 if __name__ == "__main__":

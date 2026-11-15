@@ -9,8 +9,8 @@
   }
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   function maskPhone(text) {
-    return String(text || "").replace(/(?<!\d)1[3-9]\d[\s-]?\d{4}[\s-]?\d{4}(?!\d)/g, (match) => {
-      const digits = match.replace(/\D/g, "");
+    return String(text || "").replace(/(?<![\d])(?:\+?86[\s-]?)?(1[3-9]\d[\s-]?\d{4}[\s-]?\d{4})(?!\d)/g, (match, mobile) => {
+      const digits = String(mobile || "").replace(/\D/g, "");
       if (digits.length !== 11) return match;
       return digits.slice(0, 3) + "****" + digits.slice(-4);
     });

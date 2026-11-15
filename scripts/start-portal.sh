@@ -10,6 +10,8 @@ export PORTAL_HOST="${PORTAL_HOST:-127.0.0.1}"
 export PORTAL_PORT="${PORTAL_PORT:-8787}"
 export DIFY_CHAT_URL="${DIFY_CHAT_URL:-http://127.0.0.1/v1/chat-messages}"
 export DIFY_APP_API_KEY_FILE="${DIFY_APP_API_KEY_FILE:-/tmp/dify-app-api-key.txt}"
+# This local course script opts into demo accounts. The server itself does not.
+export DEMO_ACCOUNTS="${DEMO_ACCOUNTS:-1}"
 
 LITE="${LITE_MODE:-0}"
 LITE_LC="$(echo "$LITE" | tr '[:upper:]' '[:lower:]')"
