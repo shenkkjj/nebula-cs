@@ -8,9 +8,9 @@
   fetch("/api/health")
     .then((res) => res.json())
     .then((data) => {
-      if (!hint || !data || !data.demo_accounts || !data.demo_hint) return;
+      if (!hint || !data || !data.demo_accounts) return;
       hint.hidden = false;
-      hint.textContent = data.demo_hint;
+      hint.textContent = "本机演示模式已打开。账号写在课程说明里，不会从接口返回。";
     })
     .catch(() => {});
 

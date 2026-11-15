@@ -18,6 +18,7 @@ import store
 from constraints import apply_constraints, merge_citations, seal_user_citations
 from dify_client import DifyClient
 from gateway import iter_events, run_chat, set_client
+from lite_skills import redact_sensitive
 from masking import mask_text
 from settings import load_config
 
@@ -79,6 +80,8 @@ class ConstraintTest(unittest.TestCase):
         self.assertNotIn("13800138000", glued)
         self.assertIn("138****8000", glued)
         self.assertNotIn("+86", glued)
+        self.assertIn("138****8000", redact_sensitive("请回拨 +8613800138000"))
+        self.assertNotIn("13800138000", redact_sensitive("请回拨 +8613800138000"))
         self.assertIn("138****5678", masked)
         self.assertIn("已隐去", masked)
 
@@ -252,7 +255,7 @@ class ConstraintTest(unittest.TestCase):
         self.assertIn("那成绩单呢？", rewritten)
         grade = faq_match.confident_match("那成绩单呢？", history)
         self.assertEqual(grade["title"], "成绩单如何申请？")
-        for fresh in ("怎么请病假呢？", "那怎么请病假？", "同学想问，怎么请病假？"):
+        for fresh in ("怎么请病假呢？", "那怎么请病假？", "同学想问，怎么请病假？", "请病假呢？", "那病假流程呢？"):
             self.assertFalse(faq_match.is_followup(fresh, history), fresh)
             text, meta = _prepare_query(fresh, history, "conv-already")
             self.assertEqual(text, fresh, fresh)

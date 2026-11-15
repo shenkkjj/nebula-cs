@@ -100,8 +100,6 @@ def health_payload() -> dict:
         },
         "demo_accounts": store.demo_accounts_enabled(),
     }
-    if store.demo_accounts_enabled():
-        payload["demo_hint"] = "本机演示模式已打开：管理员 admin / admin123，坐席 agent1 / agent123。"
     return payload
 
 
@@ -196,7 +194,7 @@ def _portal_state(handler) -> None:
                     "id": row["id"],
                     "role": row["role"],
                     "author": row.get("author") or "",
-                    "body": row.get("body") or "",
+                    "body": mask_text(row.get("body") or "")[0],
                     "created_at": row.get("created_at") or "",
                 }
                 for row in visible[-40:]

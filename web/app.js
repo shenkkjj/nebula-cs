@@ -1211,15 +1211,17 @@
         if (!msg || state.seenServerIds[msg.id]) return;
         state.seenServerIds[msg.id] = true;
         if (msg.role === "agent") {
-          appendMessage("bot", formatAnswer(msg.body), {
+          const spoken = maskPhone(msg.body);
+          appendMessage("bot", formatAnswer(spoken), {
             agent: true,
             who: (msg.author || "人工客服") + " · 人工客服",
           });
-          state.messages.push({ role: "agent", text: msg.body, author: msg.author || "人工客服", serverId: msg.id });
+          state.messages.push({ role: "agent", text: spoken, author: msg.author || "人工客服", serverId: msg.id });
           added = true;
         } else if (msg.role === "system") {
-          appendSystem(msg.body);
-          state.messages.push({ role: "system", text: msg.body, serverId: msg.id });
+          const note = maskPhone(msg.body);
+          appendSystem(note);
+          state.messages.push({ role: "system", text: note, serverId: msg.id });
           added = true;
         }
       });

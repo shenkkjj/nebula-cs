@@ -13,6 +13,8 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from masking import mask_phone
+
 # Continuous personal identifiers. Order numbers such as SW20260001 do not match.
 _ID_RE = re.compile(r"(?<!\d)\d{17}[\dXx](?!\d)")
 _BANK_RE = re.compile(r"(?<!\d)\d{16,19}(?!\d)")
@@ -100,6 +102,7 @@ def redact_sensitive(text: str) -> str:
         return "［病历内容已隐去，请勿在对话中发送］"
     raw = _ID_RE.sub("［身份证号已隐去］", raw)
     raw = _BANK_RE.sub("［卡号已隐去］", raw)
+    raw, _found = mask_phone(raw)
     return raw
 
 

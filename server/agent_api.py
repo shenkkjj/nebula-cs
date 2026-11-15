@@ -77,7 +77,7 @@ def take(public_id: str, user: dict) -> tuple[int, dict]:
 
 
 def reply(public_id: str, user: dict, text: str) -> tuple[int, dict]:
-    body = (text or "").strip()
+    body, _notices = mask_text((text or "").strip())
     if not body:
         return 400, {"ok": False, "error": "回复内容不能为空"}
     if len(body) > 800:

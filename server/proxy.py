@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 
 import http_api
 from dify_client import DifyClient
+from faq_match import looks_like_followup
 from gateway import iter_events, run_probe
 from lite_engine import (
     answer_lite,
@@ -228,6 +229,8 @@ def is_followup_query(query: str) -> bool:
     """Ellipsis such as 那多久能下来 / 要什么材料, not a fresh question."""
     q = (query or "").strip()
     if not q or len(q) > 22 or is_restart(q) or is_back(q):
+        return False
+    if not looks_like_followup(q):
         return False
     if re.match(r"^(?:那|那么|还有|另外|这个|那个)?\s*[\u4e00-\u9fffA-Za-z0-9]{1,12}\s*呢[？?]?$", q):
         return True

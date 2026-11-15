@@ -112,6 +112,19 @@ class HttpAuthTest(unittest.TestCase):
         self.assertEqual(data["tickets"], [])
         bare, _data, _cookie = self._exchange("GET", "/api/admin/audit")
         self.assertEqual(bare, 401)
+        prev_lite = os.environ.get("LITE_MODE")
+        os.environ["LITE_MODE"] = "0"
+        try:
+            status, health, _cookie = self._exchange("GET", "/api/health")
+        finally:
+            if prev_lite is None:
+                os.environ.pop("LITE_MODE", None)
+            else:
+                os.environ["LITE_MODE"] = prev_lite
+        self.assertEqual(status, 200)
+        self.assertTrue(health.get("demo_accounts"))
+        self.assertNotIn("admin123", json.dumps(health))
+        self.assertNotIn("agent123", json.dumps(health))
 
 
 class PublicDeploySeedTest(unittest.TestCase):
@@ -127,6 +140,32 @@ class PublicDeploySeedTest(unittest.TestCase):
             missing = login("admin", "admin123")
             self.assertFalse(missing["ok"])
             self.assertNotEqual(missing["status"], 200)
+        finally:
+            if prev_data is None:
+                os.environ.pop("DATA_DIR", None)
+            else:
+                os.environ["DATA_DIR"] = prev_data
+            if prev_demo is None:
+                os.environ.pop("DEMO_ACCOUNTS", None)
+            else:
+                os.environ["DEMO_ACCOUNTS"] = prev_demo
+            store.reconnect()
+
+    def test_existing_demo_row_is_not_served_when_the_flag_is_off(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        prev_data = os.environ.get("DATA_DIR")
+        prev_demo = os.environ.get("DEMO_ACCOUNTS")
+        os.environ["DATA_DIR"] = tmp.name
+        os.environ["DEMO_ACCOUNTS"] = "1"
+        store.reconnect()
+        store.connection()
+        os.environ["DEMO_ACCOUNTS"] = "0"
+        try:
+            blocked = login("admin", "admin123")
+            self.assertFalse(blocked["ok"])
+            self.assertEqual(blocked["status"], 401)
+            self.assertIsNotNone(store.get_user_by_name("admin"))
         finally:
             if prev_data is None:
                 os.environ.pop("DATA_DIR", None)

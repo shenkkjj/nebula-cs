@@ -71,6 +71,8 @@ def _has_own_topic(text: str) -> bool:
 
 
 _COMPLETE_Q = re.compile(r"怎么|如何|怎样|为何|为什么|能不能|可不可以")
+_BARE_SWITCH = re.compile(r"^(?:那|这|还有|然后|另外|同|同样)([\u4e00-\u9fff]{1,3})呢[？?]?$")
+_ASPECT_ONLY = re.compile(r"能下来|下来|改期|补办|续借|挂失|充值|材料|费用|多久|几点|什么|哪些|要")
 
 
 def _is_complete_question(text: str) -> bool:
@@ -78,24 +80,38 @@ def _is_complete_question(text: str) -> bool:
     return bool(_COMPLETE_Q.search(folded))
 
 
-def is_followup(query: str, history: list | None) -> bool:
-    """True only for a real continuation, not for every short question.
+def _aspect_only(text: str) -> bool:
+    leftover = _ASPECT_ONLY.sub("", _TOPIC_NOISE.sub("", content_key(text)))
+    return len(leftover) < 2
 
-    A complete errand that already names its subject stays a new question,
-    even when it starts with 那/这 or ends with 呢.
+
+def looks_like_followup(text: str) -> bool:
+    """Syntactic follow-up. A new errand is not one, even if it ends with 呢.
+
+    「那成绩单呢」 stays a follow-up. 「请病假呢」 and 「那病假流程呢」 do not.
     """
+    raw = (text or "").strip()
+    if not raw:
+        return False
+    if _has_own_topic(raw) and _is_complete_question(raw):
+        return False
+    if _BARE_SWITCH.match(raw):
+        return True
+    if _has_own_topic(raw) and not _aspect_only(raw):
+        return False
+    if _FOLLOW_LEAD.match(raw):
+        return True
+    if raw.endswith("呢") or raw.endswith("呢？") or raw.endswith("呢?"):
+        return True
+    return len(raw) <= 8
+
+
+def is_followup(query: str, history: list | None) -> bool:
+    """True only for a real continuation, not for every short question."""
     text = (query or "").strip()
     if not text or not _last_user(history):
         return False
-    if _has_own_topic(text) and _is_complete_question(text):
-        return False
-    if _FOLLOW_LEAD.match(text):
-        return True
-    if text.endswith("呢") or text.endswith("呢？") or text.endswith("呢?"):
-        return True
-    if _has_own_topic(text):
-        return False
-    return len(text) <= 8
+    return looks_like_followup(text)
 
 
 def _last_user(history: list | None) -> str:

@@ -223,6 +223,10 @@ class RouterTest(unittest.TestCase):
         self.assertEqual(switch_meta["method"], "topic-switch")
         self.assertIn("成绩单", switched)
         self.assertNotIn("在读证明如何办理", switched)
+        for fresh in ("那怎么请病假？", "请病假呢？", "那病假流程呢？"):
+            plain, plain_meta = rewrite_query_for_retrieval(fresh, history)
+            self.assertEqual(plain, fresh)
+            self.assertIsNone(plain_meta)
         longer = history + [
             {"role": "user", "text": "图书馆开放时间是什么？"},
             {"role": "assistant", "text": "主馆 8:00 开门。"},
