@@ -164,11 +164,22 @@
     if (body && !body.dataset.answer) body.textContent = label;
   }
 
+  function maskPhone(text) {
+    return globalThis.nebulaMask.maskPhone(text);
+  }
+
   function loadSessions() {
     try {
       const raw = localStorage.getItem(LS_KEY);
       const list = raw ? JSON.parse(raw) : [];
-      return Array.isArray(list) ? list : [];
+      if (!Array.isArray(list)) return [];
+      const cleaned = list.map((item) => globalThis.nebulaMask.maskStoredSession(item));
+      const changed = cleaned.some((item, index) => {
+        const before = list[index] || {};
+        return item.title !== before.title || JSON.stringify(item.messages) !== JSON.stringify(before.messages);
+      });
+      if (changed) saveSessions(cleaned);
+      return cleaned;
     } catch {
       return [];
     }
@@ -196,16 +207,17 @@
     if (!state.sessionId) return;
     const list = loadSessions();
     const idx = list.findIndex((s) => s.id === state.sessionId);
-    const title =
-      (state.messages.find((m) => m.role === "user") || {}).text || "新对话";
-    const entry = {
+    state.messages = state.messages.map((message) => {
+      if (!message || message.role !== "user") return message;
+      return Object.assign({}, message, { text: maskPhone(message.text) });
+    });
+    const entry = globalThis.nebulaMask.maskStoredSession({
       id: state.sessionId,
       conversationId: state.conversationId || "",
-      title: maskPhone(String(title)).slice(0, 40),
       updatedAt: Date.now(),
       historyCutoff: state.historyCutoff || 0,
       messages: state.messages.slice(-40),
-    };
+    });
     if (idx >= 0) list[idx] = entry;
     else list.unshift(entry);
     list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -228,7 +240,7 @@
       .map((s) => {
         const active = s.id === state.sessionId ? " active" : "";
         return `<button type="button" class="session-item${active}" data-sid="${escapeHtml(s.id)}">
-          <div class="t">${escapeHtml(maskPhone(s.title || "未命名"))}</div>
+          <div class="t">${escapeHtml(globalThis.nebulaMask.sessionTitle(s.title || "未命名"))}</div>
           <div class="d">${escapeHtml(fmtTime(s.updatedAt))} · ${s.messages ? s.messages.length : 0} 条</div>
         </button>`;
       })
@@ -246,7 +258,8 @@
     state.sessionId = s.id;
     state.conversationId = s.conversationId || "";
     state.historyCutoff = s.historyCutoff || 0;
-    state.messages = Array.isArray(s.messages) ? s.messages.slice() : [];
+    const stored = globalThis.nebulaMask.maskStoredSession(s);
+    state.messages = stored.messages.slice();
     try {
       localStorage.setItem(LS_ACTIVE, sid);
     } catch {
@@ -703,14 +716,6 @@
     if (box.childElementCount) row.appendChild(box);
   }
 
-  function maskPhone(text) {
-    return String(text || "").replace(/(?<!\d)1[3-9]\d[\s-]?\d{4}[\s-]?\d{4}(?!\d)/g, (match) => {
-      const digits = match.replace(/\D/g, "");
-      if (digits.length !== 11) return match;
-      return digits.slice(0, 3) + "****" + digits.slice(-4);
-    });
-  }
-
   function scrubLocal(text) {
     const raw = String(text || "");
     const med = /(病历|病例|化验单|出院小结|出院记录|诊断证明|诊断书)/;
@@ -828,7 +833,7 @@
     const start = state.historyCutoff || 0;
     return state.messages.slice(start).slice(-10).map((m) => ({
       role: m.role === "bot" ? "assistant" : "user",
-      text: String(m.text || "").slice(0, 500),
+      text: maskPhone(String(m.text || "")).slice(0, 500),
     }));
   }
 
@@ -847,7 +852,7 @@
     const typed = (raw || el.input.value || "").trim();
     if (!typed || state.busy) return;
     const scrubbed = scrubLocal(typed);
-    const query = scrubbed || typed;
+    const query = maskPhone(scrubbed || typed);
 
     if (!state.sessionId) state.sessionId = newSessionId();
 
@@ -1017,7 +1022,7 @@
           actions.querySelector("button").addEventListener("click", () => {
             openTicket();
             const subj = el.ticketForm.querySelector("input[name=subject]");
-            if (subj && !subj.value) subj.value = tid ? "跟进工单 " + tid : "转人工跟进";
+            if (subj && !subj.value) subj.value = maskPhone(tid ? "跟进工单 " + tid : "转人工跟进");
           });
           row.appendChild(actions);
         }
@@ -1098,7 +1103,7 @@
     const first = el.ticketForm.querySelector("input[name=subject]");
     const lastUser = [...state.messages].reverse().find((m) => m.role === "user");
     if (first && lastUser && !first.value) {
-      first.value = maskPhone("跟进：" + String(lastUser.text || "")).slice(0, 80);
+      first.value = globalThis.nebulaMask.handoffSubject(lastUser.text || "");
     }
     if (first) first.focus();
   }
@@ -1145,10 +1150,19 @@
   el.ticketForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(el.ticketForm);
+    const subject = maskPhone(String(fd.get("subject") || "").trim()).slice(0, 80);
+    const detail = maskPhone(String(fd.get("detail") || "").trim());
+    const contact = maskPhone(String(fd.get("contact") || "").trim());
+    const subjectInput = el.ticketForm.querySelector("input[name=subject]");
+    const detailInput = el.ticketForm.querySelector("textarea[name=detail]");
+    const contactInput = el.ticketForm.querySelector("input[name=contact]");
+    if (subjectInput) subjectInput.value = subject;
+    if (detailInput) detailInput.value = detail;
+    if (contactInput) contactInput.value = contact;
     const payload = {
-      subject: String(fd.get("subject") || "").trim(),
-      detail: String(fd.get("detail") || "").trim(),
-      contact: String(fd.get("contact") || "").trim(),
+      subject: subject,
+      detail: detail,
+      contact: contact,
       portal_session: state.sessionId || "",
     };
     try {

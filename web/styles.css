@@ -297,7 +297,14 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 .composer textarea::placeholder, .composer input::placeholder { color: var(--mute); }
 .composer textarea:focus, .composer input:focus {
-  outline: none; border-color: var(--gold);
+  border-color: var(--gold);
+}
+.composer textarea:focus-visible, .composer input:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.composer textarea:focus:not(:focus-visible), .composer input:focus:not(:focus-visible) {
+  outline: none;
 }
 .composer button {
   font: inherit; font-weight: 700; cursor: pointer;
@@ -494,7 +501,14 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   background: var(--ink); color: var(--text); font: inherit; padding: 10px 12px;
 }
 .modal input:focus, .modal textarea:focus {
-  outline: none; border-color: var(--gold);
+  border-color: var(--gold);
+}
+.modal input:focus-visible, .modal textarea:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.modal input:focus:not(:focus-visible), .modal textarea:focus:not(:focus-visible) {
+  outline: none;
 }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .nav-modal { width: min(560px, 100%); }
