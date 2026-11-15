@@ -2,7 +2,7 @@
   "set": "test",
   "count": 107,
   "source": "sample-kb/客服样例FAQ.md",
-  "note": "知识库是这一个文件里的 144 条，不是 144 个文件。基线 12 题只在 smoke-set.json。",
+  "note": "知识库是这一个文件里的 144 条，不是 144 个文件。基线 12 题只在 smoke-set.json。其中 20 道库内题带 expected_span，只作附加观察，不进入 A/B/C 主指标。",
   "items": [
     {
       "type": "in_scope",
@@ -14,7 +14,8 @@
         "3 个工作日"
       ],
       "should_refuse": false,
-      "id": "T-001"
+      "id": "T-001",
+      "expected_span": "登录一网通办，搜索「在读证明」在线提交"
     },
     {
       "type": "in_scope",
@@ -25,7 +26,8 @@
         "一网通办"
       ],
       "should_refuse": false,
-      "id": "T-002"
+      "id": "T-002",
+      "expected_span": "因病或学校派出的公假，可在考试前一个工作日在一网通办提交「缓考申请」，上传校医院证明或学院公函"
     },
     {
       "type": "in_scope",
@@ -36,7 +38,8 @@
         "每学期第 16–17 周"
       ],
       "should_refuse": false,
-      "id": "T-003"
+      "id": "T-003",
+      "expected_span": "每学期第 16–17 周开放下学期预选，开学第 1 周补退选"
     },
     {
       "type": "in_scope",
@@ -48,7 +51,8 @@
         "10 个工作日"
       ],
       "should_refuse": false,
-      "id": "T-004"
+      "id": "T-004",
+      "expected_span": "休学在一网通办提交，学院辅导员线上审核，一次最长一学年，累计不超过两学年"
     },
     {
       "type": "in_scope",
@@ -59,7 +63,8 @@
         "一网通办"
       ],
       "should_refuse": false,
-      "id": "T-005"
+      "id": "T-005",
+      "expected_span": "大一结束后、大三结束前可报名辅修"
     },
     {
       "type": "in_scope",
@@ -71,7 +76,8 @@
         "60 天"
       ],
       "should_refuse": false,
-      "id": "T-006"
+      "id": "T-006",
+      "expected_span": "本科可借 10 册、30 天，研究生 20 册、60 天"
     },
     {
       "type": "in_scope",
@@ -83,7 +89,8 @@
         "15 分钟"
       ],
       "should_refuse": false,
-      "id": "T-007"
+      "id": "T-007",
+      "expected_span": "图书馆主页「空间预约」提前 7 天开放，每次 2 小时，每天限 1 场"
     },
     {
       "type": "in_scope",
@@ -105,7 +112,8 @@
         "阅览区可以带有盖水瓶，不可以带食物、有味饮料和热食"
       ],
       "should_refuse": false,
-      "id": "T-009"
+      "id": "T-009",
+      "expected_span": "阅览区可以带有盖水瓶，不可以带食物、有味饮料和热食"
     },
     {
       "type": "in_scope",
@@ -117,7 +125,8 @@
         "6:30–8:30"
       ],
       "should_refuse": false,
-      "id": "T-010"
+      "id": "T-010",
+      "expected_span": "空调：5 月 15 日至 10 月 1 日制冷，11 月 15 日至次年 3 月 15 日供暖，每天 6:00–24:00"
     },
     {
       "type": "in_scope",
@@ -129,7 +138,8 @@
         "一网通办"
       ],
       "should_refuse": false,
-      "id": "T-011"
+      "id": "T-011",
+      "expected_span": "23:30 后回楼在门禁处刷校园卡，系统记为晚归"
     },
     {
       "type": "in_scope",
@@ -141,7 +151,8 @@
         "3 个工作日"
       ],
       "should_refuse": false,
-      "id": "T-012"
+      "id": "T-012",
+      "expected_span": "每学期第 3–4 周开放一网通办「调宿申请」"
     },
     {
       "type": "in_scope",
@@ -152,7 +163,8 @@
         "90 天"
       ],
       "should_refuse": false,
-      "id": "T-013"
+      "id": "T-013",
+      "expected_span": "校园卡和证件交到一卡通中心；书包、水杯等日用品交到失物招领室（大学生活动中心 104）"
     },
     {
       "type": "in_scope",
@@ -163,7 +175,8 @@
         "30 分钟"
       ],
       "should_refuse": false,
-      "id": "T-014"
+      "id": "T-014",
+      "expected_span": "密码连续错误 5 次锁定 30 分钟，等待即可，不要反复尝试"
     },
     {
       "type": "in_scope",
@@ -174,7 +187,8 @@
         "一网通办"
       ],
       "should_refuse": false,
-      "id": "T-015"
+      "id": "T-015",
+      "expected_span": "先重启终端和认证页，换一台设备判断是否只有自己无法上网"
     },
     {
       "type": "in_scope",
@@ -185,7 +199,8 @@
         "一网通办"
       ],
       "should_refuse": false,
-      "id": "T-016"
+      "id": "T-016",
+      "expected_span": "充值：食堂圈存机、一网通办「校园卡充值」，或支付宝生活号「星云大学校园卡」（演示）"
     },
     {
       "type": "in_scope",
@@ -197,7 +212,8 @@
         "5 个工作日"
       ],
       "should_refuse": false,
-      "id": "T-017"
+      "id": "T-017",
+      "expected_span": "秋季学期第 2–4 周，一网通办「奖助学金」开放"
     },
     {
       "type": "in_scope",
@@ -208,7 +224,8 @@
         "食堂、超市、图书馆借阅、宿舍门禁、校医院挂号和校巴刷卡"
       ],
       "should_refuse": false,
-      "id": "T-018"
+      "id": "T-018",
+      "expected_span": "食堂、超市、图书馆借阅、宿舍门禁、校医院挂号和校巴刷卡"
     },
     {
       "type": "in_scope",
@@ -220,7 +237,8 @@
         "7 天"
       ],
       "should_refuse": false,
-      "id": "T-019"
+      "id": "T-019",
+      "expected_span": "学生处心理健康中心提供心理咨询"
     },
     {
       "type": "in_scope",
@@ -232,7 +250,8 @@
         "7:00"
       ],
       "should_refuse": false,
-      "id": "T-020"
+      "id": "T-020",
+      "expected_span": "教学区往返南门、火车站的班车时刻贴在南门站牌，也在一网通办「校园班车」"
     },
     {
       "type": "in_scope",
@@ -243,7 +262,8 @@
         "办事材料被退回需要解释、"
       ],
       "should_refuse": false,
-      "id": "T-021"
+      "id": "T-021",
+      "expected_span": "办事材料被退回需要解释、缴费或奖助金额不一致、校园卡被盗刷、宿舍紧急报修无人响应、账号手机号无法自助找回、教室借用与考试冲突，以及知识库没有写明的个人情形，请转人工"
     },
     {
       "type": "in_scope",

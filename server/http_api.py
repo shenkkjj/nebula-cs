@@ -265,12 +265,18 @@ def _admin_get(handler, raw: str, user: dict) -> bool:
         handler._json_response(200, admin_api.faq_check())
         return True
     if raw in ("/api/admin/feedback", "/api/admin/feedback/"):
-        kind = ""
-        if "?" in handler.path:
-            for part in handler.path.split("?", 1)[1].split("&"):
-                if part.startswith("helpful="):
-                    kind = unquote(part.split("=", 1)[1])
-        handler._json_response(200, admin_api.feedback_rows(kind))
+        kind = _query_value(handler, "helpful")
+        handler._json_response(200, {**admin_api.feedback_rows(kind), "summary": admin_api.feedback_summary()})
+        return True
+    if raw in ("/api/admin/feedback.csv",):
+        kind = _query_value(handler, "helpful")
+        body = admin_api.feedback_csv(kind).encode("utf-8")
+        handler.send_response(200)
+        handler.send_header("Content-Type", "text/csv; charset=utf-8")
+        handler.send_header("Content-Disposition", "attachment; filename=feedback.csv")
+        handler.send_header("Content-Length", str(len(body)))
+        handler.end_headers()
+        handler.wfile.write(body)
         return True
     if raw in ("/api/admin/probe", "/api/admin/probe/"):
         probe = store.latest_probe()
@@ -324,6 +330,20 @@ def _admin_get(handler, raw: str, user: dict) -> bool:
 
 
 def _admin_post(handler, path: str, user: dict) -> bool:
+    if path == "/api/admin/feedback/bad-case":
+        try:
+            data = handler._read_json()
+        except ValueError as exc:
+            handler._json_error(400, str(exc))
+            return True
+        try:
+            message_id = int(data.get("message_id"))
+        except (TypeError, ValueError):
+            handler._json_error(400, "缺少要加入的回答")
+            return True
+        status, payload = admin_api.promote_feedback(user, message_id, str(data.get("kind") or ""))
+        handler._json_response(status, payload)
+        return True
     if path == "/api/admin/documents":
         _upload(handler, user)
         return True
@@ -396,6 +416,15 @@ def _multipart(content_type: str, body: bytes) -> dict:
         if file_match and file_match.group(1):
             found[name_match.group(1)] = {"filename": file_match.group(1), "data": data}
     return found
+
+
+def _query_value(handler, name: str) -> str:
+    if "?" not in handler.path:
+        return ""
+    for part in handler.path.split("?", 1)[1].split("&"):
+        if part.startswith(name + "="):
+            return unquote(part.split("=", 1)[1])
+    return ""
 
 
 def _filters(handler) -> tuple[str, str, str]:

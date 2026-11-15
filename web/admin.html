@@ -43,12 +43,13 @@
         <div class="panel" id="probeBox"><p class="empty">还没有自检记录。</p></div>
       </section>
       <section data-page="feedback" hidden>
-        <div class="page-head"><div><h1 class="page-title">用户评价</h1><p class="page-sub">门户里的「有帮助 / 没解决」。差评不会自动写进知识库。</p></div></div>
+        <div class="page-head"><div><h1 class="page-title">用户评价</h1><p class="page-sub">近七日赞踩在下面。差评可以加入评测坏例，不会自动写进知识库。</p></div><a class="btn btn-ghost" id="feedbackExport" href="/api/admin/feedback.csv">导出 CSV</a></div>
+        <p class="form-status" id="feedbackSummary">正在统计近七日…</p>
         <form class="filters" id="feedbackFilters">
           <label class="field"><span>筛选</span><select class="select" name="helpful"><option value="">全部</option><option value="1">有帮助</option><option value="0">没解决</option></select></label>
           <button class="btn btn-ghost" type="submit">查看</button>
         </form>
-        <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>时间</th><th>评价</th><th>问题</th><th>回答</th></tr></thead><tbody id="feedbackBody"></tbody></table></div></div>
+        <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>时间</th><th>评价</th><th>问题</th><th>回答</th><th>处理</th></tr></thead><tbody id="feedbackBody"></tbody></table></div></div>
       </section>
       <section data-page="audit" hidden>
         <div class="page-head"><div><h1 class="page-title">审计日志</h1><p class="page-sub">问题里的手机号和证件号已打码。</p></div><a class="btn btn-ghost" id="auditExport" href="/api/admin/audit.csv">导出 CSV</a></div>
@@ -69,13 +70,14 @@
           <label class="field"><span>探针问题</span><input class="input" name="probe_question" maxlength="200" required /></label>
           <label class="field"><span>探针应包含的文字</span><input class="input" name="probe_expect" maxlength="80" required /></label>
           <label><input type="checkbox" name="auto_ticket_on_refusal" /> 拒答后自动建工单</label>
+          <label><input type="checkbox" name="faq_shortcut" /> 高相似时用知识库原文作答。默认关闭。先在开发集上看误召回，再决定是否打开。</label>
           <div class="form-actions"><button class="btn btn-solid" type="submit">保存</button></div>
           <p class="form-status" id="configStatus" hidden></p>
         </form>
       </section>
       <section data-page="eval" hidden>
         <div class="page-head">
-          <div><h1 class="page-title">评测</h1><p class="page-sub">只显示这次环境里真正跑出来的数字。没有跑过的组保持空白。</p></div>
+          <div><h1 class="page-title">评测</h1><p class="page-sub">只显示这次环境里真正跑出来的数字。没有跑过的组保持空白。期望证据片段是附加观察，不改变 A、B、C 是否通过。</p></div>
           <div class="top-actions">
             <label class="sr-only" for="evalSet">数据集</label>
             <select class="select" id="evalSet"></select>

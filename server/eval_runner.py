@@ -71,7 +71,12 @@ def score_item(item: dict, outcome: dict) -> dict:
             label = "事实不一致"
         else:
             label = "通过"
-    return {
+    span = item.get("expected_span") or ""
+    span_observed = None
+    if span:
+        blob = (outcome.get("answer") or "") + "\n" + _citation_blob(outcome)
+        span_observed = span in blob
+    result = {
         "id": item.get("id"),
         "type": kind,
         "question": item.get("question"),
@@ -85,6 +90,9 @@ def score_item(item: dict, outcome: dict) -> dict:
         "first_token_ms": outcome.get("first_token_ms") if outcome.get("first_token_ms") is not None else outcome.get("latency_ms"),
         "answer": (outcome.get("answer") or "")[:240],
     }
+    if span_observed is not None:
+        result["span_observed"] = span_observed
+    return result
 
 
 def summarize(rows: list[dict]) -> dict:
@@ -109,6 +117,13 @@ def summarize(rows: list[dict]) -> dict:
         "clarify_count": sum(1 for row in rows if row["type"] == "clarify"),
         "clarify_pass": sum(1 for row in rows if row["type"] == "clarify" and row["pass"]),
     }
+    watched = [row for row in rows if "span_observed" in row]
+    if watched:
+        metrics["span_observation"] = {
+            "count": len(watched),
+            "hits": sum(1 for row in watched if row.get("span_observed")),
+            "note": "附加观察：期望证据片段是否出现在回答或引用里。不进入 A/B/C 主指标，也不改变通过判定。",
+        }
     return metrics
 
 

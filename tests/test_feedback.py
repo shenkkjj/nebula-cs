@@ -11,6 +11,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "server"))
 
+import admin_api
+import agent_api
 import store
 from feedback import submit_feedback
 
@@ -59,3 +61,26 @@ class FeedbackTest(unittest.TestCase):
         status, _payload = submit_feedback("visitor-a", self.message_id, True, portal_session="other-session")
         self.assertEqual(status, 403)
         self.assertEqual(store.list_feedback(), [])
+
+    def test_seven_day_summary_and_bad_case(self) -> None:
+        submit_feedback("visitor-a", self.message_id, False, comment="窗口没写", portal_session="session-a")
+        summary = admin_api.feedback_summary()
+        self.assertEqual(summary["days"], 7)
+        self.assertEqual(summary["unhappy"], 1)
+        self.assertEqual(summary["helpful"], 0)
+        self.assertEqual(summary["unhappy_rate"], 1.0)
+        csv_text = admin_api.feedback_csv("0")
+        self.assertIn("没解决", csv_text)
+        self.assertIn("窗口没写", csv_text)
+        previous = agent_api.BAD_CASES_PATH
+        agent_api.BAD_CASES_PATH = Path(self.tmp.name) / "bad-cases.json"
+        try:
+            status, payload = admin_api.promote_feedback({"username": "admin"}, self.message_id, "cite")
+        finally:
+            agent_api.BAD_CASES_PATH = previous
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["bad_case"]["kind"], "cite")
+        self.assertEqual(payload["bad_case"]["kind_label"], "引用不对")
+        self.assertIn("在读证明", payload["bad_case"]["question"])
+        refused, _error = admin_api.promote_feedback({"username": "admin"}, self.message_id, "new-kind")
+        self.assertEqual(refused, 400)

@@ -216,6 +216,12 @@ def _upsert_bad_case(message: dict, kind: str, expect: str, actor: str) -> dict:
             if item["id"] < message["id"] and item["role"] == "user":
                 record["question"] = item["body"]
                 break
+        if not record["question"]:
+            record["question"] = store.previous_user_text(
+                message.get("visitor_token") or "",
+                message.get("portal_session") or "",
+                message["id"],
+            )
         rows.append(record)
         _write_bad_cases(rows)
         return record

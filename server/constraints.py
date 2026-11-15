@@ -3,8 +3,15 @@
 R-201: a knowledge answer needs a citation at or above the threshold.
 R-202: empty retrieval never reaches the user as a model answer.
 R-203: segments from the same document become one card.
+Numbered marks must point at those cards. Unmatched marks are removed.
 """
 from __future__ import annotations
+
+import re
+
+from faq_meta import load_entries
+
+_MARK_RE = re.compile(r"\[(\d+)\]")
 
 
 def norm_score(score) -> float | None:
@@ -148,12 +155,85 @@ def apply_constraints(answer: str, resources: list, cfg: dict, retrieval_empty: 
             "raw_segments": len(normalized),
             "merged_cards": 0,
         }
+    shortcut = _shortcut_text(merged, cfg)
+    if shortcut:
+        top = dict(merged[0])
+        top["mark"] = 1
+        return {
+            "action": "answer",
+            "answer": shortcut,
+            "citations": [top],
+            "refuse": False,
+            "reason": "faq_shortcut",
+            "raw_segments": len(normalized),
+            "merged_cards": 1,
+        }
+    marked, kept = _keep_marked_cards(answer, merged)
+    if not kept:
+        return {
+            "action": "refuse",
+            "answer": refusal,
+            "citations": [],
+            "refuse": True,
+            "reason": "missing_citation",
+            "raw_segments": len(normalized),
+            "merged_cards": 0,
+        }
     return {
         "action": "answer",
-        "answer": (answer or "").strip(),
-        "citations": merged,
+        "answer": marked,
+        "citations": kept,
         "refuse": False,
         "reason": "ok",
         "raw_segments": len(normalized),
-        "merged_cards": len(merged),
+        "merged_cards": len(kept),
     }
+
+
+def _keep_marked_cards(answer: str, cards: list[dict]) -> tuple[str, list[dict]]:
+    """Drop [n] that does not point at a retrieved card. Keep only cited cards."""
+    cited: set[int] = set()
+
+    def replace(match: re.Match[str]) -> str:
+        number = int(match.group(1))
+        if 1 <= number <= len(cards):
+            cited.add(number)
+            return f"[{number}]"
+        return ""
+
+    text = _MARK_RE.sub(replace, answer or "")
+    text = re.sub(r"[ \t]{2,}", " ", text).strip()
+    kept = []
+    for number in range(1, len(cards) + 1):
+        if number not in cited:
+            continue
+        card = dict(cards[number - 1])
+        card["mark"] = number
+        kept.append(card)
+    return text, kept
+
+
+def _shortcut_text(cards: list[dict], cfg: dict) -> str | None:
+    """Optional: quote the FAQ body when the top hit is already very close.
+
+    Off unless faq_shortcut is true. This does not retrieve on its own.
+    """
+    if not cfg.get("faq_shortcut") or not cards:
+        return None
+    top = cards[0]
+    score = top.get("score")
+    bar = max(float(cfg.get("score_threshold") or 0.5), float(cfg.get("faq_shortcut_score") or 0.85))
+    if not isinstance(score, (int, float)) or score < bar:
+        return None
+    parts = [top.get("content") or ""]
+    for segment in top.get("segments") or []:
+        parts.append(segment.get("content") or "")
+    blob = "\n".join(parts)
+    for entry in load_entries():
+        title = entry["title"]
+        if title and title in blob:
+            body = (entry["body"] or "").strip()
+            if not body:
+                return None
+            return f"{body} [1]"
+    return None

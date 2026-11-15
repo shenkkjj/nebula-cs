@@ -132,6 +132,11 @@
     return out.join("\n");
   }
 
+  function citeSpan(citations) {
+    if (!citations || !citations.length) return 0;
+    return citations.reduce((max, item, index) => Math.max(max, Number(item && item.mark) || index + 1), 0);
+  }
+
   function linkCitationMarks(html, count) {
     const total = Number(count) || 0;
     if (total < 1) return html;
@@ -723,9 +728,10 @@
           typeof c.score === "number" ? (c.score * 100).toFixed(1) + "%" : "—";
         const snip = c.content || "";
         const preview = snip.replace(/\s+/g, " ").slice(0, 64);
-        return `<article class="cite-card" data-idx="${i}" tabindex="0" role="button" aria-expanded="false">
+        const mark = Number(c.mark) || i + 1;
+        return `<article class="cite-card" data-idx="${mark - 1}" tabindex="0" role="button" aria-expanded="false">
           <div class="doc"><span>${escapeHtml(c.document_name || "文档")}</span><span class="score">${score}</span></div>
-          <div class="meta"><span>${escapeHtml(c.dataset_name || "知识库")} · #${i + 1}</span><span class="chev">▶ 展开</span></div>
+          <div class="meta"><span>${escapeHtml(c.dataset_name || "知识库")} · #${mark}</span><span class="chev">▶ 展开</span></div>
           ${preview ? `<div class="snip-preview">${escapeHtml(preview)}${snip.length > 64 ? "…" : ""}</div>` : ""}
           <div class="snip">${escapeHtml(snip) || "（无原文片段）"}</div>
           ${(c.segments || []).slice(1).map((seg) => `<div class="snip-more">${escapeHtml((seg.content || "").slice(0, 800))}</div>`).join("")}
@@ -892,7 +898,7 @@
           refuse: refuse || handoff,
           suggestions,
           clarify: data.agent_action === "clarify",
-          citeCount: (data.citations || []).length,
+          citeCount: citeSpan(data.citations),
         });
         state.messages.push({
           role: "bot",
@@ -901,7 +907,7 @@
           handoff,
           action: data.agent_action,
           suggestions,
-          citeCount: (data.citations || []).length,
+          citeCount: citeSpan(data.citations),
           serverMessageId: data.server_message_id || 0,
         });
         tagServerMessage(data.server_message_id);
@@ -989,7 +995,7 @@
         refuse: refuse || handoff,
         suggestions,
         clarify: action === "clarify",
-        citeCount: citations.length,
+        citeCount: citeSpan(citations),
       });
       // 转人工也给出一键工单按钮
       if (handoff) {
@@ -1014,7 +1020,7 @@
         handoff,
         action,
         suggestions,
-        citeCount: citations.length,
+        citeCount: citeSpan(citations),
         serverMessageId: (finalPayload && finalPayload.server_message_id) || 0,
       });
       tagServerMessage(finalPayload && finalPayload.server_message_id);

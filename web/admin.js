@@ -74,18 +74,29 @@
   async function loadFeedback() {
     const form = document.getElementById("feedbackFilters");
     const helpful = form ? new FormData(form).get("helpful") : "";
-    const data = await api("/api/admin/feedback" + (helpful ? "?helpful=" + encodeURIComponent(helpful) : ""));
+    const query = helpful ? "?helpful=" + encodeURIComponent(helpful) : "";
+    const data = await api("/api/admin/feedback" + query);
+    document.getElementById("feedbackExport").href = "/api/admin/feedback.csv" + query;
+    const summary = data.summary || {};
+    const rate = summary.total ? `差评率 ${(summary.unhappy_rate * 100).toFixed(1)}%` : "还没有评价";
+    document.getElementById("feedbackSummary").textContent = `近 ${summary.days || 7} 日：有帮助 ${summary.helpful || 0}，没解决 ${summary.unhappy || 0}。${rate}`;
     const body = document.getElementById("feedbackBody");
     if (!data.rows.length) {
-      body.innerHTML = '<tr><td colspan="4">还没有评价。</td></tr>';
+      body.innerHTML = '<tr><td colspan="5">还没有评价。</td></tr>';
       return;
     }
-    body.innerHTML = data.rows.map((row) => `<tr>
+    body.innerHTML = data.rows.map((row) => {
+      const action = row.helpful
+        ? "—"
+        : `<select class="select" aria-label="坏例类型"><option value="wrong">答错</option><option value="cite">引用不对</option><option value="miss-refuse">该拒没拒</option><option value="over-refuse">不该拒却拒</option><option value="other">其他</option></select> <button type="button" class="btn btn-quiet btn-sm" data-bad="${row.message_id}">加入评测坏例</button>`;
+      return `<tr>
       <td>${escapeHtml(row.updated_at)}</td>
       <td>${row.helpful ? "有帮助" : "没解决"}</td>
       <td class="clip">${escapeHtml(row.question)}</td>
       <td class="clip">${escapeHtml(row.answer)}</td>
-    </tr>`).join("");
+      <td>${action}</td>
+    </tr>`;
+    }).join("");
   }
 
   async function loadProbe() {
@@ -129,6 +140,7 @@
     form.probe_question.value = cfg.probe_question || "";
     form.probe_expect.value = cfg.probe_expect || "";
     form.auto_ticket_on_refusal.checked = !!cfg.auto_ticket_on_refusal;
+    form.faq_shortcut.checked = !!cfg.faq_shortcut;
     document.getElementById("configNote").textContent = data.note || "";
   }
 
@@ -169,7 +181,11 @@
       return `<td>${item ? metricCell(key, item.metrics, item.targets) : "未运行"}</td>`;
     }).join("") + "</tr>").join("");
     const notes = latest.map((item) => `${item.group} 组 · ${escapeHtml(item.dataset)} · ${item.count} 题。${escapeHtml(item.note || "")}`).join("<br />");
-    box.innerHTML = `<div class="table-wrap"><table class="table"><thead>${head}</thead><tbody>${rows}</tbody></table></div><div class="panel-body small">${notes}</div>`;
+    const watches = latest.filter((item) => item.metrics && item.metrics.span_observation).map((item) => {
+      const watch = item.metrics.span_observation;
+      return `${item.group} 组附加观察：期望证据片段 ${watch.hits}/${watch.count}。${escapeHtml(watch.note || "")}`;
+    }).join("<br />");
+    box.innerHTML = `<div class="table-wrap"><table class="table"><thead>${head}</thead><tbody>${rows}</tbody></table></div><div class="panel-body small">${notes}${watches ? "<br />" + watches : ""}</div>`;
     const first = latest[0];
     const foot = document.getElementById("evalExport");
     foot.hidden = false;
@@ -226,6 +242,23 @@
     event.preventDefault();
     loadFeedback().catch((err) => alert(err.message));
   });
+  document.getElementById("feedbackBody").addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-bad]");
+    if (!button) return;
+    const kind = button.parentElement.querySelector("select");
+    button.disabled = true;
+    try {
+      await api("/api/admin/feedback/bad-case", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message_id: Number(button.dataset.bad), kind: kind ? kind.value : "other" }),
+      });
+      button.textContent = "已加入";
+    } catch (err) {
+      button.disabled = false;
+      alert(err.message);
+    }
+  });
   document.getElementById("auditFilters").addEventListener("submit", (event) => {
     event.preventDefault();
     loadAudit();
@@ -249,6 +282,7 @@
       probe_question: form.probe_question.value,
       probe_expect: form.probe_expect.value,
       auto_ticket_on_refusal: form.auto_ticket_on_refusal.checked,
+      faq_shortcut: form.faq_shortcut.checked,
     };
     await api("/api/admin/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     status.hidden = false;

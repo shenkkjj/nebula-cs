@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / "server"))
 
 import eval_runner
 from eval_runner import agreement, isolation_fields, load_dataset, score_item, summarize
+from faq_meta import by_title
 
 
 class ScoreTest(unittest.TestCase):
@@ -96,6 +97,29 @@ class ScoreTest(unittest.TestCase):
         self.assertEqual(second["history"], [])
         self.assertEqual(first["query"], "在读证明怎么开？")
 
+    def test_span_observation_does_not_change_the_verdict(self) -> None:
+        item = {
+            "id": "T-1",
+            "type": "in_scope",
+            "question": "在读证明",
+            "expected_title": "在读证明如何办理？",
+            "expected_facts": ["3 个工作日"],
+            "expected_span": "行政楼一楼教务处窗口",
+        }
+        outcome = {
+            "answer": "电子版约 3 个工作日。[1]",
+            "citations": [{"document_name": "客服样例FAQ.md", "content": "问：在读证明如何办理？"}],
+            "retrieval": [{"title": "在读证明如何办理？"}],
+        }
+        row = score_item(item, outcome)
+        self.assertTrue(row["pass"])
+        self.assertFalse(row["span_observed"])
+        metrics = summarize([row])
+        self.assertEqual(metrics["in_scope_accuracy"], 1.0)
+        self.assertEqual(metrics["span_observation"]["count"], 1)
+        self.assertEqual(metrics["span_observation"]["hits"], 0)
+        self.assertNotIn("span_observation", eval_runner.TARGETS)
+
 
 class DatasetAndGroupATest(unittest.TestCase):
     def test_sets_match_the_plan_shape(self) -> None:
@@ -114,6 +138,14 @@ class DatasetAndGroupATest(unittest.TestCase):
         self.assertGreaterEqual(sum(1 for item in test_items + dev_items if item["type"] == "out_of_scope"), 40)
         self.assertGreaterEqual(sum(1 for item in test_items + dev_items if item["type"] == "multi_turn"), 15)
         self.assertGreaterEqual(sum(1 for item in test_items + dev_items if item["type"] == "clarify"), 10)
+        spanned = [item for item in test_items if item.get("expected_span")]
+        self.assertGreaterEqual(len(spanned), 15)
+        self.assertLessEqual(len(spanned), 30)
+        for item in spanned:
+            self.assertEqual(item["type"], "in_scope")
+            entry = by_title(item["expected_title"])
+            self.assertIsNotNone(entry)
+            self.assertIn(item["expected_span"], entry["body"])
 
     def test_group_a_sample_runs_and_writes_a_file(self) -> None:
         tmp = tempfile.TemporaryDirectory()

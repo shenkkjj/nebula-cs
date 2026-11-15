@@ -15,6 +15,9 @@ from dify_client import (
     hit_test,
     list_documents,
 )
+from datetime import datetime, timedelta, timezone
+
+from agent_api import mark_bad_case
 from faq_meta import load_entries
 from eval_runner import RESULTS_DIR, load_dataset, render_csv, render_markdown, run_group
 from gateway import run_probe
@@ -46,6 +49,41 @@ _MAX_UPLOAD = 15 * 1024 * 1024
 FAQ_HINT = "样例知识库是 sample-kb/客服样例FAQ.md 这一个文件（144 条都在里面）。导入这一篇，不要拆成 144 个文件。"
 
 
+def feedback_summary(days: int = 7) -> dict:
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).replace(microsecond=0).isoformat()
+    rows = store.list_feedback(since=since, limit=500)
+    helpful = sum(1 for row in rows if row.get("helpful"))
+    unhappy = sum(1 for row in rows if not row.get("helpful"))
+    total = helpful + unhappy
+    return {
+        "ok": True,
+        "days": days,
+        "since": since,
+        "total": total,
+        "helpful": helpful,
+        "unhappy": unhappy,
+        "unhappy_rate": round(unhappy / total, 4) if total else None,
+    }
+
+
+def feedback_csv(kind: str = "") -> str:
+    payload = feedback_rows(kind)
+    lines = ["时间,评价,问题,回答,备注"]
+    for row in payload["rows"]:
+        lines.append(",".join(_csv_cell(value) for value in (
+            row.get("updated_at"),
+            "有帮助" if row.get("helpful") else "没解决",
+            row.get("question"),
+            row.get("answer"),
+            row.get("comment"),
+        )))
+    return "\n".join(lines) + "\n"
+
+
+def promote_feedback(user: dict, message_id: int, kind: str) -> tuple[int, dict]:
+    return mark_bad_case(user, message_id, kind, "")
+
+
 def feedback_rows(kind: str = "") -> dict:
     helpful = None
     if kind in ("1", "true", "有帮助"):
@@ -57,6 +95,7 @@ def feedback_rows(kind: str = "") -> dict:
         rows.append(
             {
                 "id": item.get("id"),
+                "message_id": item.get("message_id"),
                 "helpful": bool(item.get("helpful")),
                 "question": item.get("question") or "",
                 "answer": item.get("answer") or "",
@@ -338,6 +377,11 @@ def _latest_results() -> list[dict]:
             "file": path.name,
         })
     return found
+
+
+def _csv_cell(value) -> str:
+    text = _cell(value).replace('"', '""')
+    return f'"{text}"'
 
 
 def _cell(value) -> str:

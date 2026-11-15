@@ -52,7 +52,7 @@ class _FakeDify(BaseHTTPRequestHandler):
                     "content": "纸质版请到行政楼一楼教务处窗口领取。",
                 },
             ]
-            answer = "在读证明请到一网通办申请，电子版约 3 个工作日。"
+            answer = "在读证明请到一网通办申请，电子版约 3 个工作日。[1]"
         events = [
             {"event": "message", "answer": answer, "conversation_id": "c1", "message_id": "m1", "task_id": "t1"},
             {"event": "message_end", "conversation_id": "c1", "metadata": {"retriever_resources": resources}},
@@ -111,6 +111,57 @@ class ConstraintTest(unittest.TestCase):
         self.assertTrue(decision["refuse"])
         self.assertEqual(decision["reason"], "missing_citation")
         self.assertEqual(decision["citations"], [])
+
+    def _card(self, score: float = 0.91, content: str | None = None, document_id: str = "faq") -> dict:
+        return {
+            "document_name": "客服样例FAQ.md" if document_id == "faq" else "另一篇.md",
+            "document_id": document_id,
+            "score": score,
+            "content": content or "问：在读证明如何办理？\n登录一网通办，电子版约 3 个工作日。",
+        }
+
+    def test_unmarked_answer_is_refused_without_listing_chunks(self) -> None:
+        decision = apply_constraints("请到一网通办申请。", [self._card()], load_config())
+        self.assertTrue(decision["refuse"])
+        self.assertEqual(decision["reason"], "missing_citation")
+        self.assertEqual(decision["citations"], [])
+        self.assertNotIn("请到一网通办", decision["answer"])
+
+    def test_unknown_mark_is_removed(self) -> None:
+        decision = apply_constraints("请到一网通办。[9]", [self._card()], load_config())
+        self.assertTrue(decision["refuse"])
+        self.assertEqual(decision["citations"], [])
+
+    def test_valid_mark_stays_and_stray_mark_goes(self) -> None:
+        decision = apply_constraints(
+            "请到一网通办。[1] 旁边还有 [9]",
+            [self._card(), self._card(score=0.8, content="另一条", document_id="other")],
+            load_config(),
+        )
+        self.assertFalse(decision["refuse"])
+        self.assertEqual([card["mark"] for card in decision["citations"]], [1])
+        self.assertIn("[1]", decision["answer"])
+        self.assertNotIn("[9]", decision["answer"])
+        self.assertNotIn("另一条", decision["answer"])
+
+    def test_shortcut_quotes_the_faq_only_when_enabled_and_close(self) -> None:
+        cfg = load_config()
+        self.assertFalse(cfg["faq_shortcut"])
+        marked = apply_constraints("请到一网通办。[1]", [self._card(score=0.95)], cfg)
+        self.assertEqual(marked["reason"], "ok")
+        self.assertIn("请到一网通办", marked["answer"])
+        cfg["faq_shortcut"] = True
+        cfg["faq_shortcut_score"] = 0.85
+        hit = apply_constraints("模型随便写。", [self._card(score=0.95)], cfg)
+        self.assertEqual(hit["reason"], "faq_shortcut")
+        self.assertIn("行政楼一楼", hit["answer"])
+        self.assertIn("[1]", hit["answer"])
+        self.assertEqual(hit["citations"][0]["mark"], 1)
+        self.assertNotIn("模型随便写", hit["answer"])
+        miss = apply_constraints("请到一网通办。[1]", [self._card(score=0.6)], cfg)
+        self.assertEqual(miss["reason"], "ok")
+        self.assertIn("请到一网通办", miss["answer"])
+        self.assertNotIn("行政楼", miss["answer"])
 
     def test_seal_clears_cards_when_refused(self) -> None:
         leaked = seal_user_citations({"refuse": True, "citations": [{"document_name": "客服样例FAQ.md"}]})
@@ -216,6 +267,32 @@ class GatewayFlowTest(unittest.TestCase):
         self.assertTrue(done["ticket_id"])
         self.assertEqual(_FakeDify.seen, [])
         self.assertTrue(any(event["type"] == "delta" for event in events))
+
+    def test_rate_limit_rests_before_the_model(self) -> None:
+        import ratelimit
+
+        original = ratelimit.allow
+
+        def blocked(*_args, **_kwargs) -> bool:
+            return False
+
+        ratelimit.allow = blocked
+        try:
+            done = run_chat({"query": "在读证明如何办理？", "visitor": "v-rate", "portal_session": "s-rate", "user": "v-rate"})
+        finally:
+            ratelimit.allow = original
+        self.assertIn("休息一下", done["answer"])
+        self.assertEqual(done["citations"], [])
+        self.assertEqual(_FakeDify.seen, [])
+
+    def test_eval_caller_keeps_a_full_bucket(self) -> None:
+        import ratelimit
+
+        ratelimit.reset_for_tests()
+        cfg = {"rate_limit_enabled": True, "rate_limit_burst": 8, "rate_limit_per_minute": 8}
+        self.assertTrue(all(ratelimit.allow("person", "person", cfg) for _ in range(8)))
+        self.assertFalse(ratelimit.allow("person", "person", cfg))
+        self.assertTrue(ratelimit.allow("eval-C-T-001", "eval-C-T-001", cfg))
 
 
 if __name__ == "__main__":

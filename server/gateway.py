@@ -14,6 +14,7 @@ from constraints import apply_constraints, seal_user_citations
 from dify_client import ChatRaw, DifyClient, dataset_configured, hit_test, list_documents
 from masking import is_medical_dump, mask_text, notice_line
 from scope import EXAMPLES, INTRO, OFF_TOPIC, classify_scope
+import ratelimit
 import store
 from settings import load_config
 
@@ -143,6 +144,13 @@ def iter_events(req: dict):
         return
 
     upstream_query, rewrite = _prepare_query(masked, masked_history, conversation_id)
+    if not ratelimit.allow(visitor, user, cfg):
+        yield from finish(_local(
+            "问得有点密，先休息一下再问。我还在，不着急。",
+            action="rate_limit",
+            intent="rate_limit",
+        ))
+        return
     raw = ChatRaw(error="empty")
     for kind, value in _CLIENT.iter_remote(upstream_query, user=user, conversation_id=conversation_id):
         if kind == "phase" and value in ("retrieving", "generating"):

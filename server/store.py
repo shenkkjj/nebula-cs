@@ -712,14 +712,17 @@ def upsert_feedback(visitor: str, portal_session: str, message_id: int, helpful:
     return dict(row) if row else {}
 
 
-def list_feedback(helpful: int | None = None, limit: int = 100) -> list[dict]:
+def list_feedback(helpful: int | None = None, since: str | None = None, limit: int = 100) -> list[dict]:
     clauses = []
     args: list = []
     if helpful is not None:
         clauses.append("f.helpful = ?")
         args.append(helpful)
+    if since:
+        clauses.append("f.updated_at >= ?")
+        args.append(since)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    args.append(max(1, min(limit, 200)))
+    args.append(max(1, min(int(limit), 500)))
     with _LOCK:
         rows = connection().execute(
             f"""

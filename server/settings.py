@@ -23,6 +23,11 @@ _DEFAULTS = {
     "probe_question": "在读证明如何办理？",
     "probe_expect": "一网通办",
     "probe_interval_seconds": 600,
+    "faq_shortcut": False,
+    "faq_shortcut_score": 0.85,
+    "rate_limit_enabled": True,
+    "rate_limit_burst": 20,
+    "rate_limit_per_minute": 20,
 }
 
 
@@ -111,6 +116,11 @@ def load_config() -> dict:
     cfg["max_citations"] = _clamp_int(cfg["max_citations"], 1, 8, 3)
     cfg["probe_interval_seconds"] = _clamp_int(cfg["probe_interval_seconds"], 60, 86400, 600)
     cfg["auto_ticket_on_refusal"] = bool(cfg["auto_ticket_on_refusal"])
+    cfg["faq_shortcut"] = bool(cfg["faq_shortcut"])
+    cfg["rate_limit_enabled"] = bool(cfg["rate_limit_enabled"])
+    cfg["faq_shortcut_score"] = _clamp_float(cfg["faq_shortcut_score"], 0.5, 1.0, 0.85)
+    cfg["rate_limit_burst"] = _clamp_int(cfg["rate_limit_burst"], 8, 60, 20)
+    cfg["rate_limit_per_minute"] = _clamp_int(cfg["rate_limit_per_minute"], 8, 60, 20)
     cfg["refusal_text"] = str(cfg["refusal_text"] or _DEFAULTS["refusal_text"])[:400]
     cfg["probe_question"] = str(cfg["probe_question"] or _DEFAULTS["probe_question"])[:200]
     cfg["probe_expect"] = str(cfg["probe_expect"] or _DEFAULTS["probe_expect"])[:80]
@@ -130,6 +140,11 @@ def save_config(updates: dict) -> dict:
     current["max_citations"] = _clamp_int(current["max_citations"], 1, 8, 3)
     current["probe_interval_seconds"] = _clamp_int(current["probe_interval_seconds"], 60, 86400, 600)
     current["auto_ticket_on_refusal"] = bool(current["auto_ticket_on_refusal"])
+    current["faq_shortcut"] = bool(current["faq_shortcut"])
+    current["rate_limit_enabled"] = bool(current["rate_limit_enabled"])
+    current["faq_shortcut_score"] = _clamp_float(current["faq_shortcut_score"], 0.5, 1.0, 0.85)
+    current["rate_limit_burst"] = _clamp_int(current["rate_limit_burst"], 8, 60, 20)
+    current["rate_limit_per_minute"] = _clamp_int(current["rate_limit_per_minute"], 8, 60, 20)
     current["refusal_text"] = str(current["refusal_text"])[:400]
     current["probe_question"] = str(current["probe_question"])[:200]
     current["probe_expect"] = str(current["probe_expect"])[:80]
