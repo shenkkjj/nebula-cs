@@ -2,84 +2,116 @@
 
 > 课程项目 · 团队：**沈凯杰、王瑞康**  
 > 演示场景：虚构 **星云大学** 校园办事私有知识库  
-> 演示门户：http://127.0.0.1:8080/（共享 Linux 课程机；`LITE_MODE=1` 的旧入口仍是 8787）
+> 演示门户：http://127.0.0.1:8080/（默认是自建知识库。`LITE_MODE=1` 的旧规则入口仍是 8787）
 
 ## 问题
 
 企业内部客服文档问答最怕两件事：**大模型幻觉**，以及**答了却说不清依据**。  
 在读证明、图书馆借阅、宿舍报修、校园网认证等口径必须可追溯到私有知识库；库外问题应明确拒答并转人工，而不是静默编造。
 
-## 思路：多开源对照，取其精华，自研补短板
+## 思路
 
-开题材料对照过 **Dify / RAGFlow / FastGPT / MaxKB**（及早期材料中的 LangChain·Rasa 思路）。  
-我们**不堆叠安装全部引擎**，而是抽各自长处，用**一套可跑引擎 + 自研门户与约束层**落地 MVP：
+开题材料对照过 Dify、RAGFlow、FastGPT、MaxKB。正式产品**不安装这些平台**，也不把 LangChain 当成架构。检索、知识库和门户都在这一个 Python 进程里：标准库 SQLite 存文档和分段，自写的中文 FAQ 词法索引（BM25）做检索。可选的远程向量只在配置了 `EMBEDDING_API_KEY` 和 `EMBEDDING_BASE_URL` 时启用，不配也能答。对话模型是 DeepSeek 的 HTTP 接口，密钥只在服务端。
 
-| 开源项目 | 我们看中的长处 | 常见短板 / 不直接采用的原因 | 本项目如何吸收 |
-|----------|----------------|-----------------------------|----------------|
-| **Dify** | Workflow/Chatflow + RAG 编排快，自托管友好，适合客服知识库试跑 | 引用约束、空检索拒答仍易翻车，控制台不像「自研产品」 | **运行时主底座**：知识库检索、LLM 生成、Chatflow |
-| **RAGFlow** | DeepDoc + 可溯源引用，复杂 PDF/版式理解强 | 客服编排、转人工、门户要另搭；本课样例是 Markdown FAQ | **理念借鉴**：回答必须可溯源；UI 强制展示引用卡片 |
-| **FastGPT** | 知识库问答 + Flow/Agent 上手快 | 企业权限与失败约束仍需补；与 Dify 功能重叠 | **理念借鉴**：快捷 FAQ / 流程化问答体验 |
-| **MaxKB** | Docker 易起，偏企业内网助手 | 引擎深度弱于 RAGFlow；授权需自查 | **理念借鉴**：内网私有部署、助手式客服形态 |
-| LangChain 等 | 链路可控、组件可换 | 从零拼装成本高，本课周期不够 | **约束思路**：出口校验、空检索分支，而非换栈重写 |
+没有用到的重平台，以及为什么不装：
 
-一句话：**编排与检索复用成熟开源；「像自己的产品」的界面、引用门禁、空库拒答、转人工，我们自己做。**
+| 平台 | 不作为运行时的原因 |
+|------|-------------------|
+| Dify | 要 Docker、Postgres、向量服务和工作流 Worker，2 GiB 机器放不下整套 |
+| RAGFlow / FastGPT / MaxKB | 同样是带数据库和模型服务的一体化平台 |
+| Ollama / 本地嵌入模型 | 明确不依赖。嵌入如果需要，走远程 API，而且可以关掉 |
+| LangChain | 不作为主编排。路由、检索和约束是普通 Python 函数 |
 
-## 本机启动（当前主线）
+`ENGINE=dify` 仍可把旧的 Dify 网关拉起来，只供对照，不是默认。
 
-答辩和运行在共享 Linux 课程机上：Docker、Ollama（`bge-m3`）、Python 3.11+ 和 Dify 1.19.0 都在这台机器上（Dify 历史上在 `/workspace/dify`）。门户是 `http://localhost:8080/`，用这台机器上的桌面浏览器，窗口宽至少 1280px。不需要所有者的 Windows 电脑或 Docker Desktop。线上 Render 先不动，`DEPLOY-RENDER.md` 只描述旧的轻量镜像。DeepSeek 密钥只放在这台课程机的 Dify 里。
+## 本机启动（默认）
+
+需要 Python 3.11+。不需要 Docker、Ollama 或 Dify。浏览器窗口宽至少 1280px。
 
 ```bash
-cp .env.example .env          # 填入 DIFY_APP_API_KEY，不要把 .env 提交
-# 知识库只导入 sample-kb/客服样例FAQ.md 这一个文件（144 条都在里面）
-bash scripts/up-local.sh      # 有 Dify 目录就拉起 Dify，然后启动网关
-# 或者不进容器，直接：
-python3 server/proxy.py       # 默认 http://127.0.0.1:8080/
+cp .env.example .env          # 可先不填密钥。不要提交 .env
+bash scripts/up-campus.sh     # http://127.0.0.1:8080/
+# 等价于：
+# ENGINE=campus python3 server/proxy.py
 ```
 
 - 门户 `http://127.0.0.1:8080/`
-- 坐席 `http://127.0.0.1:8080/agent`（演示账号 `agent1` / `agent123`）
+- 坐席 `http://127.0.0.1:8080/agent`（`agent1` / `agent123`）
 - 后台 `http://127.0.0.1:8080/admin`（`admin` / `admin123`）
 - 登录 `http://127.0.0.1:8080/login`
-- Chatflow 草稿：`dify/campus-cs.chatflow.yml`（导入后绑定上面那一篇知识库，并换成你的 DeepSeek 模型）
-- 评测：`python3 server/eval_runner.py --dataset tests/eval/test-set.json --group A`（B、C 需要本机 Dify，没跑就不要填数）
+- 样例库在第一次启动时从 `sample-kb/客服样例FAQ.md` 导入（一个文件、144 条）
+- 测试：`python3 -m unittest discover -s tests`
 
-`LITE_MODE=1` 仍会走改造前的规则引擎，只给旧测试和旧 Render 镜像用。标签 `baseline-rules` 指在替换前的 `83463b9`。
+没有 `DEEPSEEK_API_KEY` 时，办事问答用知识库原文（先一句，再细节和出处）。闲聊和写作会说明需要配置模型。配上密钥后，办事回答仍必须能对上检索片段，对不上的数字会退回原文。
 
-## 架构（自研门户 + 开源引擎）
+旧入口仍在，但不是这套正式产品：
 
-```
-┌─────────────────────────────────────────────┐
-│  校园客服门户 / 坐席 / 后台（自研）            │
-│  http://127.0.0.1:8080/  /agent  /admin      │
-└──────────────────┬──────────────────────────┘
-                   │ POST /api/chat（无密钥）
-                   ▼
-┌─────────────────────────────────────────────┐
-│  server/proxy.py + server/gateway.py        │
-│  打码、空检索拦截、引用校验、按文档合并引用    │
-│  工单、审计、自检、评测                        │
-└──────────────────┬──────────────────────────┘
-                   │ Bearer（仅服务端）
-                   ▼
-┌─────────────────────────────────────────────┐
-│  Dify 1.19.0 Chatflow                        │
-│  改写 → 检索 → 作答                           │
-│  样例库：sample-kb/客服样例FAQ.md（一篇）      │
-└─────────────────────────────────────────────┘
+```bash
+LITE_MODE=1 PORTAL_PORT=8787 python3 server/proxy.py   # 旧规则引擎
+ENGINE=dify python3 server/proxy.py                    # 旧 Dify 网关，需自备 Dify
+bash scripts/up-local.sh                               # 可选：本机已有 Dify 时的旧脚本
 ```
 
-### 分工一览
+`render.yaml` 和 `Dockerfile` 仍是 `LITE_MODE=1` 的旧镜像，这次不改线上部署。
 
-| 能力 | 谁做 |
+## 架构（默认：自建知识库）
+
+```
+门户 / 坐席 / 后台（web/）
+        │  POST /api/chat（浏览器不持有密钥）
+        ▼
+server/proxy.py
+        │  ENGINE=campus（默认）
+        ▼
+意图 → 追问改写 → 词法检索（可选远程向量）
+        │
+        ├─ 办事：只根据命中的分段作答，附出处；没有条目就说明原因并可转人工
+        ├─ 含糊：只问一个澄清问题
+        └─ 闲聊 / 写作：DeepSeek（可选），不得把校规说成知识库里有
+        │
+        ▼
+SQLite（DATA_DIR/nebula.sqlite）
+  文档、分段、工单、审计、判定
+```
+
+| 能力 | 位置 |
 |------|------|
-| 知识库分段 / 检索 / Chatflow 编排 / 模型调用 | **复用** Dify |
-| 客服门户、坐席工作台、管理后台 | **自研** `web/` |
-| 密钥不下发浏览器 | **自研** `server/proxy.py` |
-| 引用校验、空检索拦截、按文档合并、打码 | **自研** `server/gateway.py` |
-| 转人工队列、回写、坏例、审计、评测 | **自研** `server/agent_api.py`、`admin_api.py`、`eval_runner.py` |
-| 查询改写、检索、生成 | **Dify Chatflow**（`dify/campus-cs.chatflow.yml`） |
+| 文档与分段的增删改 | `server/kb_store.py`，后台「知识库文档 / 分段」 |
+| 词法检索，以及可选远程向量 | `server/kb_retrieve.py` |
+| 意图、改写、拒答、流式 | `server/campus_engine.py` |
+| 转人工队列、回写进知识库 | `server/agent_api.py`，坐席「回写知识库」 |
+| 会话与工单回看 | 后台「会话与转人工」 |
+| 旧 Dify 约束层 | `ENGINE=dify` 时仍走 `server/gateway.py` |
+| 旧规则引擎 | `LITE_MODE=1` 时仍走 `server/lite_engine.py` |
 
-引擎运维见：`/workspace/dify/RUNBOOK.md`（本仓库不提交密钥）。
+### 环境变量
+
+| 变量 | 作用 |
+|------|------|
+| `ENGINE` | `campus`（默认）、`dify`、`lite`。显式值优先于 `LITE_MODE` |
+| `DEEPSEEK_API_KEY` | 可选。不填则办事用原文，闲聊会说明缺模型 |
+| `DEEPSEEK_MODEL` | 默认 `deepseek-chat` |
+| `DEEPSEEK_API_URL` | 默认 `https://api.deepseek.com/chat/completions` |
+| `EMBEDDING_API_KEY` / `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL` | 可选。OpenAI 兼容的 `/embeddings`。不填则只用词法 |
+| `DATA_DIR` | SQLite 目录，默认 `./data`，不进仓库 |
+| `DIFY_*` | 只在 `ENGINE=dify` 时使用 |
+
+后台「生成向量」会调用远程嵌入接口。失败不影响词法检索。
+
+### 2 GiB 内存（实测的是进程，不是整机）
+
+在这台开发机上，`python3 scripts/measure_rss.py` 在导入 144 条并回答 8 个问题后，进程峰值 **25.6 MiB**（`ru_maxrss`）。把完整 HTTP 服务跑起来并回答两问后，`VmRSS` / `VmHWM` 为 **30.7 MiB**。SQLite 文件约 **144 KiB**。没有本地模型，也没有第二套数据库进程。
+
+据此做的预算，不是在华为 Flexus 上的整机实测：
+
+| 部分 | 量级 |
+|------|------|
+| 本进程（解释器 + 144 段索引 + HTTP） | 约 30–80 MiB。分段增到几千条时，索引仍是标题词表加倒排，预期在一两百 MiB 以内 |
+| 一次 DeepSeek 调用 | 只保留请求和回答文本，不在本机加载权重 |
+| 可选向量 | 144 段 × 1536 维 × 4 字节约 1 MiB；上万段仍是几十 MiB |
+| 操作系统和其他进程 | 2 GiB 机器上通常要占数百 MiB，这一项没有在 Flexus 上量过 |
+
+应用进程本身远小于 2 GiB。整机是否从容，取决于系统和其他服务，不能只凭这 31 MiB 宣称「已经能在 2 GiB 上稳定跑」。没有把 Dify、Postgres 或 Ollama 算进去；那些才是会把 2 GiB 吃满的部分。
 
 ## 演示 UI（已定稿 · E5）
 
@@ -102,7 +134,7 @@ python3 server/proxy.py       # 默认 http://127.0.0.1:8080/
 ├── Dockerfile
 ├── render.yaml
 ├── requirements.txt
-├── sample-kb/            # 校园办事 FAQ（Lite 自带）
+├── sample-kb/            # 启动时导入的 144 条 FAQ
 ├── docs/
 │   ├── STATUS.md
 │   ├── PRD.md
@@ -118,17 +150,20 @@ python3 server/proxy.py       # 默认 http://127.0.0.1:8080/
 │   └── app.js
 ├── server/
 │   ├── proxy.py          # HTTP 入口
-│   ├── gateway.py        # 约束层
+│   ├── campus_engine.py  # 默认：意图、改写、作答
+│   ├── kb_store.py       # SQLite 文档与分段
+│   ├── kb_retrieve.py    # 词法检索，可选远程向量
+│   ├── gateway.py        # 仅 ENGINE=dify
 │   ├── agent_api.py
 │   ├── admin_api.py
-│   ├── auth.py
 │   └── eval_runner.py
 ├── dify/
 │   └── campus-cs.chatflow.yml
 ├── tests/eval/           # 测试集 / 开发集 / 冒烟题
 └── scripts/
-    ├── start-portal.sh   # 旧入口，仍可用
-    └── up-local.sh       # Dify（若已放好）+ 网关
+    ├── up-campus.sh      # 默认启动
+    ├── up-local.sh       # 可选：本机已有 Dify 时
+    └── measure_rss.py    # 进程内存
 ```
 
 ## 启动
@@ -151,15 +186,16 @@ LITE_MODE=1 PORTAL_PORT=8787 python3 server/proxy.py
 2. **库外**：「怎么请病假？」→ 说明知识库里没有，不编规定，可以转人工。  
 3. **含糊**：「证明怎么开？」→ 两三个选项，点一个再答。  
 4. **转人工**：门户登记工单，坐席在 `/agent` 接入、回复；门户几秒内出现，并标「人工客服」。  
-5. **安全**：浏览器里只有本站接口，看不到 Dify 或 DeepSeek 的密钥。手机号和证件号在出站前打码。
+5. **闲聊**：「帮我写一首短诗」→ 不附校规出处。没有模型密钥时会说明。  
+6. **安全**：浏览器里只有本站接口，看不到 DeepSeek 密钥。手机号和证件号在出站前打码。
 
 ## 技术要点（答辩）
 
 - 前端：纯 HTML/CSS/JS；**E5** 近黑+香槟金、苹果 R 角；Cormorant / Manrope + 中文系统字体。  
-- 代理：Python 3 `http.server`；blocking 转发；去掉模型 thinking 标签。  
-- 样例库：`sample-kb/客服样例FAQ.md` 一个文件、144 条。Dify 里导入这一篇。  
-- 硬约束：库外不瞎答、回答可展示来源、密钥仅服务端。
+- 代理：Python 3 `http.server`；默认 SSE；去掉模型 thinking 标签。  
+- 样例库：`sample-kb/客服样例FAQ.md` 一个文件、144 条，第一次启动写入 SQLite。  
+- 硬约束：办事口径不编造、回答可展示来源、密钥仅服务端。
 
 ## 声明
 
-校园办事 FAQ 为课程虚构样例，不代表任何真实高校政策。对用户显示的名称是「校园客服 / 校园助手」；「星云大学」只是虚构校园。仓库名、Render 服务名仍是 nebula-cs。非办事请求会说明服务范围，不再走算式、翻译或开放闲聊。没有配上 Dify 时，办事问题进入「知识库维护中」并登记人工，而不是改回规则引擎作答。
+校园办事 FAQ 为课程虚构样例，不代表任何真实高校政策。对用户显示的名称是「校园客服 / 校园助手」；「星云大学」只是虚构校园。仓库名、Render 服务名仍是 nebula-cs。办事规定只按知识库回答；库里没有的会说明原因，并可以转人工。日常闲聊和写作可以使用，但不得把校规编造成知识库内容。

@@ -29,6 +29,8 @@
       else item.removeAttribute("aria-current");
     }
     if (page === "docs") loadDocs();
+    if (page === "segments") loadSegments();
+    if (page === "handoffs") loadHandoffs();
     if (page === "feedback") loadFeedback();
     if (page === "probe") loadProbe();
     if (page === "audit") loadAudit();
@@ -65,9 +67,105 @@
       body.innerHTML = `<tr><td colspan="4">${escapeHtml(data.configured ? "知识库里还没有文档。" : "未配置知识库 API，列表为空。")}</td></tr>`;
       return;
     }
-    body.innerHTML = data.documents.map((doc) => `<tr>
-      <td>${escapeHtml(doc.name)}</td><td>${escapeHtml(doc.source)}</td><td>${escapeHtml(doc.indexing_status || "")}</td>
-      <td><button type="button" class="btn btn-quiet btn-sm" data-del="${escapeHtml(doc.id)}">删除</button></td>
+    body.innerHTML = data.documents.map((doc) => {
+      const segments = data.engine === "campus"
+        ? `<button type="button" class="btn btn-quiet btn-sm" data-open="${escapeHtml(doc.id)}">分段</button> `
+        : "";
+      const count = doc.segment_count == null ? "" : ` · ${doc.segment_count} 段`;
+      return `<tr>
+      <td>${escapeHtml(doc.name)}</td><td>${escapeHtml(doc.source)}</td><td>${escapeHtml(doc.indexing_status || "")}${escapeHtml(count)}</td>
+      <td>${segments}<button type="button" class="btn btn-quiet btn-sm" data-del="${escapeHtml(doc.id)}">删除</button></td>
+    </tr>`;
+    }).join("");
+  }
+
+  async function loadSegmentDocs(selected) {
+    const data = await api("/api/admin/documents");
+    const select = document.getElementById("segmentDoc");
+    const hint = document.getElementById("segmentHint");
+    if (data.engine !== "campus") {
+      if (hint) hint.textContent = "分段编辑只在自建知识库里。当前引擎不使用这套分段。";
+      select.innerHTML = "";
+      document.getElementById("segmentBody").innerHTML = '<tr><td colspan="3">当前不是自建知识库。</td></tr>';
+      return null;
+    }
+    if (hint) hint.textContent = "改一条就重新索引。校规只来自这里的正文。";
+    select.innerHTML = (data.documents || []).map((doc) => {
+      const mark = String(doc.id) === String(selected) ? " selected" : "";
+      return `<option value="${escapeHtml(doc.id)}"${mark}>${escapeHtml(doc.name)}</option>`;
+    }).join("");
+    return data;
+  }
+
+  async function loadSegments() {
+    const select = document.getElementById("segmentDoc");
+    const wanted = select && select.value;
+    const data = await loadSegmentDocs(wanted);
+    if (!data || data.engine !== "campus") return;
+    const id = (select && select.value) || (data.documents[0] && data.documents[0].id);
+    if (!id) {
+      document.getElementById("segmentBody").innerHTML = '<tr><td colspan="3">还没有文档。</td></tr>';
+      return;
+    }
+    const detail = await api("/api/admin/documents/" + encodeURIComponent(id));
+    const rows = (detail.document && detail.document.segments) || [];
+    const body = document.getElementById("segmentBody");
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="3">这篇还没有分段。</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map((row) => `<tr>
+      <td>${escapeHtml(row.title)}</td>
+      <td class="clip">${escapeHtml(row.body)}</td>
+      <td>
+        <button type="button" class="btn btn-quiet btn-sm" data-edit="${escapeHtml(row.id)}">编辑</button>
+        <button type="button" class="btn btn-quiet btn-sm" data-drop="${escapeHtml(row.id)}">删除</button>
+      </td>
+    </tr>`).join("");
+    body.querySelectorAll("[data-edit]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const row = rows.find((item) => String(item.id) === button.dataset.edit);
+        if (!row) return;
+        const form = document.getElementById("segmentForm");
+        form.segment_id.value = row.id;
+        form.title.value = row.title;
+        form.body.value = row.body;
+      });
+    });
+  }
+
+  async function loadHandoffs() {
+    const data = await api("/api/admin/handoffs");
+    const tickets = document.getElementById("handoffBody");
+    const sessions = document.getElementById("sessionBody");
+    if (!data.tickets.length) {
+      tickets.innerHTML = '<tr><td colspan="6">还没有转人工。</td></tr>';
+    } else {
+      tickets.innerHTML = data.tickets.map((row) => {
+        const steps = (row.traces || []).map((item) => {
+          const inner = (item.trace || []).map((step) => `<li>${escapeHtml(step.step)} · ${escapeHtml(step.detail || "")}</li>`).join("");
+          return `<div><p>${escapeHtml(item.created_at)} · ${escapeHtml(item.decision)} · ${escapeHtml(item.question)}</p><ul>${inner}</ul></div>`;
+        }).join("");
+        return `<tr>
+          <td>${escapeHtml(row.created_at)}</td>
+          <td>${escapeHtml(row.public_id)}</td>
+          <td>${escapeHtml(row.status)}</td>
+          <td>${escapeHtml(row.source)}</td>
+          <td class="clip">${escapeHtml(row.first_question)}</td>
+          <td>${escapeHtml(row.assignee_name || "—")}</td>
+        </tr>${steps ? `<tr><td colspan="6">${steps}</td></tr>` : ""}`;
+      }).join("");
+    }
+    if (!data.sessions.length) {
+      sessions.innerHTML = '<tr><td colspan="5">还没有问答记录。</td></tr>';
+      return;
+    }
+    sessions.innerHTML = data.sessions.map((row) => `<tr>
+      <td>${escapeHtml(row.created_at)}</td>
+      <td>${escapeHtml(row.session)}</td>
+      <td class="clip">${escapeHtml(row.question)}</td>
+      <td class="clip">${escapeHtml(row.rewritten)}</td>
+      <td>${escapeHtml(row.decision)}</td>
     </tr>`).join("");
   }
 
@@ -216,11 +314,72 @@
 
   window.addEventListener("hashchange", () => show(location.hash.slice(1)));
   document.getElementById("docsBody").addEventListener("click", async (event) => {
+    const open = event.target.closest("[data-open]");
+    if (open) {
+      location.hash = "segments";
+      const select = document.getElementById("segmentDoc");
+      if (select) select.value = open.dataset.open;
+      show("segments");
+      return;
+    }
     const button = event.target.closest("[data-del]");
     if (!button) return;
     if (!confirm("删除这篇文档？")) return;
     await api("/api/admin/documents/" + encodeURIComponent(button.dataset.del), { method: "DELETE" });
     loadDocs();
+  });
+  document.getElementById("btnEmbed").addEventListener("click", async () => {
+    const status = document.getElementById("uploadStatus");
+    status.hidden = false;
+    status.textContent = "正在请求远程向量…";
+    try {
+      const data = await api("/api/admin/embeddings", { method: "POST" });
+      status.textContent = data.ok ? `已写入 ${data.count || 0} 条向量。` : (data.error || "没有生成向量");
+    } catch (err) {
+      status.textContent = err.message;
+    }
+  });
+  document.getElementById("segmentPick").addEventListener("submit", (event) => {
+    event.preventDefault();
+    loadSegments().catch((err) => alert(err.message));
+  });
+  document.getElementById("btnSegmentNew").addEventListener("click", () => {
+    const form = document.getElementById("segmentForm");
+    form.segment_id.value = "";
+    form.title.value = "";
+    form.body.value = "";
+  });
+  document.getElementById("segmentForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.target;
+    const status = document.getElementById("segmentStatus");
+    const segmentId = form.segment_id.value;
+    const path = segmentId ? "/api/admin/segments/" + encodeURIComponent(segmentId) : "/api/admin/segments";
+    status.hidden = false;
+    status.textContent = "正在保存…";
+    try {
+      await api(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          document_id: document.getElementById("segmentDoc").value,
+          title: form.title.value,
+          body: form.body.value,
+        }),
+      });
+      status.textContent = "已保存，下一次问答会用到这条。";
+      form.segment_id.value = "";
+      loadSegments();
+    } catch (err) {
+      status.textContent = err.message;
+    }
+  });
+  document.getElementById("segmentBody").addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-drop]");
+    if (!button) return;
+    if (!confirm("删除这个分段？")) return;
+    await api("/api/admin/segments/" + encodeURIComponent(button.dataset.drop), { method: "DELETE" });
+    loadSegments();
   });
   document.getElementById("uploadForm").addEventListener("submit", async (event) => {
     event.preventDefault();

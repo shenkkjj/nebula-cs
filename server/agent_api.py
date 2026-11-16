@@ -6,8 +6,10 @@ import threading
 from pathlib import Path
 
 from dify_client import create_text_document, dataset_configured
+from engine_mode import engine_mode
 from masking import mask_text
 from settings import ROOT
+import kb_store
 import store
 
 BAD_CASES_PATH = ROOT / "tests" / "eval" / "bad-cases.json"
@@ -138,6 +140,24 @@ def writeback(public_id: str, user: dict, question: str, answer: str) -> tuple[i
     row = store.add_writeback(ticket["id"], user["username"], q, a, "indexing")
     name = f"坐席回写｜{q}"
     text = f"问：{q}\n答：{a}\n"
+    if engine_mode() == "campus":
+        try:
+            created = kb_store.add_text_document(name, f"## {q}\n{a}\n", source="writeback")
+        except ValueError as exc:
+            saved = store.update_writeback(row["id"], "failed", error=str(exc)[:300])
+            store.add_audit("writeback", actor=user["username"], session_ref=public_id, decision="失败", question=q)
+            return 400, {"ok": False, "writeback": saved, "error": str(exc)}
+        saved = store.update_writeback(row["id"], "completed", dify_document_id=str(created.get("id") or ""))
+        store.add_audit(
+            "writeback",
+            actor=user["username"],
+            session_ref=public_id,
+            decision="回写",
+            question=q,
+            source="坐席回写",
+            detail={"document_id": created.get("id") or "", "status": "completed"},
+        )
+        return 200, {"ok": True, "writeback": saved}
     if not dataset_configured():
         saved = store.update_writeback(row["id"], "failed", error="没有配置知识库 API，草稿已保留，可稍后重试。")
         store.add_audit("writeback", actor=user["username"], session_ref=public_id, decision="失败", question=q)

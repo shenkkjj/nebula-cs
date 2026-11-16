@@ -16,6 +16,8 @@
       <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role">管理后台</span></div>
       <nav>
         <a class="item" href="#docs" data-nav="docs">知识库文档</a>
+        <a class="item" href="#segments" data-nav="segments">分段</a>
+        <a class="item" href="#handoffs" data-nav="handoffs">会话与转人工</a>
         <a class="item" href="#probe" data-nav="probe">绑定自检</a>
         <a class="item" href="#feedback" data-nav="feedback">用户评价</a>
         <a class="item" href="#audit" data-nav="audit">审计日志</a>
@@ -33,10 +35,35 @@
         <form id="uploadForm" class="filters">
           <label class="field grow"><span>上传 md / txt / pdf / docx，单个 ≤ 15MB</span><input class="input" type="file" name="file" accept=".md,.txt,.pdf,.docx" required /></label>
           <button class="btn btn-solid" type="submit">上传</button>
+          <button class="btn btn-ghost" type="button" id="btnEmbed">生成向量（可选）</button>
         </form>
         <p class="form-status" id="uploadStatus" hidden></p>
         <div class="panel" id="faqCheck"><p class="empty">正在核对本地条目和知识库分段。</p></div>
         <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>文档</th><th>来源</th><th>索引</th><th></th></tr></thead><tbody id="docsBody"></tbody></table></div></div>
+      </section>
+      <section data-page="segments" hidden>
+        <div class="page-head"><div><h1 class="page-title">分段</h1><p class="page-sub" id="segmentHint">改一条就重新索引。校规只来自这里的正文。</p></div></div>
+        <form class="filters" id="segmentPick">
+          <label class="field grow"><span>文档</span><select class="select" id="segmentDoc"></select></label>
+          <button class="btn btn-ghost" type="submit">查看</button>
+        </form>
+        <form class="panel" id="segmentForm" style="padding:20px; display:grid; gap:12px; max-width:720px">
+          <input type="hidden" name="segment_id" />
+          <label class="field"><span>标题</span><input class="input" name="title" maxlength="180" required /></label>
+          <label class="field"><span>正文</span><textarea class="textarea" name="body" rows="6" maxlength="8000" required></textarea></label>
+          <div class="form-actions">
+            <button class="btn btn-solid" type="submit">保存分段</button>
+            <button class="btn btn-ghost" type="button" id="btnSegmentNew">清空，改为新增</button>
+          </div>
+          <p class="form-status" id="segmentStatus" hidden></p>
+        </form>
+        <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>标题</th><th>正文</th><th></th></tr></thead><tbody id="segmentBody"></tbody></table></div></div>
+      </section>
+      <section data-page="handoffs" hidden>
+        <div class="page-head"><div><h1 class="page-title">会话与转人工</h1><p class="page-sub">工单和最近问答的判定。问题里的手机号、证件号已打码。</p></div></div>
+        <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>时间</th><th>工单</th><th>状态</th><th>来源</th><th>问题</th><th>坐席</th></tr></thead><tbody id="handoffBody"></tbody></table></div></div>
+        <div class="page-head" style="margin-top:28px"><div><h2 class="page-title">最近问答</h2><p class="page-sub">含改写和检索判定，方便回看没有转人工的会话。</p></div></div>
+        <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>时间</th><th>会话</th><th>问题</th><th>改写</th><th>判定</th></tr></thead><tbody id="sessionBody"></tbody></table></div></div>
       </section>
       <section data-page="probe" hidden>
         <div class="page-head"><div><h1 class="page-title">绑定自检</h1><p class="page-sub">启动时、每 10 分钟，以及你点「立即自检」。</p></div><button type="button" class="btn btn-solid" id="btnProbe">立即自检</button></div>
