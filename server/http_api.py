@@ -8,9 +8,11 @@ from urllib.request import Request, urlopen
 import admin_api
 import agent_api
 import auth
+import campus_engine
 from feedback import submit_feedback
 from auth import SESSION_COOKIE, cookie_header, current_user, ensure_visitor, require_user, safe_next
 from dify_client import dataset_configured
+from engine_mode import engine_mode
 from gateway import _handoff_source
 from masking import mask_text
 from settings import dify_app_key, ollama_host
@@ -71,17 +73,27 @@ def try_post(handler, path: str) -> bool:
 
 def try_delete(handler, path: str) -> bool:
     match = re.fullmatch(r"/api/admin/documents/([^/]+)", path)
-    if not match:
+    segment = re.fullmatch(r"/api/admin/segments/([^/]+)", path)
+    if not match and not segment:
         return False
     user = require_user(handler, ("admin",))
     if not user:
         return True
-    status, payload = admin_api.remove_document(match.group(1), user)
+    if segment:
+        status, payload = admin_api.remove_segment(segment.group(1), user)
+    else:
+        status, payload = admin_api.remove_document(match.group(1), user)
     handler._json_response(status, payload)
     return True
 
 
 def health_payload() -> dict:
+    if engine_mode() == "campus":
+        return campus_engine.health_payload()
+    return _dify_health()
+
+
+def _dify_health() -> dict:
     probe = store.latest_probe()
     maintenance = bool(probe and not probe.get("ok"))
     return {
@@ -261,6 +273,14 @@ def _admin_get(handler, raw: str, user: dict) -> bool:
     if raw in ("/api/admin/documents", "/api/admin/documents/"):
         handler._json_response(200, admin_api.document_list())
         return True
+    match = re.fullmatch(r"/api/admin/documents/([^/]+)", raw)
+    if match:
+        status, payload = admin_api.document_detail(match.group(1))
+        handler._json_response(status, payload)
+        return True
+    if raw in ("/api/admin/handoffs", "/api/admin/handoffs/"):
+        handler._json_response(200, admin_api.handoff_board())
+        return True
     if raw in ("/api/admin/faq-check", "/api/admin/faq-check/"):
         handler._json_response(200, admin_api.faq_check())
         return True
@@ -347,6 +367,17 @@ def _admin_post(handler, path: str, user: dict) -> bool:
     if path == "/api/admin/documents":
         _upload(handler, user)
         return True
+    if path == "/api/admin/segments":
+        _save_segment(handler, user, "")
+        return True
+    match = re.fullmatch(r"/api/admin/segments/([^/]+)", path)
+    if match:
+        _save_segment(handler, user, match.group(1))
+        return True
+    if path == "/api/admin/embeddings":
+        status, payload = admin_api.rebuild_embeddings(user)
+        handler._json_response(status, payload)
+        return True
     if path == "/api/admin/probe":
         handler._json_response(200, {"ok": True, "probe": admin_api.probe_now(user)})
         return True
@@ -374,6 +405,22 @@ def _admin_post(handler, path: str, user: dict) -> bool:
         return True
     handler._json_error(404, "unknown endpoint")
     return True
+
+
+def _save_segment(handler, user: dict, segment_id: str) -> None:
+    try:
+        data = handler._read_json()
+    except ValueError as exc:
+        handler._json_error(400, str(exc))
+        return
+    status, payload = admin_api.save_segment(
+        user,
+        segment_id,
+        str(data.get("title") or ""),
+        str(data.get("body") or ""),
+        str(data.get("document_id") or ""),
+    )
+    handler._json_response(status, payload)
 
 
 def _upload(handler, user: dict) -> None:

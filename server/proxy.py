@@ -23,6 +23,14 @@ from urllib.parse import urlparse
 
 import http_api
 from dify_client import DifyClient
+from engine_mode import engine_mode
+from followup import (
+    is_back,
+    is_handoff_intent,
+    is_restart,
+    rewrite_query_for_retrieval,
+)
+import campus_engine
 from gateway import iter_events, run_probe
 from lite_engine import (
     answer_lite,
@@ -50,26 +58,13 @@ DIFY_CHAT_URL = (
 ).strip()
 
 
-def _env_truthy(name: str) -> bool:
-    return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes", "on")
-
-
 def use_lite_mode() -> bool:
-    """LITE_MODE=1, or no Dify URL configured (empty / unset marker)."""
-    if _env_truthy("LITE_MODE"):
-        return True
-    # Explicit empty DIFY_CHAT_URL / DIFY_API_URL → lite
-    raw_chat = os.environ.get("DIFY_CHAT_URL")
-    raw_api = os.environ.get("DIFY_API_URL")
-    if raw_chat is not None and not raw_chat.strip():
-        return True
-    if raw_api is not None and not str(raw_api).strip() and raw_chat is None:
-        return True
-    if _env_truthy("RENDER") and not (os.environ.get("DIFY_APP_API_KEY") or "").strip():
-        # On Render without Dify credentials, prefer lite
-        if not Path(os.environ.get("DIFY_APP_API_KEY_FILE", str(DEFAULT_KEY_FILE))).is_file():
-            return True
-    return False
+    """Old rules portal. ENGINE=lite, or LITE_MODE=1 when ENGINE is unset.
+
+    An empty Dify URL does not select this path. The default product is the
+    self-built campus engine.
+    """
+    return engine_mode() == "lite"
 
 
 LITE_MODE = use_lite_mode()
@@ -145,14 +140,6 @@ def looks_like_refuse(answer: str, citations: list | None = None) -> bool:
 
 
 
-HANDOFF_RE = re.compile(
-    r"(转\s*人工|人工\s*客服|人工\s*坐席|转接\s*人工|找\s*人工|联系\s*人工|有没有真人|找真人)"
-)
-ANGRY_RE = re.compile(
-    r"(我要投诉|投诉你们|我要反馈|太差了|服务太差|气死了|垃圾客服|找你们领导|找领导|受不了了|根本解决不了)"
-)
-_RESTART_RE = re.compile(r"^(重新开始|重新来过|换个话题|清空对话|开始新对话)[。.!！]?$")
-_BACK_RE = re.compile(r"^(返回上一个问题|回到上一个问题|上一个问题|返回上一题|回到刚才)[。.!！]?$")
 ORDER_RE = re.compile(
     r"(?:办事(?:单号|编号|进度)?|报修(?:单号|编号|进度)?|申请(?:单号|编号)?|"
     r"查一下(?:办事|报修|进度)|查询(?:办事(?:进度|单号|编号)?|报修(?:进度|单号)?|进度))"
@@ -161,18 +148,6 @@ ORDER_RE = re.compile(
     re.IGNORECASE,
 )
 ORDER_BARE_RE = re.compile(r"\b(SW\d{6,}|BX\d{6,}|JY\d{6,})\b", re.IGNORECASE)
-_ASPECT_RULES = (
-    ("需要什么材料", re.compile(r"材料|要准备|要带")),
-    ("在哪里办理", re.compile(r"在哪|哪里|去哪|哪个窗口")),
-    ("需要多久", re.compile(r"多久|多长时间|几天|能下来|什么时候能|何时能")),
-    ("费用是多少", re.compile(r"多少钱|费用|收费")),
-)
-_ASPECT_TOPIC_RE = re.compile(r"^(材料|多久|费用|哪里|时限|手续|流程|多久能下来|什么材料|怎么办)$")
-_FOLLOW_STRIP_RE = re.compile(
-    r"(那|么|这个|那个|请问|一下|多久|多长时间|几天|能下来|什么材料|哪些材料|要什么材料|"
-    r"需要什么材料|要准备|要带|在哪里办|在哪里|去哪|多少钱|费用|是多少|怎么|如何|办理|"
-    r"需要|什么|哪些|吗|呢|嘛|呀|啊|吧|的|了|请|帮我|想问|材料)"
-)
 
 # 演示用办事进度存根（无真实办件后台）。字段沿用本地查询结构。
 MOCK_ORDERS = {
@@ -195,130 +170,6 @@ MOCK_ORDERS = {
         "items": "在读证明 ×1",
     },
 }
-
-
-def last_user_turns(history: list | None, limit: int = 4) -> list[str]:
-    turns = []
-    for item in history or []:
-        if not isinstance(item, dict):
-            continue
-        role = (item.get("role") or "").lower()
-        text = (item.get("text") or item.get("content") or item.get("query") or "").strip()
-        if role in ("user", "human") and text:
-            turns.append(text)
-    return turns[-limit:]
-
-
-def is_restart(query: str) -> bool:
-    return bool(_RESTART_RE.match((query or "").strip()))
-
-
-def is_back(query: str) -> bool:
-    return bool(_BACK_RE.match((query or "").strip()))
-
-
-def _aspect_phrase(query: str) -> str:
-    for label, pattern in _ASPECT_RULES:
-        if pattern.search(query or ""):
-            return label
-    return ""
-
-
-def is_followup_query(query: str) -> bool:
-    """Ellipsis such as 那多久能下来 / 要什么材料, not a fresh question."""
-    q = (query or "").strip()
-    if not q or len(q) > 22 or is_restart(q) or is_back(q):
-        return False
-    if re.match(r"^(?:那|那么|还有|另外|这个|那个)?\s*[\u4e00-\u9fffA-Za-z0-9]{1,12}\s*呢[？?]?$", q):
-        return True
-    if re.match(r"^(那|那么|这个|那个|还有|另外)", q) and len(q) <= 18:
-        return True
-    if not _aspect_phrase(q):
-        return False
-    stripped = _FOLLOW_STRIP_RE.sub("", q)
-    stripped = re.sub(r"[\s？?！!。.,，]", "", stripped)
-    return len(stripped) < 2
-
-
-def _switch_topic(query: str) -> str:
-    match = re.match(
-        r"^(?:那|那么|还有|另外|这个|那个)?\s*([\u4e00-\u9fffA-Za-z0-9]{1,12})\s*呢[？?]?$",
-        (query or "").strip(),
-    )
-    if not match:
-        return ""
-    topic = match.group(1).strip()
-    if _ASPECT_TOPIC_RE.match(topic) or _aspect_phrase(topic):
-        return ""
-    return topic
-
-
-def _substantive_users(history: list | None, current: str) -> list[str]:
-    kept = []
-    for text in last_user_turns(history, 8):
-        if text == current or "已隐去" in text:
-            continue
-        if is_restart(text) or is_back(text) or is_followup_query(text):
-            continue
-        kept.append(text)
-    return kept
-
-
-def needs_query_rewrite(query: str, history: list | None) -> bool:
-    q = (query or "").strip()
-    if not q or not history:
-        return False
-    return is_followup_query(q) or is_back(q)
-
-
-def rewrite_query_for_retrieval(query: str, history: list | None) -> tuple[str, dict | None]:
-    """Keep follow-ups on the previous campus intent. No extra model call."""
-    q = (query or "").strip()
-    if is_restart(q):
-        return q, {"original": q, "rewritten": q, "method": "restart"}
-    if not is_followup_query(q) and not is_back(q):
-        return q, None
-    anchors = _substantive_users(history, q)
-    if is_back(q):
-        if not anchors:
-            return q, {"original": q, "rewritten": q, "method": "back", "missing": True}
-        target = anchors[-2] if len(anchors) >= 2 else anchors[-1]
-        return target, {
-            "original": q,
-            "rewritten": target,
-            "based_on": target[:80],
-            "method": "back",
-        }
-    if not anchors:
-        return q, None
-    prev = anchors[-1]
-    switched = _switch_topic(q)
-    if switched and switched not in prev:
-        return switched, {
-            "original": q,
-            "rewritten": switched,
-            "based_on": prev[:80],
-            "method": "topic-switch",
-        }
-    aspect = _aspect_phrase(q) or "请补充说明"
-    rewritten = f"{prev} {aspect}"
-    return rewritten, {
-        "original": q,
-        "rewritten": rewritten,
-        "based_on": prev[:80],
-        "method": "follow-up",
-    }
-
-
-def is_handoff_intent(query: str) -> bool:
-    q = query or ""
-    if re.search(r"(什么情况|什么时候|何时|如何|怎么|哪些|要不要|是否).{0,12}转\s*人工", q):
-        return False
-    if re.search(r"转\s*人工.{0,8}(什么|哪些|条件|情况)", q):
-        return False
-    if HANDOFF_RE.search(q) or ANGRY_RE.search(q):
-        return True
-    return False
 
 
 def classify_portal_intent(query: str) -> str:
@@ -748,10 +599,16 @@ class PortalHandler(SimpleHTTPRequestHandler):
             return
         task_id = (data.get("task_id") or "").strip()
         user = (data.get("user") or "nebula-portal").strip()[:64] or "nebula-portal"
-        if use_lite_mode():
-            # Lite has no upstream task; client aborts locally.
+        mode = engine_mode()
+        if mode == "lite":
             self._json_response(
                 200, {"ok": True, "stopped": True, "lite": True, "task_id": task_id}
+            )
+            return
+        if mode == "campus":
+            campus_engine.request_stop(task_id)
+            self._json_response(
+                200, {"ok": True, "stopped": True, "task_id": task_id, "engine": "campus"}
             )
             return
         if not task_id:
@@ -905,8 +762,11 @@ class PortalHandler(SimpleHTTPRequestHandler):
             return
 
     def _handle_chat(self) -> None:
-        if not use_lite_mode():
+        mode = engine_mode()
+        if mode == "dify":
             return self._handle_chat_gateway()
+        if mode == "campus":
+            return self._handle_chat_campus()
         parsed = self._parse_chat_request()
         if parsed is None:
             return
@@ -991,6 +851,59 @@ class PortalHandler(SimpleHTTPRequestHandler):
             self._json_response(200, public)
             return
         self._emit_local_agent_reply(public, True)
+
+    def _handle_chat_campus(self) -> None:
+        try:
+            data = self._read_json()
+        except ValueError as exc:
+            self._json_error(400, str(exc))
+            return
+        query = (data.get("query") or "").strip()
+        if not query:
+            self._json_error(400, "query 不能为空")
+            return
+        if len(query) > 2000:
+            self._json_error(400, "query 过长")
+            return
+        stream = data.get("stream")
+        stream = True if stream is None else bool(stream)
+        conversation_id = (data.get("conversation_id") or "").strip()
+        if classify_portal_intent(query) == "ticket":
+            shaped = lookup_mock_order(query) or {}
+            shaped["conversation_id"] = conversation_id
+            shaped["engine"] = "campus"
+            return self._emit_local_agent_reply(shaped, stream)
+        visitor = http_api.ensure_visitor(self)
+        history = data.get("history") if isinstance(data.get("history"), list) else []
+        request = {
+            "query": query,
+            "user": (data.get("user") or visitor)[:64],
+            "visitor": visitor,
+            "portal_session": str(data.get("portal_session") or "")[:80],
+            "history": history[-12:],
+            "conversation_id": conversation_id,
+        }
+        self._write_events(campus_engine.iter_events(request), stream)
+
+    def _write_events(self, events, stream: bool) -> None:
+        if not stream:
+            done = {}
+            for event in events:
+                if event.get("type") == "done":
+                    done = {key: value for key, value in event.items() if key != "type"}
+            self._json_response(200, done)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        try:
+            for event in events:
+                self._sse_write(event)
+        except (BrokenPipeError, ConnectionResetError):
+            return
 
     def _handle_chat_gateway(self) -> None:
         """Dify plus the constraint layer. The rules engine is not on this path."""
@@ -1328,7 +1241,8 @@ def main() -> None:
     server = ThreadingHTTPServer((HOST, PORT), PortalHandler)
     print(f"校园客服门户已启动 → http://{HOST}:{PORT}/", flush=True)
     print(f"静态资源：{WEB_DIR}", flush=True)
-    if use_lite_mode():
+    mode = engine_mode()
+    if mode == "lite":
         info = lite_ready()
         print(
             f"引擎：LITE FAQ（chunks={info.get('chunks')} deepseek={info.get('deepseek')}）",
@@ -1336,7 +1250,7 @@ def main() -> None:
         )
         print(f"FAQ：{info.get('faq_path')}", flush=True)
         print("Agent：query_rewrite + human_handoff + case_stub", flush=True)
-    else:
+    elif mode == "dify":
         print(f"引擎：网关约束层 → {DIFY_CHAT_URL}", flush=True)
         print("坐席 /agent · 后台 /admin · 登录 /login", flush=True)
 
@@ -1349,6 +1263,19 @@ def main() -> None:
                 time.sleep(load_config()["probe_interval_seconds"])
 
         threading.Thread(target=_probe_loop, name="kb-probe", daemon=True).start()
+    else:
+        print("引擎：自建知识库（词法检索 + 可选 DeepSeek）", flush=True)
+        print("坐席 /agent · 后台 /admin · 登录 /login", flush=True)
+
+        def _campus_probe_loop() -> None:
+            while True:
+                try:
+                    campus_engine.run_probe()
+                except Exception as exc:  # noqa: BLE001
+                    print(f"自检失败：{type(exc).__name__}", flush=True)
+                time.sleep(load_config()["probe_interval_seconds"])
+
+        threading.Thread(target=_campus_probe_loop, name="campus-probe", daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

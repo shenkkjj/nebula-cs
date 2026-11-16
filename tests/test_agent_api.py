@@ -78,8 +78,11 @@ class AgentApiTest(unittest.TestCase):
         self.assertEqual(waiting["counts"]["closed"], 1)
 
     def test_writeback_keeps_a_draft_without_dify(self) -> None:
+        previous = os.environ.get("ENGINE")
+        os.environ["ENGINE"] = "dify"
         os.environ.pop("DIFY_DATASET_API_KEY", None)
         os.environ.pop("DIFY_DATASET_ID", None)
+        self.addCleanup(lambda: os.environ.pop("ENGINE", None) if previous is None else os.environ.__setitem__("ENGINE", previous))
         agent = _user("agent1")
         status, empty = agent_api.writeback(self.ticket["public_id"], agent, "", "答")
         self.assertEqual(status, 400)

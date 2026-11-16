@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -120,6 +121,35 @@ CREATE TABLE IF NOT EXISTS feedback (
   updated_at TEXT NOT NULL,
   UNIQUE (visitor_token, message_id)
 );
+CREATE TABLE IF NOT EXISTS kb_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS kb_documents (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  source TEXT NOT NULL,
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS kb_segments (
+  id INTEGER PRIMARY KEY,
+  document_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS kb_vectors (
+  segment_id INTEGER NOT NULL,
+  model TEXT NOT NULL,
+  vector_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (segment_id, model)
+);
+CREATE INDEX IF NOT EXISTS idx_kb_segments_doc ON kb_segments(document_id);
 """
 
 
@@ -139,6 +169,19 @@ def reconnect() -> None:
             _CONN.close()
         _CONN = None
         _PATH = None
+
+
+@contextmanager
+def exclusive():
+    """Yield the shared connection and commit. Rolls back if the body raises."""
+    with _LOCK:
+        conn = connection()
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
 
 def connection() -> sqlite3.Connection:
@@ -554,6 +597,15 @@ def add_judgment(
         )
         conn.commit()
         return int(cur.lastrowid)
+
+
+def list_recent_judgments(limit: int = 40) -> list[dict]:
+    with _LOCK:
+        rows = connection().execute(
+            "SELECT * FROM judgments ORDER BY id DESC LIMIT ?",
+            (max(1, min(int(limit), 200)),),
+        ).fetchall()
+    return [_judgment(row) for row in rows]
 
 
 def list_judgments(ticket_id: int | None = None, visitor: str | None = None) -> list[dict]:

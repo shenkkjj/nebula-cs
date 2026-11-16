@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# One command for the local demo: Ollama check, Dify compose if present, then the gateway.
+# Optional old path: Ollama check, Dify compose if present, then the gateway.
+# The default product is scripts/up-campus.sh (no Dify, no Ollama).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

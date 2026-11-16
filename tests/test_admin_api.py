@@ -21,7 +21,9 @@ class AdminApiTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.prev_data = os.environ.get("DATA_DIR")
+        self.prev_engine = os.environ.get("ENGINE")
         os.environ["DATA_DIR"] = self.tmp.name
+        os.environ["ENGINE"] = "dify"
         store.reconnect()
         self.prev_config = settings.CONFIG_PATH
         settings.CONFIG_PATH = Path(self.tmp.name) / "config.json"
@@ -38,6 +40,10 @@ class AdminApiTest(unittest.TestCase):
             os.environ.pop("DATA_DIR", None)
         else:
             os.environ["DATA_DIR"] = self.prev_data
+        if self.prev_engine is None:
+            os.environ.pop("ENGINE", None)
+        else:
+            os.environ["ENGINE"] = self.prev_engine
         store.reconnect()
         self.tmp.cleanup()
 
