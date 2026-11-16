@@ -93,10 +93,10 @@ def load_api_key() -> str:
         text = key_file.read_text(encoding="utf-8").strip()
         if text:
             return text
-    if use_lite_mode():
+    if use_lite_mode() or engine_mode() == "campus":
         return ""
     print(
-        "警告：未配置 DIFY_APP_API_KEY。办事问答会进入知识库维护，直到配置密钥并自检通过。",
+        "警告：未配置 DIFY_APP_API_KEY。当前是 Dify 网关，办事问答会进入知识库维护，直到配置密钥并自检通过。",
         flush=True,
     )
     return ""

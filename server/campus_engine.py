@@ -54,6 +54,12 @@ _CN_AMOUNT_RE = re.compile(r"[零一二三四五六七八九十]{1,3}个")
 _BANNED_RE = re.compile(r"沈凯杰|王瑞康|美团|腾讯|阿里巴巴|阿里云|淘宝")
 _LEAK_RE = re.compile(r"\d+\s*个工作日|一网通办|教务处窗口|必须携带校园卡")
 _MARK_RE = re.compile(r"\[\d+\]")
+_CONTENT_RUN_RE = re.compile(r"[\u4e00-\u9fff]{2,}")
+_BASIS_RE = re.compile(r"依据：[^\n]*")
+_WRITE_LEAD_RE = re.compile(
+    r"^(?:请)?(?:帮我|给我|替我)?(?:写一份|写一个|写篇|写一篇|起草一份|草拟一份|拟一份)"
+)
+_FUNC_EDGE = "的了吗呢吧啊呀我你他她它和与或及在对把被给让向从到是有就也都还很又这那个请约可把"
 
 INTRO = (
     "你好，我是校园助手。\n\n"
@@ -350,7 +356,8 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
     if _stopped(task_id):
         return _stopped_payload(conversation_id)
 
-    if _creative(target):
+    writing = _creative(target)
+    if writing and not _mentions_admin(target):
         return _everyday(target, history, task_id, conversation_id, notices, rewrite, cfg)
 
     open_ticket = store.open_ticket(visitor, portal_session)
@@ -368,7 +375,8 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
             reason="已有未结束的人工工单",
         )
 
-    found = search(target)
+    lookup = _without_writing_lead(target) if writing else target
+    found = search(lookup)
     maintenance = _maintenance_on()
     if maintenance and _needs_kb(target, found):
         ticket = _open_or_create(visitor, portal_session, "maintenance", masked)
@@ -383,9 +391,24 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
         )
 
     if found["action"] == "answer" and found["chunks"]:
-        return _policy(found, target, history, task_id, conversation_id, notices, rewrite, cfg)
+        chunk = found["chunks"][0]
+        if not _query_fits_chunk(lookup, chunk):
+            return _clarify(
+                [chunk],
+                conversation_id,
+                notices,
+                rewrite,
+                "问句里有这条标题没有写到的字，先确认是不是这一件。",
+            )
+        payload = _policy(found, lookup, history, task_id, conversation_id, notices, rewrite, cfg)
+        if writing:
+            payload["answer"] = "这件办事我按知识库说，不另写一份正式文书。\n\n" + payload["answer"]
+            payload["reason"] = "写作请求里点到了办事条目，改按知识库回答"
+        return payload
     if found["action"] == "clarify" and found["chunks"]:
         return _clarify(found["chunks"], conversation_id, notices, rewrite, "有几条都像，先选一条。")
+    if writing:
+        return _everyday(target, history, task_id, conversation_id, notices, rewrite, cfg)
 
     bare = _BARE_CLARIFY.get(_norm(target))
     if bare is not None:
@@ -550,11 +573,14 @@ def _accept_policy(answer: str, source: str) -> bool:
         return False
     if any(phrase in text for phrase in ("知识库里没有", "不能编", "没有这条")):
         return False
-    visible = _MARK_RE.sub("", text)
+    visible = _BASIS_RE.sub("", _MARK_RE.sub("", text))
     if set(_NUM_RE.findall(visible)) - set(_NUM_RE.findall(source)):
         return False
     if set(_CN_AMOUNT_RE.findall(visible)) - set(_CN_AMOUNT_RE.findall(source)):
         return False
+    for run in _content_runs(visible):
+        if run not in source:
+            return False
     return True
 
 
@@ -830,6 +856,41 @@ def _creative(query: str) -> bool:
     if not _CREATIVE_RE.search(query or ""):
         return False
     return _HARD_ADMIN_RE.search(query or "") is None
+
+
+def _mentions_admin(query: str) -> bool:
+    return bool(_ADMIN_RE.search(query or "") or _policy_query(query))
+
+
+def _without_writing_lead(query: str) -> str:
+    stripped = _WRITE_LEAD_RE.sub("", query or "").strip()
+    return stripped or query
+
+
+def _content_runs(text: str) -> list[str]:
+    runs: list[str] = []
+    for raw in _CONTENT_RUN_RE.findall(text or ""):
+        run = raw.strip(_FUNC_EDGE)
+        if len(run) >= 2:
+            runs.append(run)
+    return runs
+
+
+def _query_fits_chunk(query: str, chunk) -> bool:
+    """Short queries must not add a character the matched segment never uses.
+
+    Longer questions are left to the lexical index. A follow-up such as
+    「在读证明如何办理？ 需要多久」asks about a segment that does not contain 多久.
+    """
+    chars = [
+        char
+        for char in norm_key(query)
+        if "\u4e00" <= char <= "\u9fff" and char not in _FUNC_EDGE
+    ]
+    if len(chars) > 4:
+        return True
+    blob = norm_key(f"{chunk.title}\n{chunk.answer}")
+    return all(char in blob for char in chars)
 
 
 def _policy_query(query: str) -> bool:

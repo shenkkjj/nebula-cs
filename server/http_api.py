@@ -367,6 +367,10 @@ def _admin_post(handler, path: str, user: dict) -> bool:
     if path == "/api/admin/documents":
         _upload(handler, user)
         return True
+    if path == "/api/admin/documents/reseed":
+        status, payload = admin_api.reimport_sample(user)
+        handler._json_response(status, payload)
+        return True
     if path == "/api/admin/segments":
         _save_segment(handler, user, "")
         return True
