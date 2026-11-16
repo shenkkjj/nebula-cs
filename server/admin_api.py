@@ -436,6 +436,20 @@ def _latest_results() -> list[dict]:
     return found
 
 
+def reimport_sample(user: dict) -> tuple[int, dict]:
+    if engine_mode() != "campus":
+        return 400, {"ok": False, "error": "重新导入样例只在自建知识库里。"}
+    result = kb_store.reimport_sample()
+    store.add_audit(
+        "reseed",
+        actor=user["username"],
+        decision="已在库中" if result.get("already") else "重新导入样例",
+        source=kb_store.SAMPLE_NAME,
+        detail={"document_id": result.get("id") or ""},
+    )
+    return 200, result
+
+
 def document_detail(document_id: str) -> tuple[int, dict]:
     if engine_mode() != "campus":
         return 400, {"ok": False, "error": "分段编辑只在自建知识库里。"}

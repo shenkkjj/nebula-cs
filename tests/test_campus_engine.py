@@ -24,6 +24,10 @@ import kb_store
 import store
 
 
+def self_user() -> dict:
+    return {"user_id": 1, "username": "admin", "display_name": "陈老师", "role": "admin"}
+
+
 class CampusEngineTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -203,6 +207,66 @@ class CampusEngineTest(unittest.TestCase):
         probe = campus_engine.run_probe()
         self.assertTrue(probe["ok"])
         self.assertEqual(len(probe["checks"]), 3)
+
+    def test_model_cannot_invent_a_place(self) -> None:
+        source = "电子版约 3 个工作日，在一网通办申请"
+        invented = "请到教务处西门地下室窗口领取，记得带导师签字。[1]"
+        self.assertFalse(campus_engine._accept_policy(invented, source))
+        self.assertTrue(
+            campus_engine._accept_policy("电子版约 3 个工作日，在一网通办申请。[1]", source)
+        )
+        os.environ["DEEPSEEK_API_KEY"] = "test-key-not-sent"
+        original = campus_engine._complete
+        campus_engine._complete = lambda *_args, **_kwargs: invented
+        try:
+            result = campus_engine.answer("在读证明如何办理？")
+        finally:
+            campus_engine._complete = original
+        self.assertNotIn("西门", result["answer"])
+        self.assertNotIn("导师", result["answer"])
+        self.assertIn("一网通办", result["answer"])
+        self.assertEqual(result["generator"], "template")
+
+    def test_writing_a_campus_document_uses_the_knowledge_base(self) -> None:
+        certificate = campus_engine.answer("帮我写一份在读证明")
+        self.assertEqual(certificate["agent_action"], "clarify")
+        self.assertEqual(certificate["citations"], [])
+        labels = " ".join(item["label"] for item in certificate["suggestions"])
+        self.assertIn("在读证明如何办理", labels)
+        self.assertNotIn("DEEPSEEK_API_KEY", certificate["answer"])
+        picked = campus_engine.answer("在读证明如何办理？")
+        self.assertIn("一网通办", picked["answer"])
+        self.assertTrue(picked["citations"])
+        party = campus_engine.answer("帮我写一份入党申请书")
+        self.assertEqual(party["citations"], [])
+        self.assertNotEqual(party["intent"], "campus_faq")
+        poem = campus_engine.answer("帮我写一首短诗")
+        self.assertEqual(poem["citations"], [])
+        self.assertEqual(poem["intent"], "needs_model")
+
+    def test_short_query_with_an_extra_character_asks_first(self) -> None:
+        result = campus_engine.answer("自习室")
+        self.assertEqual(result["agent_action"], "clarify")
+        self.assertEqual(result["citations"], [])
+        labels = " ".join(item["label"] for item in result["suggestions"])
+        self.assertIn("自习座位", labels)
+        self.assertNotIn("4 小时", result["answer"])
+
+    def test_deleted_sample_can_be_imported_again(self) -> None:
+        import admin_api
+
+        docs = kb_store.list_documents()
+        seed = next(item for item in docs if item["source_key"] == "seed")
+        self.assertTrue(kb_store.delete_document(seed["id"]))
+        self.assertFalse(any(item["source_key"] == "seed" for item in kb_store.list_documents()))
+        status, payload = admin_api.reimport_sample(self_user())
+        self.assertEqual(status, 200)
+        self.assertFalse(payload["already"])
+        again = campus_engine.answer("在读证明如何办理？")
+        self.assertEqual(again["matched_title"], "在读证明如何办理？")
+        status, second = admin_api.reimport_sample(self_user())
+        self.assertEqual(status, 200)
+        self.assertTrue(second["already"])
 
     def test_model_cannot_invent_a_number(self) -> None:
         os.environ["DEEPSEEK_API_KEY"] = "test-key-not-sent"

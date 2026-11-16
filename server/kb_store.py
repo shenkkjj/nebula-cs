@@ -73,6 +73,28 @@ def _insert_sample(conn) -> int:
     return document_id
 
 
+def reimport_sample() -> dict:
+    """Put the sample FAQ back when that seed document is missing or empty."""
+    ensure_seeded()
+    with store.exclusive() as conn:
+        row = conn.execute(
+            "SELECT id FROM kb_documents WHERE name = ? AND source = 'seed' ORDER BY id ASC LIMIT 1",
+            (SAMPLE_NAME,),
+        ).fetchone()
+        if row is not None:
+            count = conn.execute(
+                "SELECT COUNT(*) AS n FROM kb_segments WHERE document_id = ? AND enabled = 1",
+                (row["id"],),
+            ).fetchone()["n"]
+            if count:
+                return {"ok": True, "already": True, "id": str(row["id"])}
+            conn.execute("DELETE FROM kb_segments WHERE document_id = ?", (row["id"],))
+            conn.execute("DELETE FROM kb_documents WHERE id = ?", (row["id"],))
+        document_id = _insert_sample(conn)
+    _bump()
+    return {"ok": True, "already": False, "id": str(document_id)}
+
+
 def stats() -> dict:
     ensure_seeded()
     with store.exclusive() as conn:

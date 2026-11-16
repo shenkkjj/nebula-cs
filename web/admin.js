@@ -97,11 +97,17 @@
     return data;
   }
 
-  async function loadSegments() {
+  let pendingSegmentId = "";
+
+  async function loadSegments(preferredId) {
     const select = document.getElementById("segmentDoc");
-    const wanted = select && select.value;
+    const wanted = preferredId || pendingSegmentId || (select && select.value) || "";
+    pendingSegmentId = "";
     const data = await loadSegmentDocs(wanted);
     if (!data || data.engine !== "campus") return;
+    if (wanted && [...select.options].some((opt) => opt.value === String(wanted))) {
+      select.value = String(wanted);
+    }
     const id = (select && select.value) || (data.documents[0] && data.documents[0].id);
     if (!id) {
       document.getElementById("segmentBody").innerHTML = '<tr><td colspan="3">还没有文档。</td></tr>';
@@ -316,10 +322,9 @@
   document.getElementById("docsBody").addEventListener("click", async (event) => {
     const open = event.target.closest("[data-open]");
     if (open) {
-      location.hash = "segments";
-      const select = document.getElementById("segmentDoc");
-      if (select) select.value = open.dataset.open;
-      show("segments");
+      pendingSegmentId = open.dataset.open;
+      if (location.hash === "#segments") loadSegments(pendingSegmentId);
+      else location.hash = "segments";
       return;
     }
     const button = event.target.closest("[data-del]");
@@ -327,6 +332,18 @@
     if (!confirm("删除这篇文档？")) return;
     await api("/api/admin/documents/" + encodeURIComponent(button.dataset.del), { method: "DELETE" });
     loadDocs();
+  });
+  document.getElementById("btnReseed").addEventListener("click", async () => {
+    const status = document.getElementById("uploadStatus");
+    status.hidden = false;
+    status.textContent = "正在导入样例…";
+    try {
+      const data = await api("/api/admin/documents/reseed", { method: "POST" });
+      status.textContent = data.already ? "样例文档还在，没有重复导入。" : "已重新导入样例 FAQ。";
+      loadDocs();
+    } catch (err) {
+      status.textContent = err.message;
+    }
   });
   document.getElementById("btnEmbed").addEventListener("click", async () => {
     const status = document.getElementById("uploadStatus");
