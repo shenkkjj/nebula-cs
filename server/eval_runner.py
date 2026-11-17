@@ -10,6 +10,7 @@ import json
 import time
 from pathlib import Path
 
+from engine_mode import engine_mode
 from settings import ROOT
 
 RESULTS_DIR = ROOT / "results"
@@ -268,6 +269,80 @@ def isolation_fields(item: dict, group: str) -> dict:
     }
 
 
+def answer_group_b_campus(item: dict) -> dict:
+    """Knowledge-base text with no constraint gate. Empty retrieval is not a refusal.
+
+    Scores come only from this run. An empty hit is left unanswered, not filled
+    in with a passing refusal or a made-up campus rule.
+    """
+    from followup import rewrite_query_for_retrieval
+    from kb_retrieve import search
+
+    question = item.get("question") or ""
+    history = list(item.get("history") or [])
+    rewritten, meta = rewrite_query_for_retrieval(question, history)
+    started = time.perf_counter()
+    found = search(rewritten or question)
+    elapsed = int((time.perf_counter() - started) * 1000)
+    chunks = list(found.get("chunks") or [])
+    scores = list(found.get("scores") or [])
+    citations = []
+    retrieval = []
+    for index, chunk in enumerate(chunks):
+        score = scores[index] if index < len(scores) else None
+        citations.append(
+            {
+                "document_name": chunk.document_name,
+                "document_id": chunk.document_name,
+                "title": chunk.title,
+                "content": chunk.content or "",
+                "score": score,
+                "segment_id": chunk.id,
+            }
+        )
+        retrieval.append(
+            {
+                "title": chunk.title,
+                "content": chunk.content or "",
+                "document_name": chunk.document_name,
+            }
+        )
+    action = found.get("action") or "none"
+    if action == "clarify" and chunks:
+        suggestions = [{"label": chunk.title, "query": chunk.question} for chunk in chunks[:3]]
+        return {
+            "answer": "有几条都像，先选一条。",
+            "citations": citations,
+            "retrieval": retrieval,
+            "matched_title": None,
+            "refuse": False,
+            "agent_action": "clarify",
+            "clarify": True,
+            "suggestions": suggestions,
+            "latency_ms": elapsed,
+            "first_token_ms": elapsed,
+            "rewrite": meta,
+        }
+    answer = ""
+    matched = None
+    if action == "answer" and chunks:
+        answer = chunks[0].answer or chunks[0].content or ""
+        matched = chunks[0].title
+    return {
+        "answer": answer,
+        "citations": citations if action == "answer" else [],
+        "retrieval": retrieval,
+        "matched_title": matched,
+        "refuse": False,
+        "agent_action": "kb_direct",
+        "clarify": False,
+        "suggestions": [],
+        "latency_ms": elapsed,
+        "first_token_ms": elapsed,
+        "rewrite": meta,
+    }
+
+
 def answer_group_b(item: dict, client) -> dict:
     fields = isolation_fields(item, "B")
     raw = client.chat(_eval_query(item), user=fields["user"], conversation_id="")
@@ -285,24 +360,28 @@ def answer_group_b(item: dict, client) -> dict:
 
 
 def answer_group_c(item: dict) -> dict:
-    from gateway import run_chat
     import store
 
     probe = store.latest_probe()
     if probe is None or not probe.get("ok"):
         raise RuntimeError("知识库自检未通过，C 组不记分。先让探针变绿，再跑评测。")
     fields = isolation_fields(item, "C")
-    outcome = run_chat(
-        {
-            "query": fields["query"],
-            "history": fields["history"],
-            "user": fields["user"],
-            "visitor": fields["visitor"],
-            "portal_session": fields["portal_session"],
-            "conversation_id": fields["conversation_id"],
-        }
-    )
-    return outcome
+    request = {
+        "query": fields["query"],
+        "history": fields["history"],
+        "user": fields["user"],
+        "visitor": fields["visitor"],
+        "portal_session": fields["portal_session"],
+        "conversation_id": fields["conversation_id"],
+    }
+    if engine_mode() == "campus":
+        # Loaded on the call so importing the scorer does not open the campus database.
+        import campus_engine
+
+        return campus_engine.answer(request)
+    from gateway import run_chat
+
+    return run_chat(request)
 
 
 def run_group(dataset_path: Path, group: str, limit: int = 0, progress=None) -> dict:
@@ -389,6 +468,8 @@ def _runner(group: str):
     if chosen == "A":
         return answer_group_a
     if chosen == "B":
+        if engine_mode() == "campus":
+            return answer_group_b_campus
         from dify_client import DifyClient
 
         client = DifyClient()
@@ -422,7 +503,14 @@ def _group_note(group: str) -> str:
     if group == "A":
         return "A 组是改造前规则引擎（git 标签 baseline-rules 的 lite_engine 与查询改写），本机直接调用，没有模型。"
     if group == "B":
+        if engine_mode() == "campus":
+            return (
+                "B 组是知识库直出：检索到的原文直接作答，不经过引用阈值、空检索拒答和按文档合并。"
+                "没有生成模型时不会编造答案；空检索记为未拒答。数字只来自这次运行。"
+            )
         return "B 组是 Dify 直出，不经过引用校验、空检索拦截和按文档合并。"
+    if engine_mode() == "campus":
+        return "C 组是当前自建校园引擎。校规只来自知识库，库外问题拒答。数字只来自这次运行。"
     return "C 组是当前网关加约束层。知识库目前是单个文件，Hit@3 按检索片段是否含期望条目标题计算。"
 
 

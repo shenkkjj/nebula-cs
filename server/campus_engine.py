@@ -14,6 +14,7 @@ import time
 import urllib.error
 import urllib.request
 
+from constraints import merge_citations
 from followup import is_back, is_handoff_intent, is_restart, rewrite_query_for_retrieval
 import chroma_store
 from kb_retrieve import embedding_config, search
@@ -449,9 +450,32 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
     return _everyday(target, history, task_id, conversation_id, notices, rewrite, cfg)
 
 
+def cards_for_chunks(pairs: list, max_cards: int = 3) -> list[dict]:
+    """One card per document. The highest score stays open; the rest fold."""
+    resources = []
+    titles: dict[str, str] = {}
+    for chunk, score in pairs:
+        shown = _display_score(float(score or 0))
+        resources.append(
+            {
+                "document_name": chunk.document_name,
+                "dataset_name": chunk.dataset_name,
+                "segment_id": str(chunk.id),
+                "score": shown,
+                "content": (chunk.content or "")[:480],
+            }
+        )
+        titles[str(chunk.id)] = chunk.title
+    limit = max_cards if max_cards > 0 else 3
+    cards = merge_citations(resources, max_cards=limit)
+    for index, card in enumerate(cards, start=1):
+        card["mark"] = index
+        card["title"] = titles.get(str(card.get("segment_id") or ""), "")
+    return cards
+
+
 def _policy(found: dict, query: str, history: list, task_id: str, conversation_id: str, notices: list, rewrite, cfg: dict) -> dict:
     chunk = found["chunks"][0]
-    score = found["scores"][0] if found["scores"] else 1.0
     template = _policy_text(chunk)
     text = template
     generator = "template"
@@ -468,17 +492,12 @@ def _policy(found: dict, query: str, history: list, task_id: str, conversation_i
         if model and _accept_policy(model, source):
             text = model if "依据：" in model else model.rstrip() + f"\n\n依据：{chunk.document_name} · {chunk.title}"
             generator = "deepseek"
-    citations = [
-        {
-            "document_name": chunk.document_name,
-            "dataset_name": chunk.dataset_name,
-            "score": _display_score(score),
-            "content": chunk.content[:480],
-            "segment_id": chunk.id,
-            "mark": 1,
-            "title": chunk.title,
-        }
-    ]
+    scores = list(found.get("scores") or [])
+    pairs = []
+    for index, item in enumerate(found.get("chunks") or []):
+        pairs.append((item, scores[index] if index < len(scores) else 1.0))
+    limit = int(cfg.get("max_citations") or 3)
+    citations = cards_for_chunks(pairs, max_cards=limit)
     return _base(
         text,
         action="knowledge_qa",

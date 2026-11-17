@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "server"))
 
 import eval_runner
+import store
 from eval_runner import agreement, isolation_fields, load_dataset, score_item, summarize
 from faq_meta import by_title
 
@@ -161,6 +162,121 @@ class DatasetAndGroupATest(unittest.TestCase):
         saved = json.loads(Path(payload["path"]).read_text(encoding="utf-8"))
         self.assertEqual(saved["count"], 3)
         self.assertNotIn("DEEPSEEK_API_KEY", json.dumps(saved))
+
+    def test_group_b_campus_is_retrieval_direct_and_does_not_invent_a_pass(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        prev_data = os.environ.get("DATA_DIR")
+        prev_engine = os.environ.get("ENGINE")
+        prev_key = os.environ.get("DIFY_APP_API_KEY")
+        os.environ["DATA_DIR"] = tmp.name
+        os.environ["ENGINE"] = "campus"
+        os.environ["DIFY_APP_API_KEY"] = ""
+        store.reconnect()
+        dataset = Path(tmp.name) / "b-smoke.json"
+        dataset.write_text(
+            json.dumps(
+                {
+                    "set": "b-smoke",
+                    "items": [
+                        {
+                            "id": "in",
+                            "type": "in_scope",
+                            "question": "在读证明如何办理？",
+                            "expected_title": "在读证明如何办理？",
+                            "expected_facts": ["一网通办"],
+                        },
+                        {
+                            "id": "out",
+                            "type": "out_of_scope",
+                            "question": "怎么请病假？",
+                            "expected_title": "",
+                        },
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        prev = eval_runner.RESULTS_DIR
+        eval_runner.RESULTS_DIR = Path(tmp.name) / "results"
+        self.addCleanup(setattr, eval_runner, "RESULTS_DIR", prev)
+
+        def restore() -> None:
+            if prev_data is None:
+                os.environ.pop("DATA_DIR", None)
+            else:
+                os.environ["DATA_DIR"] = prev_data
+            if prev_engine is None:
+                os.environ.pop("ENGINE", None)
+            else:
+                os.environ["ENGINE"] = prev_engine
+            if prev_key is None:
+                os.environ.pop("DIFY_APP_API_KEY", None)
+            else:
+                os.environ["DIFY_APP_API_KEY"] = prev_key
+            store.reconnect()
+
+        self.addCleanup(restore)
+        payload = eval_runner.run_group(dataset, "B")
+        self.assertTrue(payload["ran"])
+        self.assertIn("知识库直出", payload["note"])
+        self.assertNotIn("达标", payload["note"])
+        by_id = {row["id"]: row for row in payload["items"]}
+        self.assertIn("一网通办", by_id["in"]["answer"])
+        self.assertFalse(by_id["out"]["pass"])
+        self.assertNotEqual(payload["metrics"]["out_of_scope_refusal"], 1)
+
+    def test_group_c_campus_scores_the_self_built_engine(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        prev_data = os.environ.get("DATA_DIR")
+        prev_engine = os.environ.get("ENGINE")
+        os.environ["DATA_DIR"] = tmp.name
+        os.environ["ENGINE"] = "campus"
+        store.reconnect()
+        import campus_engine
+
+        campus_engine.run_probe()
+        dataset = Path(tmp.name) / "c-smoke.json"
+        dataset.write_text(
+            json.dumps(
+                {
+                    "set": "c-smoke",
+                    "items": [
+                        {
+                            "id": "in",
+                            "type": "in_scope",
+                            "question": "在读证明如何办理？",
+                            "expected_title": "在读证明如何办理？",
+                            "expected_facts": ["一网通办"],
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        prev = eval_runner.RESULTS_DIR
+        eval_runner.RESULTS_DIR = Path(tmp.name) / "results"
+        self.addCleanup(setattr, eval_runner, "RESULTS_DIR", prev)
+
+        def restore() -> None:
+            if prev_data is None:
+                os.environ.pop("DATA_DIR", None)
+            else:
+                os.environ["DATA_DIR"] = prev_data
+            if prev_engine is None:
+                os.environ.pop("ENGINE", None)
+            else:
+                os.environ["ENGINE"] = prev_engine
+            store.reconnect()
+
+        self.addCleanup(restore)
+        payload = eval_runner.run_group(dataset, "C")
+        self.assertIn("自建校园引擎", payload["note"])
+        self.assertIn("一网通办", payload["items"][0]["answer"])
+        self.assertIn("in_scope_accuracy", payload["metrics"])
 
 
 if __name__ == "__main__":

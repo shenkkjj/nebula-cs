@@ -16,13 +16,13 @@
       <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role">管理后台</span></div>
       <nav>
         <a class="item" href="#docs" data-nav="docs">知识库文档</a>
-        <a class="item" href="#segments" data-nav="segments">分段</a>
-        <a class="item" href="#handoffs" data-nav="handoffs">会话与转人工</a>
         <a class="item" href="#probe" data-nav="probe">绑定自检</a>
-        <a class="item" href="#feedback" data-nav="feedback">用户评价</a>
         <a class="item" href="#audit" data-nav="audit">审计日志</a>
         <a class="item" href="#config" data-nav="config">约束参数</a>
         <a class="item" href="#eval" data-nav="eval">评测</a>
+        <a class="item" href="#segments" data-nav="segments">分段</a>
+        <a class="item" href="#handoffs" data-nav="handoffs">会话与转人工</a>
+        <a class="item" href="#feedback" data-nav="feedback">用户评价</a>
       </nav>
       <div class="rail-foot">
         <span class="who" id="who">管理员</span>
@@ -105,7 +105,7 @@
       </section>
       <section data-page="eval" hidden>
         <div class="page-head">
-          <div><h1 class="page-title">评测</h1><p class="page-sub">只显示这次环境里真正跑出来的数字。没有跑过的组保持空白。期望证据片段是附加观察，不改变 A、B、C 是否通过。</p></div>
+          <div><h1 class="page-title">评测</h1><p class="page-sub">只显示这次跑出来的数字。没跑的组保持「未运行」。B 组是知识库直出，不经过约束层，不会填一个没跑出来的达标。</p></div>
           <div class="top-actions">
             <label class="sr-only" for="evalSet">数据集</label>
             <select class="select" id="evalSet"></select>

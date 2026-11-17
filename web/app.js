@@ -76,6 +76,8 @@
     messages: [], // {role, text, refuse?, suggestions?}
     historyCutoff: 0,
     ticketId: "",
+    agentLive: false,
+    agentName: "",
     maintenance: false,
     seenServerIds: {},
   };
@@ -95,7 +97,9 @@
   }
 
   function setStatus(text) {
-    if (el.statusText) el.statusText.textContent = text;
+    if (!el.statusText) return;
+    el.statusText.textContent = text;
+    el.statusText.classList.remove("warn");
   }
 
   function escapeHtml(s) {
@@ -390,7 +394,8 @@
     if (!el.noticeBar || !el.onlinePill) return;
     if (!on) {
       el.noticeBar.hidden = true;
-      if (!state.ticketId) {
+      if (el.statusText) el.statusText.classList.remove("warn");
+      if (!state.agentLive && el.onlinePill.textContent === "知识库维护中") {
         el.onlinePill.textContent = "助手在线";
         el.onlinePill.classList.remove("warn");
       }
@@ -400,6 +405,23 @@
     el.noticeBar.innerHTML = "<strong>知识库维护中</strong>机器人暂时不能回答办事问题。你的提问会登记给坐席，上线后回复。";
     el.onlinePill.textContent = "知识库维护中";
     el.onlinePill.classList.add("warn");
+    if (el.statusText) {
+      el.statusText.textContent = "知识库维护中 · 机器人暂停回答办事问题";
+      el.statusText.classList.add("warn");
+    }
+  }
+
+  function showAgentLive() {
+    if (!state.ticketId || state.maintenance) return;
+    if (el.onlinePill) {
+      el.onlinePill.textContent = "人工接入中";
+      el.onlinePill.classList.remove("warn");
+    }
+    if (el.statusText) {
+      const who = state.agentName ? state.agentName + " · " : "";
+      el.statusText.textContent = who + "人工接入中 · 工单 " + state.ticketId;
+      el.statusText.classList.remove("warn");
+    }
   }
 
   function noteTurn(data) {
@@ -702,7 +724,8 @@
     box.setAttribute("role", "group");
     box.classList.toggle("clarify-opts", !!clarify);
     box.setAttribute("aria-label", clarify ? "澄清选项" : "可选问题");
-    suggestions.forEach((item) => {
+    const items = clarify ? suggestions.slice(0, 3) : suggestions;
+    items.forEach((item) => {
       const label = (item && (item.label || item.query)) || "";
       const q = (item && (item.query || item.label)) || "";
       if (!q) return;
@@ -728,27 +751,97 @@
     return next === raw ? null : next;
   }
 
-  function renderCitations(citations) {
-    if (!citations || !citations.length) {
+  function groupCitations(citations) {
+    const groups = [];
+    const index = new Map();
+    (citations || []).forEach((raw, order) => {
+      if (!raw || typeof raw !== "object") return;
+      const key = String(raw.document_id || raw.document_name || "doc-" + order);
+      let group = index.get(key);
+      if (!group) {
+        group = {
+          document_name: raw.document_name || "文档",
+          dataset_name: raw.dataset_name || "知识库",
+          segments: [],
+        };
+        index.set(key, group);
+        groups.push(group);
+      }
+      const incoming = [
+        {
+          content: raw.content || "",
+          score: typeof raw.score === "number" ? raw.score : -1,
+          title: raw.title || "",
+          mark: Number(raw.mark) || 0,
+        },
+      ];
+      (raw.segments || []).forEach((seg) => {
+        if (!seg || typeof seg !== "object") return;
+        incoming.push({
+          content: seg.content || "",
+          score: typeof seg.score === "number" ? seg.score : -1,
+          title: seg.title || "",
+          mark: Number(seg.mark) || 0,
+        });
+      });
+      incoming.forEach((piece) => {
+        if (!piece.content) return;
+        if (group.segments.some((item) => item.content === piece.content)) return;
+        group.segments.push(piece);
+      });
+    });
+    groups.forEach((group) => {
+      group.segments.sort((a, b) => b.score - a.score);
+    });
+    groups.sort((a, b) => {
+      const left = a.segments[0] ? a.segments[0].score : -1;
+      const right = b.segments[0] ? b.segments[0].score : -1;
+      return right - left;
+    });
+    return groups;
+  }
+
+  function renderCitations(citations, mode) {
+    if (mode === "human") {
+      el.citeList.innerHTML = `
+        <div class="cite-empty">
+          <p>人工客服的回答不附引用</p>
+        </div>`;
+      return;
+    }
+    if (mode === "maintenance") {
+      el.citeList.innerHTML = `
+        <div class="cite-empty">
+          <p>维护期间暂无引用</p>
+        </div>`;
+      return;
+    }
+    const groups = groupCitations(citations);
+    if (!groups.length) {
       el.citeList.innerHTML = `
         <div class="cite-empty">
           <p>本轮未返回检索片段。若回答提示转人工，请使用右上角「转人工」。</p>
         </div>`;
       return;
     }
-    el.citeList.innerHTML = citations
-      .map((c, i) => {
+    el.citeList.innerHTML = groups
+      .map((group, i) => {
+        const primary = group.segments[0] || { content: "", score: -1, title: "", mark: 0 };
         const score =
-          typeof c.score === "number" ? (c.score * 100).toFixed(1) + "%" : "—";
-        const snip = c.content || "";
+          typeof primary.score === "number" && primary.score >= 0
+            ? (primary.score * 100).toFixed(1) + "%"
+            : "—";
+        const snip = primary.content || "";
         const preview = snip.replace(/\s+/g, " ").slice(0, 64);
-        const mark = Number(c.mark) || i + 1;
+        const mark = Number(primary.mark) || i + 1;
+        const rest = group.segments.slice(1);
+        const heading = primary.title && primary.title !== group.document_name ? " · " + primary.title : "";
         return `<article class="cite-card" data-idx="${mark - 1}" tabindex="0" role="button" aria-expanded="false">
-          <div class="doc"><span>${escapeHtml(c.document_name || "文档")}</span><span class="score">${score}</span></div>
-          <div class="meta"><span>${escapeHtml(c.dataset_name || "知识库")} · #${mark}</span><span class="chev">▶ 展开</span></div>
+          <div class="doc"><span>${escapeHtml(group.document_name || "文档")}</span><span class="score">${score}</span></div>
+          <div class="meta"><span>${escapeHtml(group.dataset_name || "知识库")}${escapeHtml(heading)} · #${mark}</span><span class="chev">▶ 展开</span></div>
           ${preview ? `<div class="snip-preview">${escapeHtml(preview)}${snip.length > 64 ? "…" : ""}</div>` : ""}
           <div class="snip">${escapeHtml(snip) || "（无原文片段）"}</div>
-          ${(c.segments || []).slice(1).map((seg) => `<div class="snip-more">${escapeHtml((seg.content || "").slice(0, 800))}</div>`).join("")}
+          ${rest.map((seg) => `<div class="snip-more">${escapeHtml((seg.content || "").slice(0, 800))}</div>`).join("")}
         </article>`;
       })
       .join("");
@@ -767,6 +860,20 @@
         }
       });
     });
+  }
+
+  function applyPortalChrome(data, citations) {
+    if (data && data.maintenance) {
+      showMaintenance(true);
+      renderCitations([], "maintenance");
+      return;
+    }
+    if (state.agentLive) {
+      showAgentLive();
+      renderCitations([], "human");
+      return;
+    }
+    renderCitations(citations || []);
   }
 
   function buildChips() {
@@ -930,8 +1037,8 @@
           state.historyCutoff = state.messages.length;
           state.conversationId = "";
         }
-        renderCitations(data.citations || []);
-        if (handoff) {
+        const cardCount = groupCitations(data.citations || []).length;
+        if (handoff && !data.maintenance) {
           setStatus("已登记 · 工单 " + (data.ticket_id || "") + " · 坐席上线后回复");
         } else if (data.agent_action === "order_lookup") {
           setStatus(data.order_found ? "办事进度已查出 · 演示存根" : "办事单未找到 · 可转人工");
@@ -949,10 +1056,11 @@
           setStatus(
             refuse
               ? "这件事我做不了 · 可以换个问法或转人工"
-              : `回答完成 · ${(data.citations || []).length} 条引用（非流式）` +
+              : `回答完成 · ${cardCount} 条引用（非流式）` +
                 (data.rewrite ? " · 已改写" : "")
           );
         }
+        applyPortalChrome(data, data.citations || []);
         persistCurrentSession();
         return;
       }
@@ -1043,8 +1151,9 @@
         state.historyCutoff = state.messages.length;
         state.conversationId = "";
       }
-      renderCitations(citations);
-      if (handoff) {
+      const cardCount = groupCitations(citations).length;
+      const maintaining = !!(finalPayload && finalPayload.maintenance);
+      if (handoff && !maintaining) {
         setStatus(
           "已登记 · 工单 " + ((finalPayload && finalPayload.ticket_id) || "") + " · 坐席上线后回复"
         );
@@ -1068,10 +1177,11 @@
         setStatus(
           refuse
             ? "这件事我做不了 · 可以换个问法或转人工"
-            : `回答完成 · ${citations.length} 条引用 · 流式` +
+            : `回答完成 · ${cardCount} 条引用 · 流式` +
               (finalPayload && finalPayload.rewrite ? " · 已改写" : "")
         );
       }
+      applyPortalChrome(finalPayload, citations);
       persistCurrentSession();
     } catch (err) {
       if (err && err.name === "AbortError") {
@@ -1194,16 +1304,16 @@
       const res = await fetch("/api/portal/state?session=" + encodeURIComponent(state.sessionId));
       if (!res.ok) return;
       const data = await res.json();
+      state.agentLive = !!(data.ticket && data.ticket.status === "active");
+      state.agentName = (data.ticket && data.ticket.assignee_name) || "";
+      if (data.ticket && data.ticket.public_id) state.ticketId = data.ticket.public_id;
       showMaintenance(!!data.maintenance);
-      if (data.ticket && data.ticket.status !== "closed") {
-        state.ticketId = data.ticket.public_id;
-        if (data.ticket.status === "active" && el.onlinePill && !data.maintenance) {
-          el.onlinePill.textContent = "人工接入中";
-          el.onlinePill.classList.remove("warn");
-        }
-        if (el.statusText) {
-          const who = data.ticket.assignee_name ? data.ticket.assignee_name + " 接入中 · " : "";
-          el.statusText.textContent = who + "工单 " + data.ticket.public_id;
+      if (!data.maintenance && state.agentLive) showAgentLive();
+      else if (!data.maintenance && el.onlinePill && el.onlinePill.textContent === "人工接入中") {
+        el.onlinePill.textContent = "助手在线";
+        el.onlinePill.classList.remove("warn");
+        if (el.statusText && state.ticketId) {
+          el.statusText.textContent = "工单 " + state.ticketId + " 已结束，可以继续问校园助手";
         }
       }
       let added = false;
@@ -1216,6 +1326,7 @@
             who: (msg.author || "人工客服") + " · 人工客服",
           });
           state.messages.push({ role: "agent", text: msg.body, author: msg.author || "人工客服", serverId: msg.id });
+          renderCitations([], "human");
           added = true;
         } else if (msg.role === "system") {
           appendSystem(msg.body);

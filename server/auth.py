@@ -65,7 +65,7 @@ def require_user(handler, roles: tuple[str, ...]) -> dict | None:
     return user
 
 
-def login(username: str, password: str) -> dict:
+def login(username: str, password: str, expected_role: str = "") -> dict:
     name = (username or "").strip()
     user = store.get_user_by_name(name) if name else None
     if user and user.get("locked_until") and str(user["locked_until"]) > store.now():
@@ -83,6 +83,16 @@ def login(username: str, password: str) -> dict:
                 return {"ok": False, "status": 429, "error": "已连续输错 5 次，请 5 分钟后再试。"}
         store.add_audit("login", actor=name or "未知", decision="失败", detail={"ok": False})
         return {"ok": False, "status": 401, "error": "账号或密码不对"}
+    wanted = (expected_role or "").strip()
+    if wanted and wanted != user["role"]:
+        label = "管理员" if wanted == "admin" else "坐席" if wanted == "agent" else "所选身份"
+        store.add_audit(
+            "login",
+            actor=user["username"],
+            decision="身份不符",
+            detail={"expected": wanted, "role": user["role"]},
+        )
+        return {"ok": False, "status": 403, "error": f"这个账号不是{label}"}
     store.mark_login_success(user["id"])
     token = secrets.token_urlsafe(32)
     store.create_session(token, user["id"])

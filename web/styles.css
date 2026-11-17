@@ -461,6 +461,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   padding-top: calc(var(--space) * 1);
   border-top: 1px solid var(--cite-rule);
 }
+.status-foot.warn { color: #e3a857; }
 
 .linkish { display: none; }
 
@@ -613,7 +614,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ghost, .solid, .msg, .typing span, .stream-cursor { transition: none; animation: none; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  .messages { scroll-behavior: auto; }
   .stream-cursor { opacity: 1; }
 }
 
