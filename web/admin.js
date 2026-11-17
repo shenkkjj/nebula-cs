@@ -248,11 +248,12 @@
     document.getElementById("configNote").textContent = data.note || "";
   }
 
-  function metricCell(key, metrics, targets) {
+  function metricCell(key, metrics, targets, item) {
     const value = metrics ? metrics[key] : null;
     if (value === undefined || value === null) return "未运行";
+    const text = key.endsWith("_ms") ? value + " ms" : key === "duplicate_citations" ? String(value) : (value * 100).toFixed(1) + "%";
+    if (item && item.historical) return `${text} <span class="badge">历史记录</span>`;
     const target = targets && targets[key];
-    let text = key.endsWith("_ms") ? value + " ms" : key === "duplicate_citations" ? String(value) : (value * 100).toFixed(1) + "%";
     if (!target) return text;
     const goal = target.value;
     const ok = target.op === ">=" ? value >= goal : target.op === "<=" ? value <= goal : value === goal;
@@ -282,10 +283,16 @@
     const head = "<tr><th>指标</th><th>目标</th><th>A 改造前规则引擎</th><th>B 知识库直出</th><th>C 本系统</th></tr>";
     const rows = keys.map(([key, label, goal]) => `<tr><th>${label}</th><td>${goal}</td>` + ["A", "B", "C"].map((group) => {
       const item = byGroup[group];
-      return `<td>${item ? metricCell(key, item.metrics, item.targets) : "未运行"}</td>`;
+      return `<td>${item ? metricCell(key, item.metrics, item.targets, item) : "未运行"}</td>`;
     }).join("") + "</tr>").join("");
-    const notes = latest.map((item) => `${item.group} 组 · ${escapeHtml(item.dataset)} · ${item.count} 题。${escapeHtml(item.note || "")}`).join("<br />");
+    const notes = latest.map((item) => {
+      const stamp = item.historical ? "历史记录，不是当前引擎的成绩，数字未改写。" : "";
+      return `${item.group} 组 · ${escapeHtml(item.dataset)} · ${item.count} 题。${stamp}${escapeHtml(item.note || "")}`;
+    }).join("<br />");
     const missed = latest.map((item) => {
+      if (item.historical) {
+        return `<p class="small" style="padding:8px 20px">${escapeHtml(item.group)} 组是历史记录。当时的未通过清单不作为当前成绩。</p>`;
+      }
       if (item.failure_count == null) return "";
       if (!item.failures || !item.failures.length) {
         return `<p class="small" style="padding:0 20px 12px">${escapeHtml(item.group)} 组这次没有未通过的题。</p>`;
@@ -471,7 +478,7 @@
     };
     await api("/api/admin/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     status.hidden = false;
-    status.textContent = "已保存，下一次问答即使用新参数。";
+    status.textContent = "已保存。下一次问答会用这个引用阈值。";
   });
   document.getElementById("btnEval").addEventListener("click", async () => {
     const line = document.getElementById("evalStatus");

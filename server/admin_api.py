@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from agent_api import SOURCE_LABEL, mark_bad_case
 from engine_mode import engine_mode
 from faq_meta import load_entries
-from eval_runner import RESULTS_DIR, load_dataset, render_csv, render_markdown, run_group
+from eval_runner import RESULTS_DIR, load_dataset, render_csv, render_markdown, result_is_current, run_group
 from gateway import run_probe as probe_dify
 from settings import ROOT, load_config, save_config
 import campus_engine
@@ -324,7 +324,12 @@ def audit_csv(kind: str = "", decision: str = "", query: str = "") -> str:
 def current_config() -> dict:
     cfg = load_config()
     if engine_mode() == "campus":
-        note = "自建知识库用词法检索，保存后下一次问答生效。向量是可选的远程接口，不配也能答。"
+        note = (
+            "自建知识库用词法检索，保存后下一次问答会按引用阈值过滤。"
+            "词法分数先折到大约 0.78–0.96，余弦相似度按 0–1 原值比较。"
+            "0.99 会挡住这些词法引用；0.5 或更低不会把对得上的标题清掉。"
+            "向量是可选的，不配也能答。"
+        )
     else:
         note = "检索 top_k 和混合检索权重在 Dify 编排里改。这里只改约束层。保存后下一次问答即生效。"
     return {"ok": True, "config": cfg, "note": note}
@@ -409,7 +414,10 @@ def export_result(group: str, dataset: str, kind: str) -> tuple[int, str, str]:
     except (OSError, json.JSONDecodeError):
         return 500, "text/plain; charset=utf-8", "结果文件读不出来。"
     if kind == "md":
-        return 200, "text/markdown; charset=utf-8", render_markdown(payload)
+        body = render_markdown(payload)
+        if not result_is_current(payload):
+            body = "历史记录：这不是当前引擎的成绩，下面的达标标记只属于当时那次运行，数字没有改写。\n\n" + body
+        return 200, "text/markdown; charset=utf-8", body
     return 200, "text/csv; charset=utf-8", render_csv(payload)
 
 
@@ -439,6 +447,7 @@ def _latest_results() -> list[dict]:
                         "label": row.get("label") or "",
                     }
                 )
+        current = result_is_current(payload)
         found.append({
             "group": payload.get("group"),
             "dataset": payload.get("dataset"),
@@ -446,6 +455,9 @@ def _latest_results() -> list[dict]:
             "metrics": payload.get("metrics"),
             "targets": payload.get("targets"),
             "note": payload.get("note"),
+            "engine": payload.get("engine") or "",
+            "current": current,
+            "historical": not current,
             "file": path.name,
             "failures": failures,
             "failure_count": failure_count,

@@ -93,6 +93,7 @@
         <div class="page-head"><div><h1 class="page-title">约束参数</h1><p class="page-sub" id="configNote"></p></div></div>
         <form class="panel" id="configForm" style="padding:20px; display:grid; gap:12px; max-width:640px">
           <label class="field"><span>引用相关度阈值（0–1）</span><input class="input" name="score_threshold" type="number" min="0" max="1" step="0.01" required /></label>
+          <p class="small muted">词法相关度先折成大约 0.78–0.96 再和这个数比较，向量余弦按 0–1 原值比较。0.99 会挡住样例里的标题命中；0.5 或更低不会把这些命中清掉。</p>
           <label class="field"><span>最多显示几条引用</span><input class="input" name="max_citations" type="number" min="1" max="8" step="1" required /></label>
           <label class="field"><span>拒答文案</span><textarea class="textarea" name="refusal_text" rows="3" maxlength="400" required></textarea></label>
           <label class="field"><span>探针问题</span><input class="input" name="probe_question" maxlength="200" required /></label>
@@ -105,7 +106,7 @@
       </section>
       <section data-page="eval" hidden>
         <div class="page-head">
-          <div><h1 class="page-title">评测</h1><p class="page-sub">只显示这次跑出来的数字。没跑的组保持「未运行」。B 组是知识库直出，不经过约束层，不会填一个没跑出来的达标。</p></div>
+          <div><h1 class="page-title">评测</h1><p class="page-sub">旧网关或旧引擎的文件标成历史记录，不给达标绿标，数字也不改写。只有当前引擎这次跑出来的结果才按目标上色。没跑的组保持「未运行」。B 组是知识库直出，不经过约束层。</p></div>
           <div class="top-actions">
             <label class="sr-only" for="evalSet">数据集</label>
             <select class="select" id="evalSet"></select>

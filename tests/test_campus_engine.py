@@ -387,6 +387,80 @@ class CampusEngineTest(unittest.TestCase):
             urllib.request.urlopen = original
         self.assertIn("一网通办", result["answer"])
 
+    def test_lexical_threshold_filters_without_wiping_a_normal_title(self) -> None:
+        kept = campus_engine.answer("在读证明如何办理？")
+        self.assertFalse(kept["refuse"])
+        self.assertEqual(kept["matched_title"], "在读证明如何办理？")
+        shown = kept["citations"][0]["score"]
+        self.assertGreaterEqual(shown, 0.8)
+        self.assertLess(shown, 0.99)
+        original = campus_engine.load_config
+
+        def raised() -> dict:
+            cfg = dict(original())
+            cfg["score_threshold"] = 0.99
+            return cfg
+
+        campus_engine.load_config = raised
+        try:
+            blocked = campus_engine.answer("在读证明如何办理？")
+        finally:
+            campus_engine.load_config = original
+        self.assertTrue(blocked["refuse"])
+        self.assertEqual(blocked["citations"], [])
+        self.assertIn("引用阈值", blocked["answer"])
+        moderate = campus_engine.answer("在读证明如何办理？")
+        self.assertFalse(moderate["refuse"])
+        self.assertTrue(moderate["citations"])
+
+    def test_paraphrases_hit_the_same_article_and_unknown_campus_questions_refuse(self) -> None:
+        samples = (
+            ("缓考想申请？", "缓考如何申请？", "一网通办"),
+            ("选课时间指的是什么时候？", "选课时间是什么时候？", "16"),
+            ("丢失图书怎样赔偿？", "丢失图书如何赔偿？", "总服务台"),
+            ("想申请调宿？", "如何申请调宿？", "一网通办"),
+        )
+        for question, title, fact in samples:
+            result = campus_engine.answer(question)
+            self.assertFalse(result["refuse"], question)
+            self.assertEqual(result["matched_title"], title, question)
+            self.assertIn(fact, result["answer"], question)
+            self.assertTrue(result["citations"], question)
+        for question in ("保研需要什么条件", "有没有去机场的校车"):
+            missed = campus_engine.answer(question)
+            self.assertTrue(missed["refuse"], question)
+            self.assertEqual(missed["citations"], [], question)
+            self.assertNotIn("班车", missed["answer"])
+        broad = campus_engine.answer("证明怎么开？")
+        self.assertEqual(broad["agent_action"], "clarify")
+        self.assertGreaterEqual(len(broad["suggestions"]), 2)
+        self.assertLessEqual(len(broad["suggestions"]), 3)
+        broken = campus_engine.answer(
+            {
+                "query": "宿舍东西坏了",
+                "history": [{"role": "user", "text": "在读证明如何办理？"}],
+                "visitor": "eval-campus",
+                "user": "eval-campus",
+                "portal_session": "broken-1",
+            }
+        )
+        self.assertEqual(broken["agent_action"], "clarify")
+        labels = " ".join(item["label"] for item in broken["suggestions"])
+        self.assertIn("宿舍报修怎么提交", labels)
+        urgent = campus_engine.answer("缓考加急申请")
+        self.assertNotEqual(urgent.get("matched_title"), "缓考如何申请？")
+
+    def test_same_document_related_paragraph_is_folded(self) -> None:
+        result = campus_engine.answer("在读证明如何办理？")
+        card = result["citations"][0]
+        self.assertEqual(len(result["citations"]), 1)
+        self.assertIn("一网通办", card["content"])
+        segments = card.get("segments") or []
+        self.assertGreaterEqual(len(segments), 2)
+        folded = " ".join(segment.get("content") or "" for segment in segments[1:])
+        self.assertIn("学籍", folded)
+        self.assertNotIn("问：学籍证明和在读证明有什么区别", folded)
+
     def test_portal_page_has_no_teammate_names(self) -> None:
         text = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         self.assertNotIn("沈凯杰", text)

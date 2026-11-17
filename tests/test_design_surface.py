@@ -69,6 +69,13 @@ class DesignSurfaceTest(unittest.TestCase):
         self.assertIn("坐席", login)
         self.assertIn("管理员", login)
         self.assertIn('name="role"', login)
+        self.assertNotIn("admin123", login)
+        self.assertNotIn("agent123", login)
+        self.assertNotIn("演示账号", login)
+        admin = _text("web/admin.js")
+        self.assertIn("历史记录", admin)
+        self.assertIn("item.historical", admin)
+        self.assertNotIn('historical) return `${text} <span class="badge ok">', admin)
 
     def test_campus_extra_stays_out_of_the_lite_requirements(self) -> None:
         base_lines = [

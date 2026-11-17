@@ -15,9 +15,16 @@ import urllib.error
 import urllib.request
 
 from constraints import merge_citations
-from followup import is_back, is_handoff_intent, is_restart, rewrite_query_for_retrieval
+from followup import (
+    is_back,
+    is_followup_query,
+    is_handoff_intent,
+    is_restart,
+    last_user_turns,
+    rewrite_query_for_retrieval,
+)
 import chroma_store
-from kb_retrieve import embedding_config, search
+from kb_retrieve import confidence, embedding_config, get_index, related_segments, search, topic_terms
 from lite_engine import (
     _BARE_CLARIFY,
     _clarify_text,
@@ -49,6 +56,28 @@ _ADMIN_RE = re.compile(
     r"怎么办|如何|怎么|办理|申请|规定|政策|能不能|可不可以|收费|多少钱|材料|"
     r"哪里|哪儿|流程|请假|证明|奖学金|贷款|宿舍|图书馆|校园网|校园卡|选课|"
     r"成绩|报修|门禁|学费|休学|转专业|毕业|缓考|补考|重修|病假|销假|一网通办"
+)
+# School questions the sample knowledge base does not contain. A miss here is a
+# refusal, not small talk. Words that already hit a real article are answered first.
+_OUTSIDE_CAMPUS_RE = re.compile(r"保研|考研|推免|校车|机场|查重|等级考试|论文格式|格式模板")
+_SOFT_CHARS = set("想怎样般指哪儿否能可")
+_BRIDGE_SKIP = (
+    "怎么办",
+    "什么时候",
+    "如何",
+    "哪里",
+    "什么",
+    "怎么",
+    "怎样",
+    "一下",
+    "请问",
+    "可以",
+    "是否",
+    "有没有",
+    "需要",
+    "呢",
+    "吗",
+    "想",
 )
 _THINK_RE = re.compile(r"<think>.*?</think>", re.IGNORECASE | re.DOTALL)
 _NUM_RE = re.compile(r"\d+(?:[:：.]\d+)?")
@@ -395,6 +424,16 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
 
     lookup = _without_writing_lead(target) if writing else target
     found = search(lookup)
+    if not _outside_campus(lookup):
+        found = _with_history(lookup, history, found)
+    if found.get("action") == "answer" and found.get("chunks") and not _clears_threshold(found, cfg):
+        found = {
+            "action": "none",
+            "chunks": [],
+            "scores": [],
+            "reason": "below-threshold",
+            "method": found.get("method") or "",
+        }
     maintenance = _maintenance_on()
     if maintenance and _needs_kb(target, found):
         ticket = _open_or_create(visitor, portal_session, "maintenance", masked)
@@ -425,6 +464,19 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
         return payload
     if found["action"] == "clarify" and found["chunks"]:
         return _clarify(found["chunks"], conversation_id, notices, rewrite, "有几条都像，先选一条。")
+    if found.get("reason") == "below-threshold":
+        if writing:
+            return _everyday(target, history, task_id, conversation_id, notices, rewrite, cfg)
+        return _refuse(
+            cfg,
+            conversation_id,
+            notices,
+            rewrite,
+            "相关度低于当前引用阈值，这次不附引用。",
+            visitor,
+            portal_session,
+            masked,
+        )
     if writing:
         return _everyday(target, history, task_id, conversation_id, notices, rewrite, cfg)
 
@@ -444,7 +496,7 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
             reason="问得太宽，先澄清",
         )
 
-    if _ADMIN_RE.search(target) or _policy_query(target):
+    if _ADMIN_RE.search(target) or _policy_query(target) or _outside_campus(target):
         return _refuse(cfg, conversation_id, notices, rewrite, "知识库里没有和这句话对得上的条目。", visitor, portal_session, masked)
 
     return _everyday(target, history, task_id, conversation_id, notices, rewrite, cfg)
@@ -498,6 +550,7 @@ def _policy(found: dict, query: str, history: list, task_id: str, conversation_i
         pairs.append((item, scores[index] if index < len(scores) else 1.0))
     limit = int(cfg.get("max_citations") or 3)
     citations = cards_for_chunks(pairs, max_cards=limit)
+    _attach_related(citations, chunk)
     return _base(
         text,
         action="knowledge_qa",
@@ -915,18 +968,149 @@ def _content_runs(text: str) -> list[str]:
 def _query_fits_chunk(query: str, chunk) -> bool:
     """Short queries must not add a character the matched segment never uses.
 
-    Longer questions are left to the lexical index. A follow-up such as
-    「在读证明如何办理？ 需要多久」asks about a segment that does not contain 多久.
+    Longer questions are left to the lexical index. Paraphrase particles such as
+    想 / 怎样 are not extra constraints. A real extra word on a short question
+    still blocks the hit.
     """
-    chars = [
+    if _chars_fit(query, chunk):
+        return True
+    folded = (query or "").replace("不凉", "不制冷").replace("不冷", "不制冷").replace("想改期", "改期")
+    return folded != (query or "") and _chars_fit(folded, chunk)
+
+
+def _chars_fit(query: str, chunk) -> bool:
+    raw = [
         char
         for char in norm_key(query)
         if "\u4e00" <= char <= "\u9fff" and char not in _FUNC_EDGE
     ]
-    if len(chars) > 4:
+    if len(raw) > 4:
+        return True
+    chars = [char for char in raw if char not in _SOFT_CHARS]
+    if not chars:
         return True
     blob = norm_key(f"{chunk.title}\n{chunk.answer}")
     return all(char in blob for char in chars)
+
+
+def _clears_threshold(found: dict, cfg: dict) -> bool:
+    scores = list(found.get("scores") or [])
+    if not scores:
+        return False
+    try:
+        bar = float(cfg.get("score_threshold") if cfg.get("score_threshold") is not None else 0.5)
+    except (TypeError, ValueError):
+        bar = 0.5
+    best = confidence(float(scores[0]), str(found.get("method") or ""), str(found.get("reason") or ""))
+    return best >= bar
+
+
+def _outside_campus(query: str) -> bool:
+    return bool(_OUTSIDE_CAMPUS_RE.search(query or ""))
+
+
+def _attach_related(citations: list, chunk) -> None:
+    if not citations:
+        return
+    card = citations[0]
+    if card.get("document_name") != getattr(chunk, "document_name", ""):
+        return
+    seen = {(card.get("content") or "").strip()}
+    for segment in card.get("segments") or []:
+        if isinstance(segment, dict):
+            seen.add((segment.get("content") or "").strip())
+    for extra in related_segments(chunk, limit=2):
+        text = (extra.answer or "").strip()
+        if not text or text in seen:
+            continue
+        card.setdefault("segments", []).append(
+            {
+                "content": text[:800],
+                "score": 0.5,
+                "segment_id": extra.id,
+                "title": extra.title,
+            }
+        )
+        seen.add(text)
+
+
+def _previous_user(history: list, current: str) -> str:
+    current_key = (current or "").strip()
+    for text in reversed(last_user_turns(history, 6)):
+        cleaned = text.strip()
+        if not cleaned or cleaned == current_key or norm_key(cleaned) == norm_key(current_key):
+            continue
+        if is_followup_query(cleaned):
+            continue
+        return cleaned
+    return ""
+
+
+def _bridge_tokens(text: str) -> list[str]:
+    folded = norm_key(text)
+    folded = folded.replace("不凉", "不制冷").replace("不冷", "不制冷").replace("想改期", "改期")
+    for skip in sorted(_BRIDGE_SKIP, key=len, reverse=True):
+        piece = norm_key(skip)
+        if piece:
+            folded = folded.replace(piece, "|")
+    return [part for part in folded.split("|") if len(part) >= 2]
+
+
+def _history_pack(chunk) -> dict:
+    return {
+        "action": "answer",
+        "chunks": [chunk],
+        "reason": "history",
+        "scores": [4.0],
+        "method": "lexical",
+    }
+
+
+def _with_history(lookup: str, history: list, found: dict) -> dict:
+    if not history:
+        return found
+    if found.get("action") == "clarify":
+        chosen = _history_candidate(found, history, lookup)
+        return chosen if chosen is not None else found
+    if found.get("action") != "none":
+        return found
+    if len(norm_key(lookup)) > 18:
+        return found
+    bridged = _history_bridge(lookup, history)
+    return bridged if bridged is not None else found
+
+
+def _history_candidate(found: dict, history: list, lookup: str) -> dict | None:
+    prev = _previous_user(history, lookup)
+    if not prev:
+        return None
+    chunks = list(found.get("chunks") or [])
+    for concept in topic_terms(prev):
+        hits = [chunk for chunk in chunks if concept in norm_key(chunk.title)]
+        if len(hits) == 1:
+            return _history_pack(hits[0])
+    return None
+
+
+def _history_bridge(lookup: str, history: list) -> dict | None:
+    prev = _previous_user(history, lookup)
+    if not prev:
+        return None
+    concepts = topic_terms(prev)
+    tokens = _bridge_tokens(lookup)
+    if not concepts or not tokens:
+        return None
+    hits = []
+    for chunk in get_index().chunks:
+        title = norm_key(chunk.title)
+        if not any(concept in title for concept in concepts):
+            continue
+        if not any(token in title for token in tokens):
+            continue
+        hits.append(chunk)
+    if len(hits) == 1:
+        return _history_pack(hits[0])
+    return None
 
 
 def _policy_query(query: str) -> bool:
