@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import threading
+from datetime import datetime
 from pathlib import Path
 
 from dify_client import create_text_document, dataset_configured
@@ -66,10 +67,11 @@ def take(public_id: str, user: dict) -> tuple[int, dict]:
             taken_at=ticket.get("taken_at") or store.now(),
         )
         if was_waiting:
+            stamp = datetime.now().astimezone().strftime("%H:%M")
             store.add_message(
                 ticket["visitor_token"],
                 "system",
-                f"{user['display_name']}接入，机器人暂停回复",
+                f"{stamp} {user['display_name']}接入，机器人暂停回复",
                 ticket.get("portal_session") or "",
                 ticket["id"],
                 author="系统",

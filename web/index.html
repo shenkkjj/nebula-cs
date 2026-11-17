@@ -7,8 +7,8 @@
   <meta name="description" content="校园助手 · 虚构星云大学办事知识库 · 夜间贵宾席" />
   <link rel="preload" href="/fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="/fonts/manrope.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="/fonts/fonts.css?v=20261117" />
-  <link rel="stylesheet" href="/styles.css?v=20261117" />
+  <link rel="stylesheet" href="/fonts/fonts.css?v=20261117b" />
+  <link rel="stylesheet" href="/styles.css?v=20261117b" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230b0c0e'/%3E%3Cpath d='M18 40c6-14 22-14 28 0' stroke='%23e8dcc4' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='24' r='5' fill='%23b89b5e'/%3E%3C/svg%3E" />
 </head>
 <body>
@@ -20,26 +20,14 @@
       </div>
       <div class="top-actions">
         <span class="meta" id="onlinePill">助手在线</span>
-        <button type="button" class="ghost" id="btnNav">办事导航</button>
-        <button type="button" class="ghost" id="btnExport">导出记录</button>
         <button type="button" class="ghost" id="btnNewChat">新对话</button>
-        <button type="button" class="ghost" id="btnTicketTop">转人工</button>
       </div>
     </header>
 
-    <div class="faq" id="faqChips" role="group" aria-label="快捷问题">
-      <button type="button" class="chip">在读证明如何办理？</button>
-      <button type="button" class="chip">证明怎么开？</button>
-      <button type="button" class="chip">图书馆开放时间是什么？</button>
-      <button type="button" class="chip">宿舍报修怎么提交？</button>
-      <button type="button" class="chip">校园网如何认证登录？</button>
-      <button type="button" class="chip">什么情况下应转人工？</button>
-    </div>
-
     <div class="workspace">
       <section class="lounge" aria-label="对话区">
-        <div id="noticeBar" class="notice-bar warn" hidden></div>
         <div class="messages" id="messages" role="log" aria-live="polite">
+          <div id="noticeBar" class="notice-bar" hidden></div>
           <div class="empty-state">
             <div class="mark" aria-hidden="true">云</div>
             <h3>你好，我是校园助手</h3>
@@ -68,7 +56,14 @@
 
       <aside class="silk" aria-label="会话与出处">
         <div class="silk-block">
-          <h2>会话</h2>
+          <div class="silk-tools">
+            <h2>会话</h2>
+            <div class="silk-actions">
+              <button type="button" class="ghost mini" id="btnNav">办事导航</button>
+              <button type="button" class="ghost mini" id="btnExport">导出记录</button>
+              <button type="button" class="ghost mini" id="btnTicketTop">转人工</button>
+            </div>
+          </div>
           <hr class="rule" />
           <div class="session-list" id="sessionList" aria-label="历史会话">
             <div class="session-empty">本机暂无历史。发送问题后会出现在这里。</div>
@@ -130,7 +125,7 @@
     </div>
   </div>
 
-  <script src="/mask.js?v=20261117"></script>
-  <script src="/app.js?v=20261117"></script>
+  <script src="/mask.js?v=20261117b"></script>
+  <script src="/app.js?v=20261117c"></script>
 </body>
 </html>

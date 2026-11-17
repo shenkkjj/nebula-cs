@@ -428,7 +428,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
         for cookie in getattr(self, "_set_cookies", []) or []:
             self.send_header("Set-Cookie", cookie)
         self._set_cookies = []
-        if self.path.startswith("/api/"):
+        path = self.path.split("?", 1)[0]
+        design_html = path == "/design" or path.startswith("/design/") and path.endswith((".html", ".htm"))
+        if self.path.startswith("/api/") or design_html:
             self.send_header("Cache-Control", "no-store")
         else:
             self.send_header("Cache-Control", "no-cache")

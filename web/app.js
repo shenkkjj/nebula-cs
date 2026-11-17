@@ -95,6 +95,47 @@
     }
   }
 
+  function clockNow() {
+    const date = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return pad(date.getHours()) + ":" + pad(date.getMinutes());
+  }
+
+  function clockOf(iso) {
+    if (!iso) return "";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return pad(date.getHours()) + ":" + pad(date.getMinutes());
+  }
+
+  function queuedLine(ticketId) {
+    return clockNow() + " 你点了「转人工」，工单 " + ticketId + " 已登记，排队中…";
+  }
+
+  function clarifyLabel(label) {
+    const text = String(label || "").replace(/(如何|怎么)[^？?]{0,12}[？?]?$/, "").trim();
+    return text || label;
+  }
+
+  function ensureNotice() {
+    if (!el.noticeBar) {
+      el.noticeBar = document.createElement("div");
+      el.noticeBar.id = "noticeBar";
+      el.noticeBar.className = "notice-bar";
+      el.noticeBar.hidden = true;
+    }
+    if (el.noticeBar.parentElement !== el.messages) el.messages.prepend(el.noticeBar);
+    return el.noticeBar;
+  }
+
+  function clearThread() {
+    ensureNotice();
+    for (const node of [...el.messages.children]) {
+      if (node !== el.noticeBar) node.remove();
+    }
+  }
+
   function setStatus(text) {
     if (!el.statusText) return;
     el.statusText.textContent = text;
@@ -276,7 +317,7 @@
   }
 
   function renderMessagesFromState() {
-    el.messages.innerHTML = "";
+    clearThread();
     if (!state.messages.length) {
       renderEmpty();
       return;
@@ -295,7 +336,7 @@
           suggestions: m.suggestions || [],
           clarify: m.action === "clarify",
           agent: m.role === "agent",
-          who: m.role === "agent" ? (m.author || "人工客服") + " · 人工客服" : "",
+          who: m.role === "agent" ? (m.author || "人工客服") + " · 人工客服" + (m.createdAt ? " · " + m.createdAt : "") : "",
           citeCount: m.citeCount || 0,
           persist: false,
         });
@@ -326,9 +367,9 @@
     } catch {
       /* ignore */
     }
-    el.faqChips.querySelectorAll(".chip").forEach((x) => x.classList.remove("active"));
+    if (el.faqChips) el.faqChips.querySelectorAll(".chip").forEach((x) => x.classList.remove("active"));
     renderEmpty();
-    renderCitations([]);
+    renderCitations([], "welcome");
     renderSessionList();
     setStatus(opts.status || "新对话已开始");
     el.input.focus();
@@ -341,13 +382,15 @@
           c.label
         )}</button>`
     ).join("");
-    el.messages.innerHTML = `
-      <div class="empty-state">
+    clearThread();
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.innerHTML = `
         <div class="mark" aria-hidden="true">云</div>
         <h3>你好，我是校园助手</h3>
         <p>办事问题按知识库回答，出处收在右侧。问得含糊时先给澄清选项；同一份文档只留一张出处卡，其余段落折叠。说「转人工」就排队。知识库维护时，对话区上方会出现黄条。</p>
-        <div class="empty-chips" role="group" aria-label="快捷提问">${chips}</div>
-      </div>`;
+        <div class="empty-chips" role="group" aria-label="快捷提问">${chips}</div>`;
+    el.messages.appendChild(empty);
     el.messages.querySelectorAll(".empty-chips .chip").forEach((btn) => {
       btn.addEventListener("click", () => {
         const q = btn.getAttribute("data-q") || btn.textContent;
@@ -380,7 +423,7 @@
       wrap.appendChild(actions);
     }
     mountSuggestions(wrap, opts.suggestions, opts.clarify);
-    if (role === "bot" && !opts.agent) mountBotTools(wrap);
+    if (role === "bot" && !opts.agent && !opts.clarify) mountBotTools(wrap);
     el.messages.appendChild(wrap);
     el.messages.scrollTop = el.messages.scrollHeight;
     return wrap;
@@ -404,17 +447,24 @@
   }
 
   function showMaintenance(on) {
-    state.maintenance = !!on;
-    if (!el.noticeBar || !el.onlinePill) return;
+    const next = !!on;
+    const changed = state.maintenance !== next;
+    state.maintenance = next;
+    ensureNotice();
+    if (!el.onlinePill) return;
     if (!on) {
       el.noticeBar.hidden = true;
       if (el.statusText) el.statusText.classList.remove("warn");
       if (!state.agentLive && el.onlinePill.textContent === "知识库维护中") setPill("助手在线", "");
+      if (changed && el.citeList && /维护期间暂无引用/.test(el.citeList.textContent) && !state.messages.length) {
+        renderCitations([], "welcome");
+      }
       return;
     }
     el.noticeBar.hidden = false;
-    el.noticeBar.innerHTML = "<strong>知识库维护中</strong>机器人暂时不能回答办事问题。你的提问会登记给坐席，上线后回复。";
+    el.noticeBar.innerHTML = "<strong>知识库维护中</strong>机器人暂时不能回答办事问题。你的提问已登记，坐席上线后会回复。";
     setPill("知识库维护中", "warn");
+    if (changed) renderCitations([], "maintenance");
     if (el.statusText) {
       el.statusText.textContent = "知识库维护中 · 机器人暂停回答办事问题";
       el.statusText.classList.add("warn");
@@ -426,8 +476,8 @@
     state.agentLive = true;
     setPill("人工接入中", "live");
     if (el.statusText) {
-      const who = state.agentName ? state.agentName + " · " : "";
-      el.statusText.textContent = who + "人工接入中 · 工单 " + state.ticketId;
+      const who = state.agentName ? "人工客服 " + state.agentName + " 接入中" : "人工接入中";
+      el.statusText.textContent = who + " · 工单 " + state.ticketId;
       el.statusText.classList.remove("warn");
     }
   }
@@ -435,6 +485,10 @@
   function showQueued() {
     if (!state.ticketId || state.maintenance || state.agentLive) return;
     setPill("排队中", "live");
+    if (el.statusText) {
+      el.statusText.textContent = "排队中 · 工单 " + state.ticketId;
+      el.statusText.classList.remove("warn");
+    }
   }
 
   function noteTurn(data) {
@@ -449,7 +503,7 @@
     if (data.ticket_id && (data.agent_action === "human_handoff" || data.agent_action === "maintenance")) {
       const line = data.agent_action === "maintenance"
         ? "已为你登记人工工单 " + data.ticket_id + "，坐席上线后回复"
-        : "已登记工单 " + data.ticket_id + "，排队中";
+        : queuedLine(data.ticket_id);
       appendSystem(line);
       state.messages.push({ role: "system", text: line });
       if (!data.maintenance && data.agent_action === "human_handoff") showQueued();
@@ -507,7 +561,7 @@
       row.appendChild(actions);
     }
     mountSuggestions(row, opts.suggestions, opts.clarify);
-    mountBotTools(row);
+    if (!opts.clarify && !opts.agent) mountBotTools(row);
     el.messages.scrollTop = el.messages.scrollHeight;
   }
 
@@ -750,27 +804,20 @@
   }
 
   function mountSuggestions(row, suggestions, clarify) {
-    if (!row || !suggestions || !suggestions.length || row.querySelector(".suggest-chips")) return;
+    if (!row || !suggestions || !suggestions.length || row.querySelector(".suggest-chips, .clarify-opts")) return;
     const box = document.createElement("div");
-    box.className = "suggest-chips";
+    box.className = clarify ? "clarify-opts" : "suggest-chips";
     box.setAttribute("role", "group");
-    box.classList.toggle("clarify-opts", !!clarify);
     box.setAttribute("aria-label", clarify ? "澄清选项" : "可选问题");
-    if (clarify) {
-      const label = document.createElement("span");
-      label.className = "clarify-label";
-      label.textContent = "澄清选项";
-      box.appendChild(label);
-    }
     const items = clarify ? suggestions.slice(0, 3) : suggestions;
     items.forEach((item) => {
-      const label = (item && (item.label || item.query)) || "";
+      const raw = (item && (item.label || item.query)) || "";
       const q = (item && (item.query || item.label)) || "";
       if (!q) return;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "chip";
-      btn.textContent = label;
+      btn.textContent = clarify ? clarifyLabel(raw) : raw;
       btn.addEventListener("click", () => sendQuery(q));
       box.appendChild(btn);
     });
@@ -841,16 +888,22 @@
 
   function renderCitations(citations, mode) {
     if (mode === "human") {
-      el.citeList.innerHTML = `
-        <div class="cite-empty">
-          <p>人工客服的回答不附引用</p>
-        </div>`;
+      el.citeList.innerHTML = `<div class="cite-empty"><p class="small muted">人工客服的回答不附引用</p></div>`;
       return;
     }
     if (mode === "maintenance") {
+      el.citeList.innerHTML = `<div class="cite-empty"><p class="small muted">维护期间暂无引用</p></div>`;
+      return;
+    }
+    if (mode === "clarify") {
+      el.citeList.innerHTML = `<div class="cite-empty"><p class="small muted">选择一个澄清选项后会出现引用</p></div>`;
+      return;
+    }
+    if (mode === "welcome") {
       el.citeList.innerHTML = `
         <div class="cite-empty">
-          <p>维护期间暂无引用</p>
+          <p class="cite-empty-title">出处会收在这里</p>
+          <p>同一份文档一张卡。相关度最高的一段在前，其余段落折叠，点开再看。</p>
         </div>`;
       return;
     }
@@ -907,6 +960,10 @@
     if (data && data.maintenance) {
       showMaintenance(true);
       renderCitations([], "maintenance");
+      return;
+    }
+    if (data && (data.agent_action === "clarify" || data.clarify)) {
+      renderCitations([], "clarify");
       return;
     }
     if (state.agentLive || (data && data.handoff)) {
@@ -1082,7 +1139,7 @@
         }
         const cardCount = groupCitations(data.citations || []).length;
         if (handoff && !data.maintenance) {
-          setStatus("已登记 · 工单 " + (data.ticket_id || "") + " · 坐席上线后回复");
+          setStatus("排队中 · 工单 " + (data.ticket_id || ""));
         } else if (data.agent_action === "order_lookup") {
           setStatus(data.order_found ? "办事进度已查出 · 演示存根" : "办事单未找到 · 可转人工");
         } else if (data.agent_action === "clarify") {
@@ -1183,9 +1240,7 @@
       const cardCount = groupCitations(citations).length;
       const maintaining = !!(finalPayload && finalPayload.maintenance);
       if (handoff && !maintaining) {
-        setStatus(
-          "已登记 · 工单 " + ((finalPayload && finalPayload.ticket_id) || "") + " · 坐席上线后回复"
-        );
+        setStatus("排队中 · 工单 " + ((finalPayload && finalPayload.ticket_id) || ""));
       } else if (action === "order_lookup") {
         setStatus(
           (finalPayload && finalPayload.order_found)
@@ -1319,7 +1374,7 @@
         if (data.ticket_id) {
           state.ticketId = data.ticket_id;
           showQueued();
-          const line = "已登记工单 " + data.ticket_id + "，排队中";
+          const line = queuedLine(data.ticket_id);
           appendSystem(line);
           state.messages.push({ role: "system", text: line });
           persistCurrentSession();
@@ -1361,11 +1416,18 @@
         if (!msg || state.seenServerIds[msg.id]) return;
         state.seenServerIds[msg.id] = true;
         if (msg.role === "agent") {
+          const stamp = clockOf(msg.created_at);
           appendMessage("bot", formatAnswer(msg.body), {
             agent: true,
-            who: (msg.author || "人工客服") + " · 人工客服",
+            who: (msg.author || "人工客服") + " · 人工客服" + (stamp ? " · " + stamp : ""),
           });
-          state.messages.push({ role: "agent", text: msg.body, author: msg.author || "人工客服", serverId: msg.id });
+          state.messages.push({
+            role: "agent",
+            text: msg.body,
+            author: msg.author || "人工客服",
+            createdAt: stamp,
+            serverId: msg.id,
+          });
           renderCitations([], "human");
           added = true;
         } else if (msg.role === "system") {
@@ -1389,7 +1451,7 @@
     card.focus();
   });
 
-  buildChips();
+  if (el.faqChips) buildChips();
 
   // 恢复上次活动会话（若有消息）；否则空态
   const sessions = loadSessions();
@@ -1410,7 +1472,7 @@
   } else {
     state.sessionId = newSessionId();
     renderEmpty();
-    setStatus("就绪 · 校园助手 · 流式经本地代理转发");
+    setStatus("就绪 · 流式经本地代理转发，密钥不进入浏览器");
   }
   renderSessionList();
   pollPortal();

@@ -3,178 +3,102 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>校园客服 · 设计方案（E5 / DESIGN v1.0 已上线）</title>
-<link rel="stylesheet" href="/fonts/fonts.css?v=20261117" />
+<title>校园客服 · 设计原型</title>
+<link rel="stylesheet" href="/fonts/fonts.css?v=20261117b" />
 <style>
   :root {
-    --bg:#0b0c0e; --card:#14161a; --text:#f3ebe0; --mute:#9a9080; --line:rgba(184,155,94,.35);
-    --a:#c45c26; --b:#f0b429; --c:#2a9d8f; --d:#e30613; --e:#b89b5e; --f:#c4a574;
-    --g:#9aa3a8; --h:#1f3a5f; --i:#1aa6b0;
+    --ink: #0b0c0e; --ink-2: #14161a; --ink-3: #1c1f26;
+    --champagne: #e8dcc4; --gold: #b89b5e; --gold-line: rgba(184, 155, 94, .45);
+    --text: #f3ebe0; --mute: #9a9080;
+    --radius-card: 18px; --radius-control: 13px;
+    --font-display: "Cormorant Garamond", "Noto Serif SC", serif;
+    --font-body: "Manrope", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
-  html, body { margin:0; overflow-x: clip; }
-  body { font-family: "Manrope", "PingFang SC", "Microsoft YaHei", sans-serif; background:var(--bg); color:var(--text); line-height:1.55; }
-  h1, .card h2 { font-family: "Cormorant Garamond", "Songti SC", "Noto Serif SC", serif; font-weight: 600; }
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.25rem 3rem; }
-  h1 { font-size: 1.65rem; margin: 0 0 .4rem; }
-  .lead { color: var(--mute); margin: 0 0 1.25rem; }
-  .banner {
-    border: 1px solid var(--line); border-radius: 18px; padding: 1rem 1.1rem;
-    color: var(--text); font-size: .92rem; margin-bottom: 1.25rem; background: var(--card);
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh; background: radial-gradient(1200px 600px at 50% -10%, #171a20 0%, var(--ink) 60%);
+    color: var(--text); font-family: var(--font-body); line-height: 1.6;
   }
-  .banner strong { color: #e8dcc4; }
-  .pref { margin: 0 0 1.5rem; font-size: .9rem; color: #c5d0dc; }
-  .pref em { color: var(--e); font-style: normal; font-weight: 700; }
-  .pref a { color: #e8dcc4; text-underline-offset: 3px; }
-  .pref a:hover { color: #b89b5e; }
-  .grid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
-  @media (min-width: 720px) { .grid { grid-template-columns: 1fr 1fr 1fr; } }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 3.4rem 1.4rem 3rem; }
+  .eyebrow { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); margin: 0 0 .6rem; }
+  h1 { font-family: var(--font-display); font-size: clamp(2rem, 4vw, 2.9rem); font-weight: 600; letter-spacing: .01em; margin: 0 0 .5rem; color: var(--champagne); }
+  .lead { color: var(--mute); margin: 0 0 2rem; font-size: .95rem; }
+  .lead strong { color: var(--champagne); font-weight: 600; }
+  .lead small { display: inline-block; margin-top: .45rem; font-size: .8em; color: #8a8172; }
+  .grid { display: grid; gap: 14px; grid-template-columns: 1fr; }
+  @media (min-width: 760px) { .grid { grid-template-columns: 1fr 1fr; } }
   a.card {
-    display: flex; flex-direction: column; gap: .55rem;
+    display: flex; flex-direction: column; gap: .5rem; min-height: 190px;
     text-decoration: none; color: inherit;
-    background: var(--card); border: 1px solid var(--line);
-    border-radius: 18px; padding: 1.1rem 1.15rem;
-    transition: border-color .15s ease, transform .15s ease;
-    min-height: 210px;
+    background: linear-gradient(180deg, rgba(28, 31, 38, .9), rgba(20, 22, 26, .9));
+    border: 1px solid var(--gold-line); border-radius: var(--radius-card); padding: 1.35rem 1.4rem;
+    transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+    box-shadow: 0 18px 40px -28px rgba(0, 0, 0, .9);
   }
-  a.card:hover { transform: translateY(-2px); }
-  a.card:focus-visible { outline: 2px solid #b89b5e; outline-offset: 2px; }
-  a.card.A:hover { border-color: var(--a); }
-  a.card.B:hover { border-color: var(--b); }
-  a.card.C:hover { border-color: var(--c); }
-  a.card.D:hover { border-color: var(--d); }
-  a.card.E:hover { border-color: var(--e); }
-  a.card.F:hover { border-color: var(--f); }
-  a.card.G:hover { border-color: var(--g); }
-  a.card.H:hover { border-color: var(--h); }
-  a.card.I:hover { border-color: var(--i); }
-  a.card.rejected { opacity: 0.55; }
-  a.card.rejected:hover { transform: none; }
-  .tag { font-size: 11px; font-weight: 700; }
-  .A .tag { color: var(--a); }
-  .B .tag { color: var(--b); }
-  .C .tag { color: var(--c); }
-  .D .tag { color: var(--d); }
-  .E .tag { color: var(--e); }
-  .F .tag { color: var(--f); }
-  .G .tag { color: var(--g); }
-  .H .tag { color: #7ea0c8; }
-  .I .tag { color: var(--i); }
-  .card h2 { margin: 0; font-size: 1.1rem; }
-  .card p { margin: 0; color: var(--mute); font-size: .86rem; flex: 1; }
-  .card .diff { font-size: .8rem; color: #c5d0dc; border-top: 1px solid var(--line); padding-top: .65rem; }
-  .badge {
-    display: inline-block; font-size: 10px; font-weight: 700;
-    background: rgba(184,155,94,.2); color: var(--e);
-    border: 1px solid rgba(184,155,94,.45); border-radius: 999px;
-    padding: 1px 8px; margin-left: 6px; vertical-align: middle;
-  }
-  .badge.bad {
-    background: rgba(227,6,19,.15); color: #ff8a8a;
-    border-color: rgba(227,6,19,.4);
-  }
-  .badge.soft {
-    background: rgba(42,157,143,.15); color: var(--c);
-    border-color: rgba(42,157,143,.35);
-  }
-  .foot { margin-top: 2rem; font-size: .82rem; color: var(--mute); }
-  code { background: #243040; padding: .1rem .35rem; border-radius: 4px; font-size: .85em; }
+  a.card:hover { border-color: var(--gold); transform: translateY(-2px); box-shadow: 0 24px 48px -26px rgba(0, 0, 0, .95); }
+  a.card:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .tag { font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); }
+  a.card h2 { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; margin: 0; color: var(--champagne); letter-spacing: .01em; }
+  a.card p { margin: 0; color: var(--mute); font-size: .875rem; flex: 1; }
+  .ids { font-size: 11.5px; color: #c9ba9a; border-top: 1px solid rgba(184, 155, 94, .22); padding-top: .6rem; letter-spacing: .02em; }
+  code { background: rgba(184, 155, 94, .1); border: 1px solid rgba(184, 155, 94, .18); padding: .08rem .38rem; border-radius: 6px; font-size: .85em; color: #d8c9a6; }
+  .note { margin-top: 2rem; border: 1px dashed rgba(184, 155, 94, .35); border-radius: var(--radius-control); padding: .9rem 1.1rem; font-size: .84rem; color: var(--mute); background: rgba(184, 155, 94, .04); }
+  .note strong { color: #e3a857; font-weight: 600; }
+  .foot { margin-top: 2rem; font-size: .8rem; color: #7d7466; }
+  .foot a { color: #c9ba9a; }
   @media (prefers-reduced-motion: reduce) { a.card { transition: none; } }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>校园客服 · 设计方案</h1>
-    <p class="lead">DESIGN v1.0 已确认，并已放进生产门户 · 视觉是 E5 黑金贵宾席</p>
-    <div class="banner">
-      <strong>已上线。</strong>生产门户用的就是 E5：近黑底、香槟金、苹果 R 角。DESIGN v1.0 在这张席上增加了澄清选项、按文档折叠的出处、转人工，以及知识库维护提示。坐席和后台是 S1 值班台，从登录页进入。下面的 A–I 是选款时留下的静态对照，对话和引用都是模拟数据，不再等待选定。
-    </div>
-    <p class="pref">生产门户：<em>E5</em> · 坐席与后台：<em>S1 值班台</em> · E2 / E3 / E4 不如原 E · D 与 F 已否决</p>
-    <p class="pref"><a href="/">打开生产门户</a> · <a href="portal-states.html">门户状态对照</a> · <a href="staff.html">值班台对照</a> · <a href="/login">登录</a></p>
+    <p class="eyebrow">DESIGN v1.0 · 2026-11-14 已确认</p>
+    <h1>校园客服 · 设计原型</h1>
+    <p class="lead">
+      门户沿用 <strong>E5 黑金</strong>；坐席与后台采用 <strong>S1「值班台」</strong>——坐席和后台各一个应用。
+      以下为静态 HTML 原型，对话、结果与指标均为<strong>模拟数据</strong>，不接业务 API。<br />
+      <small>本页 2026-11-17 更新：前两张卡是 11-14 确认的新设计。生产门户和值班台现在按这两张原型走。第三张打开正在运行的门户。第四张是历史选款归档。这不是正式终验。</small>
+    </p>
+
     <div class="grid">
-      <a class="card A" href="options/A-editorial/index.html">
-        <span class="tag">OPTION A</span>
-        <h2>报纸责编台</h2>
-        <p>Editorial console：衬线+无衬线、不对称三栏、纸墨底与焦橙强调，问答像版面审稿。</p>
-        <div class="diff">差异：杂志/编辑台信息层级，出处栏独立成「栏」</div>
+      <a class="card" href="portal-states.html">
+        <span class="tag">门户 · 新增状态</span>
+        <h2>澄清 · 坐席回复 · 维护</h2>
+        <p>在现有 E5 门户上新增三种状态：模糊问题给 2–3 个候选 chip；坐席接管后消息标「人工客服」；知识库自检失败时顶部提示并自动建工单。</p>
+        <div class="ids">R-103 · R-106 · R-204 ｜ <code>portal-states.html</code></div>
       </a>
-      <a class="card B" href="options/B-industrial/index.html">
-        <span class="tag">OPTION B</span>
-        <h2>值班台</h2>
-        <p>Industrial dock：等宽标签、密网格、状态灯、左树+主会话+资源条，琥珀打在炭灰上。</p>
-        <div class="diff">差异：运维值班台密度与树形 FAQ，状态条常驻</div>
+
+      <a class="card" href="staff.html">
+        <span class="tag">坐席与后台 · S1 值班台</span>
+        <h2>工单工作台 · 管理后台</h2>
+        <p>坐席三栏同屏：队列｜对话｜判定与操作（回写知识库、标记坏例）。后台左侧导航 + 密集表格：审计日志可展开追溯，评测页三组对照。</p>
+        <div class="ids">R-301–305 · R-403 · R-501–503 ｜ <code>staff.html</code></div>
       </a>
-      <a class="card C" href="options/C-organic/index.html">
-        <span class="tag">OPTION C<span class="badge soft">曾已确认</span></span>
-        <h2>品牌展厅客服</h2>
-        <p>Soft organic lounge：圆角、柔光色块、大气泡单栏，青绿/奶油，引用嵌在气泡里。</p>
-        <div class="diff">差异：单栏展厅聊天，FAQ 为顶部柔芯片</div>
+
+      <a class="card" href="../../">
+        <span class="tag">生产门户 · 现有实现</span>
+        <h2>E5 门户</h2>
+        <p>当前运行的问答页面：流式回答、停止、引用卡、本机会话历史、转人工入口。运行 <code>python server/proxy.py</code> 后通过服务器根路径打开。</p>
+        <div class="ids">R-101 · R-102 · R-105 · R-107 ｜ <code>web/index.html</code></div>
       </a>
-      <a class="card D rejected" href="options/D-bauhaus/index.html">
-        <span class="tag">OPTION D<span class="badge bad">否决·太丑</span></span>
-        <h2>构成主义工作台</h2>
-        <p>Geometric Bauhaus：红蓝黄色块、重网格、左图标轨 + 中会话，引用为编号盖章。</p>
-        <div class="diff">差异：左轨导航 + 出处盖章栏（用户反馈太丑，不迭代）</div>
-      </a>
-      <a class="card E" href="options/E-luxury/index.html">
-        <span class="tag">OPTION E<span class="badge">方向锁定</span></span>
-        <h2>夜间贵宾席</h2>
-        <p>Luxury ink night：近黑底、细金线、衬线品牌名、香槟卡片，右侧丝缎出处抽屉。</p>
-        <div class="diff">差异：稀疏贵宾席 + 右侧独立出处抽屉（保留对照）</div>
-      </a>
-      <a class="card E" href="options/E2-luxury-refined/index.html">
-        <span class="tag">OPTION E2<span class="badge">精修</span></span>
-        <h2>贵宾席 · 层级收敛</h2>
-        <p>E 增量：抬标题层级、金线更细更少、对话/出处分区标签、拒答左边线更清晰。</p>
-        <div class="diff">相对 E：更静的金、更可读出处摘录、拒答标题</div>
-      </a>
-      <a class="card E" href="options/E3-vip-dense/index.html">
-        <span class="tag">OPTION E3<span class="badge">精修</span></span>
-        <h2>密席贵宾厅</h2>
-        <p>偏暖炭灰、FAQ 成小框、出处抽屉衬线字阶加粗，密度略高。</p>
-        <div class="diff">相对 E：暖炭 + 出处大字阶 + 紧凑间距</div>
-      </a>
-      <a class="card E" href="options/E4-air-night/index.html">
-        <span class="tag">OPTION E4<span class="badge">精修</span></span>
-        <h2>疏夜贵宾席</h2>
-        <p>留白加大、描边极简、香槟表面更轻，输入区改成底线。</p>
-        <div class="diff">相对 E：空气感 + 最小 chrome</div>
-      </a>
-      <a class="card E" href="options/E5-luxury-apple-r/index.html">
-        <span class="tag">OPTION E5<span class="badge">生产门户</span></span>
-        <h2>贵宾席 · 苹果 R 角</h2>
-        <p>忠实原版 E：近黑底、细金线、香槟卡片与右侧出处抽屉；仅把直角换成连续柔和苹果 R 角与弥散阴影。</p>
-        <div class="diff">已替换生产门户。相对 E 只改了圆角和软阴影</div>
-      </a>
-      <a class="card F rejected" href="options/F-sticky/index.html">
-        <span class="tag">OPTION F<span class="badge bad">否决·太丑</span></span>
-        <h2>便利贴看板</h2>
-        <p>Playful sticky board：软木板、倾斜 FAQ 便签、叠放便利贴回复，出处为钉住的黄条。</p>
-        <div class="diff">差异：看板隐喻（用户反馈太丑，不迭代）</div>
-      </a>
-      <a class="card G" href="options/G-gallery-dusk/index.html">
-        <span class="tag">OPTION G</span>
-        <h2>美术馆黄昏</h2>
-        <p>Gallery dusk：展墙象牙底、柔聚光、大衬线标题，出处做成墙下展签，炭灰/象牙而非金线。</p>
-        <div class="diff">差异：展墙问答 + 展签出处，博物馆信息层级</div>
-      </a>
-      <a class="card H" href="options/H-paper-telescope/index.html">
-        <span class="tag">OPTION H</span>
-        <h2>折纸望远镜</h2>
-        <p>Paper telescope：牛皮纸手风琴三折、靛蓝墨水，对话为信笺叠页，区别于 A 的报头编辑台。</p>
-        <div class="diff">差异：三折面板（提问 / 回信 / 出处），折缝阴影</div>
-      </a>
-      <a class="card I" href="options/I-glass-atrium/index.html">
-        <span class="tag">OPTION I</span>
-        <h2>玻璃中庭</h2>
-        <p>Glass atrium：雾白日光、克制毛玻璃面板、青色细线强调，不做 iOS 果冻光斑。</p>
-        <div class="diff">差异：半透明双栏中庭 + 青色发丝线</div>
+
+      <a class="card" href="options/index.html">
+        <span class="tag">历史归档 · 视觉方向候选</span>
+        <h2>A–I + E2–E5 选款</h2>
+        <p>2026-11-07 的视觉方向候选，已选定 E5（原 E 黑金 + 苹果连续 R 角）。保留作报告与对照，不再迭代；D / F 已否决。</p>
+        <div class="ids">选款记录 ｜ <code>options/index.html</code></div>
       </a>
     </div>
+
+    <p class="note">
+      <strong>待补齐：</strong>后台的知识库文档、绑定自检、约束参数三页和登录页在 DESIGN v1.0 中标注为「选定后补齐（按钮占位）」，
+      已在后台左导航留出入口，原型尚未展开；实施阶段按 PLAN T4 / T6 补齐。
+    </p>
+
     <p class="foot">
-      从门户打开 <code>/design/</code>。字体和门户样式都由本站提供，不请求外部字体。<br />
-      E 系列使用 Cormorant Garamond 与 Manrope。其余归档页只保留版式，字体会落到系统字体。<br />
-      文档：<code>docs/DESIGN.md</code> · <code>docs/PRD.md</code> · <code>docs/STATUS.md</code>
+      打开方式：运行门户后访问 <code>http://127.0.0.1:8787/design/</code>；或在本目录执行
+      <code>python -m http.server 8790</code> 后访问 <code>http://127.0.0.1:8790/</code>。<br />
+      文档：<a href="../DESIGN.md">docs/DESIGN.md</a> · <a href="../PRD.md">docs/PRD.md</a> · <a href="../PLAN.md">docs/PLAN.md</a> · <a href="../STATUS.md">docs/STATUS.md</a>
     </p>
   </div>
 </body>
