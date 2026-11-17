@@ -70,6 +70,62 @@ class CampusEngineTest(unittest.TestCase):
         self.assertEqual(result["citations"][0]["document_name"], "客服样例FAQ.md")
         self.assertEqual(result["matched_title"], "在读证明如何办理？")
         self.assertGreaterEqual(result["citations"][0]["score"], 0.8)
+        steps = [item["step"] for item in result["trace"]]
+        self.assertLess(steps.index("改写"), steps.index("检索"))
+        self.assertLess(steps.index("检索"), steps.index("约束"))
+        self.assertLess(steps.index("约束"), steps.index("输出"))
+
+    def test_same_document_folds_extra_paragraphs(self) -> None:
+        from lite_engine import Chunk
+
+        high = Chunk(
+            id="1",
+            title="门禁",
+            question="门禁时间？",
+            answer="23:30 关门",
+            content="23:30 后记为晚归",
+            document_name="宿舍管理办法.pdf",
+        )
+        low = Chunk(
+            id="2",
+            title="晚归",
+            question="晚归怎么办？",
+            answer="要登记",
+            content="晚归要到值班室登记",
+            document_name="宿舍管理办法.pdf",
+        )
+        other = Chunk(
+            id="3",
+            title="借书",
+            question="如何借书？",
+            answer="10 册",
+            content="本科可借 10 册",
+            document_name="客服样例FAQ.md",
+        )
+        cards = campus_engine.cards_for_chunks([(low, 0.6), (high, 0.9), (other, 0.7)])
+        self.assertEqual(len(cards), 2)
+        self.assertEqual(cards[0]["document_name"], "宿舍管理办法.pdf")
+        self.assertIn("23:30", cards[0]["content"])
+        folded = " ".join(seg.get("content") or "" for seg in cards[0]["segments"])
+        self.assertIn("值班室", folded)
+        self.assertEqual(cards[1]["document_name"], "客服样例FAQ.md")
+
+    def test_maintenance_registers_a_ticket(self) -> None:
+        store.save_probe(False, [{"name": "probe", "ok": False, "detail": "探针没有检索到预期内容。"}])
+        result = campus_engine.answer(
+            {
+                "query": "在读证明如何办理？",
+                "visitor": "maint-visitor",
+                "user": "maint-visitor",
+                "portal_session": "maint-1",
+            }
+        )
+        self.assertTrue(result["maintenance"])
+        self.assertTrue(result.get("ticket_id"))
+        self.assertEqual(result["citations"], [])
+        ticket = store.get_ticket(result["ticket_id"])
+        self.assertIsNotNone(ticket)
+        self.assertEqual(ticket["source"], "maintenance")
 
     def test_missing_rule_refuses_without_inventing(self) -> None:
         result = campus_engine.answer("怎么请病假？")

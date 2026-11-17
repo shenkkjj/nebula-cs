@@ -12,8 +12,14 @@
 <body>
   <main class="login-wrap">
     <form class="panel login-card" id="loginForm">
-      <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role">坐席 / 管理员登录</span></div>
+      <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role" id="roleLabel">坐席登录</span></div>
+      <div class="seg" role="tablist" aria-label="登录身份">
+        <button type="button" role="tab" id="roleAgent" data-role="agent" aria-selected="true">坐席</button>
+        <button type="button" role="tab" id="roleAdmin" data-role="admin" aria-selected="false" tabindex="-1">管理员</button>
+      </div>
+      <p class="small muted" id="roleHint">坐席进入值班台，处理待接入的工单。</p>
       <p class="small muted">课程演示账号：管理员 admin / admin123，坐席 agent1 / agent123。密码只以哈希存在本机数据库。</p>
+      <input type="hidden" name="role" value="agent" />
       <label class="field"><span>账号</span><input class="input" name="username" autocomplete="username" required maxlength="40" /></label>
       <label class="field"><span>密码</span><input class="input" name="password" type="password" autocomplete="current-password" required maxlength="80" /></label>
       <p class="err" id="loginError" hidden></p>

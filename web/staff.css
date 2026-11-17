@@ -66,6 +66,8 @@ body.proto-page { display: flex; flex-direction: column; height: 100vh; overflow
 .pill.ok::before { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-fill); }
 .pill.bad { color: var(--bad); border-color: var(--refuse-line); }
 .pill.bad::before { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-fill); }
+.pill.warn { color: var(--warn); border-color: rgba(227, 168, 87, .55); }
+.pill.warn::before { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-fill); }
 
 /* 按钮 */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 16px; font-size: 13px; font-weight: 600; border-radius: var(--radius-control); border: 1px solid transparent; background: transparent; color: var(--champagne); text-decoration: none; white-space: nowrap; transition: border-color .2s ease, background-color .2s ease, color .2s ease; }
@@ -115,7 +117,9 @@ body.proto-page { display: flex; flex-direction: column; height: 100vh; overflow
 .field small { font-size: 11px; color: var(--mute); }
 .input, .select, .textarea { width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--gold-line); border-radius: var(--radius-control); background: var(--ink); color: var(--text); font-size: 13px; }
 .textarea { resize: vertical; min-height: 96px; line-height: 1.6; }
-.input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(184, 155, 94, .2); }
+.input:focus, .select:focus, .textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(184, 155, 94, .2); }
+.input:focus-visible, .select:focus-visible, .textarea:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.input:focus:not(:focus-visible), .select:focus:not(:focus-visible), .textarea:focus:not(:focus-visible) { outline: none; }
 .input::placeholder, .textarea::placeholder { color: var(--mute); }
 .radio-list { display: grid; gap: 2px; margin: 0 0 14px; padding: 0; border: 0; }
 .radio-list label { display: flex; align-items: center; gap: 10px; min-height: 34px; font-size: 13px; cursor: pointer; }
@@ -245,7 +249,7 @@ body.desk-page { height: 100vh; overflow: hidden; }
 .login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
 .login-card { width: min(420px, 100%); display: grid; gap: 14px; padding: 28px; }
 .err { color: var(--bad); font-size: 13px; }
-@media (max-width: 1180px) {
+@media (max-width: 1279px) {
   body.desk-page { height: auto; min-height: 100vh; overflow: auto; }
   .desk { grid-template-columns: 260px minmax(0, 1fr); }
   .desk > .panel { min-height: 460px; }

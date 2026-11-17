@@ -163,7 +163,11 @@ def _login(handler) -> None:
     except ValueError as exc:
         handler._json_error(400, str(exc))
         return
-    result = auth.login(str(data.get("username") or ""), str(data.get("password") or ""))
+    result = auth.login(
+        str(data.get("username") or ""),
+        str(data.get("password") or ""),
+        str(data.get("role") or ""),
+    )
     status = result.pop("status")
     if result.get("ok"):
         target = safe_next(str(data.get("next") or ""), result["role"])

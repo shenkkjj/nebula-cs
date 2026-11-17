@@ -285,11 +285,20 @@
       return `<td>${item ? metricCell(key, item.metrics, item.targets) : "未运行"}</td>`;
     }).join("") + "</tr>").join("");
     const notes = latest.map((item) => `${item.group} 组 · ${escapeHtml(item.dataset)} · ${item.count} 题。${escapeHtml(item.note || "")}`).join("<br />");
+    const missed = latest.map((item) => {
+      if (item.failure_count == null) return "";
+      if (!item.failures || !item.failures.length) {
+        return `<p class="small" style="padding:0 20px 12px">${escapeHtml(item.group)} 组这次没有未通过的题。</p>`;
+      }
+      const rows = item.failures.map((row) => `<tr><td>${escapeHtml(row.id)}</td><td class="clip">${escapeHtml(row.question)}</td><td>${escapeHtml(row.type)}</td><td><span class="badge bad">${escapeHtml(row.label || "未通过")}</span></td></tr>`).join("");
+      const more = item.failure_count > item.failures.length ? `<p class="small muted" style="padding:8px 20px">还有 ${item.failure_count - item.failures.length} 条未通过，导出 CSV 可看全部。</p>` : "";
+      return `<h2 class="panel-title" style="font-size:21px;padding:16px 20px 8px">${escapeHtml(item.group)} 组未通过</h2><div class="table-wrap"><table class="table"><thead><tr><th>题号</th><th>问题</th><th>类型</th><th>判分</th></tr></thead><tbody>${rows}</tbody></table></div>${more}`;
+    }).join("");
     const watches = latest.filter((item) => item.metrics && item.metrics.span_observation).map((item) => {
       const watch = item.metrics.span_observation;
       return `${item.group} 组附加观察：期望证据片段 ${watch.hits}/${watch.count}。${escapeHtml(watch.note || "")}`;
     }).join("<br />");
-    box.innerHTML = `<div class="table-wrap"><table class="table"><thead>${head}</thead><tbody>${rows}</tbody></table></div><div class="panel-body small">${notes}${watches ? "<br />" + watches : ""}</div>`;
+    box.innerHTML = `<div class="table-wrap"><table class="table"><thead>${head}</thead><tbody>${rows}</tbody></table></div><div class="panel-body small">${notes}${watches ? "<br />" + watches : ""}</div>${missed}`;
     const first = latest[0];
     const foot = document.getElementById("evalExport");
     foot.hidden = false;

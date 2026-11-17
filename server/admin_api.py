@@ -424,6 +424,21 @@ def _latest_results() -> list[dict]:
             continue
         if not payload.get("ran"):
             continue
+        items = payload.get("items") if isinstance(payload.get("items"), list) else None
+        failures = []
+        failure_count = None
+        if items is not None:
+            missed = [row for row in items if not row.get("pass")]
+            failure_count = len(missed)
+            for row in missed[:12]:
+                failures.append(
+                    {
+                        "id": row.get("id"),
+                        "type": row.get("type") or "",
+                        "question": str(row.get("question") or "")[:80],
+                        "label": row.get("label") or "",
+                    }
+                )
         found.append({
             "group": payload.get("group"),
             "dataset": payload.get("dataset"),
@@ -432,6 +447,8 @@ def _latest_results() -> list[dict]:
             "targets": payload.get("targets"),
             "note": payload.get("note"),
             "file": path.name,
+            "failures": failures,
+            "failure_count": failure_count,
         })
     return found
 

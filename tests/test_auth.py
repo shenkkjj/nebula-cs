@@ -49,6 +49,18 @@ class LoginTest(unittest.TestCase):
         still = login("agent1", "agent123")
         self.assertEqual(still["status"], 429)
 
+    def test_login_role_must_match_the_chosen_desk(self) -> None:
+        wrong = login("agent1", "agent123", "admin")
+        self.assertFalse(wrong["ok"])
+        self.assertEqual(wrong["status"], 403)
+        self.assertIn("管理员", wrong["error"])
+        agent = login("agent1", "agent123", "agent")
+        self.assertTrue(agent["ok"])
+        self.assertEqual(agent["role"], "agent")
+        admin = login("admin", "admin123", "admin")
+        self.assertTrue(admin["ok"])
+        self.assertEqual(admin["role"], "admin")
+
 
 class HttpAuthTest(unittest.TestCase):
     def setUp(self) -> None:
