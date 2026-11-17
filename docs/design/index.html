@@ -3,38 +3,42 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>校园客服 · 设计方案预览（未定稿）</title>
+<title>校园客服 · 设计方案（E5 / DESIGN v1.0 已上线）</title>
+<link rel="stylesheet" href="/fonts/fonts.css?v=20261117" />
 <style>
   :root {
-    --bg:#0f1419; --card:#1a222c; --text:#e8eef4; --mute:#8b9aab; --line:#2a3542;
+    --bg:#0b0c0e; --card:#14161a; --text:#f3ebe0; --mute:#9a9080; --line:rgba(184,155,94,.35);
     --a:#c45c26; --b:#f0b429; --c:#2a9d8f; --d:#e30613; --e:#b89b5e; --f:#c4a574;
     --g:#9aa3a8; --h:#1f3a5f; --i:#1aa6b0;
   }
   * { box-sizing: border-box; }
   html, body { margin:0; overflow-x: clip; }
-  body { font-family: "PingFang SC","Microsoft YaHei",system-ui,sans-serif; background:var(--bg); color:var(--text); line-height:1.55; }
+  body { font-family: "Manrope", "PingFang SC", "Microsoft YaHei", sans-serif; background:var(--bg); color:var(--text); line-height:1.55; }
+  h1, .card h2 { font-family: "Cormorant Garamond", "Songti SC", "Noto Serif SC", serif; font-weight: 600; }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.25rem 3rem; }
   h1 { font-size: 1.65rem; margin: 0 0 .4rem; }
   .lead { color: var(--mute); margin: 0 0 1.25rem; }
   .banner {
-    border: 1px dashed var(--line); border-radius: 12px; padding: .85rem 1rem;
-    color: var(--mute); font-size: .9rem; margin-bottom: 1.5rem; background: #141b22;
+    border: 1px solid var(--line); border-radius: 18px; padding: 1rem 1.1rem;
+    color: var(--text); font-size: .92rem; margin-bottom: 1.25rem; background: var(--card);
   }
-  .banner strong { color: #f0d9a0; }
+  .banner strong { color: #e8dcc4; }
   .pref { margin: 0 0 1.5rem; font-size: .9rem; color: #c5d0dc; }
   .pref em { color: var(--e); font-style: normal; font-weight: 700; }
+  .pref a { color: #e8dcc4; text-underline-offset: 3px; }
+  .pref a:hover { color: #b89b5e; }
   .grid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
   @media (min-width: 720px) { .grid { grid-template-columns: 1fr 1fr 1fr; } }
   a.card {
     display: flex; flex-direction: column; gap: .55rem;
     text-decoration: none; color: inherit;
     background: var(--card); border: 1px solid var(--line);
-    border-radius: 14px; padding: 1.1rem 1.15rem;
+    border-radius: 18px; padding: 1.1rem 1.15rem;
     transition: border-color .15s ease, transform .15s ease;
     min-height: 210px;
   }
   a.card:hover { transform: translateY(-2px); }
-  a.card:focus-visible { outline: 2px solid #f0d9a0; outline-offset: 2px; }
+  a.card:focus-visible { outline: 2px solid #b89b5e; outline-offset: 2px; }
   a.card.A:hover { border-color: var(--a); }
   a.card.B:hover { border-color: var(--b); }
   a.card.C:hover { border-color: var(--c); }
@@ -80,13 +84,13 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>校园客服 · 设计方案预览</h1>
-    <p class="lead">vibe design 选款阶段 · A–I + E 精修（E2–E5）· <strong>尚未确认定稿</strong></p>
+    <h1>校园客服 · 设计方案</h1>
+    <p class="lead">DESIGN v1.0 已确认，并已放进生产门户 · 视觉是 E5 黑金贵宾席</p>
     <div class="banner">
-      <strong>说明：</strong>以下为可打开的静态 HTML 原型，对话与引用均为<strong>模拟数据</strong>，不接业务 API。
-      选定前不会替换生产门户 <code>web/</code>。方向锁定 E；用户反馈 E2–E4 不如原 E，已出 <strong>E5</strong>（原 E 黑金 + 苹果 R 角）。请比较后明确选定。沉默不算确认。
+      <strong>已上线。</strong>生产门户用的就是 E5：近黑底、香槟金、苹果 R 角。DESIGN v1.0 在这张席上增加了澄清选项、按文档折叠的出处、转人工，以及知识库维护提示。坐席和后台是 S1 值班台，从登录页进入。下面的 A–I 是选款时留下的静态对照，对话和引用都是模拟数据，不再等待选定。
     </div>
-    <p class="pref">目前已确认：<em>E5</em>（原 E 黑金贵宾席 + 苹果连续柔和 R 角）· E2/E3/E4 反馈不如原 E · D/F 否决 · <strong>无一款已确认</strong></p>
+    <p class="pref">生产门户：<em>E5</em> · 坐席与后台：<em>S1 值班台</em> · E2 / E3 / E4 不如原 E · D 与 F 已否决</p>
+    <p class="pref"><a href="/">打开生产门户</a> · <a href="portal-states.html">门户状态对照</a> · <a href="staff.html">值班台对照</a> · <a href="/login">登录</a></p>
     <div class="grid">
       <a class="card A" href="options/A-editorial/index.html">
         <span class="tag">OPTION A</span>
@@ -137,10 +141,10 @@
         <div class="diff">相对 E：空气感 + 最小 chrome</div>
       </a>
       <a class="card E" href="options/E5-luxury-apple-r/index.html">
-        <span class="tag">OPTION E5<span class="badge">已确认精修</span></span>
+        <span class="tag">OPTION E5<span class="badge">生产门户</span></span>
         <h2>贵宾席 · 苹果 R 角</h2>
         <p>忠实原版 E：近黑底、细金线、香槟卡片与右侧出处抽屉；仅把直角换成连续柔和苹果 R 角与弥散阴影。</p>
-        <div class="diff">相对 E：圆角 + 软阴影，不做层级/密度/留白大改</div>
+        <div class="diff">已替换生产门户。相对 E 只改了圆角和软阴影</div>
       </a>
       <a class="card F rejected" href="options/F-sticky/index.html">
         <span class="tag">OPTION F<span class="badge bad">否决·太丑</span></span>
@@ -168,8 +172,8 @@
       </a>
     </div>
     <p class="foot">
-      打开方式：门户代理 <code>http://127.0.0.1:8787/design/</code>，或在本目录执行
-      <code>python3 -m http.server 8790</code> 后访问 <code>http://127.0.0.1:8790/</code>。<br />
+      从门户打开 <code>/design/</code>。字体和门户样式都由本站提供，不请求外部字体。<br />
+      E 系列使用 Cormorant Garamond 与 Manrope。其余归档页只保留版式，字体会落到系统字体。<br />
       文档：<code>docs/DESIGN.md</code> · <code>docs/PRD.md</code> · <code>docs/STATUS.md</code>
     </p>
   </div>

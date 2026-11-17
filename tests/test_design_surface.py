@@ -72,6 +72,12 @@ class DesignSurfaceTest(unittest.TestCase):
         self.assertNotIn("admin123", login)
         self.assertNotIn("agent123", login)
         self.assertNotIn("演示账号", login)
+        home = _text("web/index.html")
+        self.assertIn("澄清选项", home)
+        self.assertIn("其余段落折叠", home)
+        self.assertIn("/fonts/fonts.css?v=", home)
+        self.assertIn("styles.css?v=", home)
+        self.assertIn("app.js?v=", home)
         admin = _text("web/admin.js")
         self.assertIn("历史记录", admin)
         self.assertIn("item.historical", admin)
@@ -87,6 +93,35 @@ class DesignSurfaceTest(unittest.TestCase):
         for banned in ("chromadb", "ollama", "langchain", "dify", "fastgpt", "ragflow", "maxkb"):
             self.assertNotIn(banned, base)
         self.assertIn("chromadb", campus)
+
+    def test_pages_serve_local_fonts_and_the_preview_is_confirmed(self) -> None:
+        files = list((ROOT / "web").rglob("*.html"))
+        files += list((ROOT / "web").rglob("*.css"))
+        files += list((ROOT / "web").rglob("*.js"))
+        files += list((ROOT / "docs" / "design").rglob("*.html"))
+        files += list((ROOT / "docs" / "design").rglob("*.css"))
+        blob = "\n".join(path.read_text(encoding="utf-8") for path in files)
+        self.assertNotIn("fonts.googleapis.com", blob)
+        self.assertNotIn("fonts.gstatic.com", blob)
+        css = (ROOT / "web" / "fonts" / "fonts.css").read_text(encoding="utf-8")
+        self.assertIn("Cormorant Garamond", css)
+        self.assertIn("Manrope", css)
+        self.assertIn("font-weight: 500 700", css)
+        self.assertIn("font-weight: 400 700", css)
+        for name in (
+            "cormorant-garamond.woff2",
+            "cormorant-garamond-500-italic.woff2",
+            "manrope.woff2",
+            "CormorantGaramond-OFL.txt",
+            "Manrope-OFL.txt",
+        ):
+            self.assertTrue((ROOT / "web" / "fonts" / name).is_file(), name)
+        page = (ROOT / "docs" / "design" / "index.html").read_text(encoding="utf-8")
+        for banned in ("尚未确认", "选定前不会替换", "无一款已确认", "沉默不算确认", "沈凯杰", "王瑞康", "美团", "腾讯", "阿里巴巴"):
+            self.assertNotIn(banned, page)
+        self.assertIn("已上线", page)
+        self.assertIn("E5", page)
+        self.assertIn("S1", page)
 
 
 if __name__ == "__main__":

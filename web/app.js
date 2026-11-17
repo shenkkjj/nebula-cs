@@ -27,10 +27,9 @@
   /** 空态高频意图：少量入口，其余问题仍在顶栏。 */
   const EMPTY_CHIPS = [
     { label: "在读证明", query: "在读证明如何办理？" },
-    { label: "助学贷款", query: "国家助学贷款如何申请？" },
+    { label: "证明怎么开", query: "证明怎么开？" },
     { label: "宿舍报修", query: "宿舍报修怎么提交？" },
     { label: "校园网", query: "校园网如何认证登录？" },
-    { label: "办事进度", query: "办事进度如何查询？" },
     { label: "转人工", query: "转人工" },
   ];
 
@@ -273,6 +272,7 @@
     renderCitations([]);
     renderSessionList();
     setStatus("已切换会话 · 可继续追问");
+    pollPortal();
   }
 
   function renderMessagesFromState() {
@@ -291,6 +291,7 @@
       } else {
         const row = appendMessage("bot", formatAnswer(m.text), {
           refuse: !!m.refuse,
+          handoff: !!m.handoff,
           suggestions: m.suggestions || [],
           clarify: m.action === "clarify",
           agent: m.role === "agent",
@@ -316,6 +317,10 @@
     state.historyCutoff = 0;
     state.messages = [];
     state.sessionId = newSessionId();
+    state.ticketId = "";
+    state.agentLive = false;
+    state.agentName = "";
+    if (!state.maintenance) setPill("助手在线", "");
     try {
       localStorage.setItem(LS_ACTIVE, state.sessionId);
     } catch {
@@ -340,7 +345,7 @@
       <div class="empty-state">
         <div class="mark" aria-hidden="true">云</div>
         <h3>你好，我是校园助手</h3>
-        <p>办事的口径我按知识库说，并标出处。闲聊、写东西、算题也可以。想说什么，直接打字就行。</p>
+        <p>办事问题按知识库回答，出处收在右侧。问得含糊时先给澄清选项；同一份文档只留一张出处卡，其余段落折叠。说「转人工」就排队。知识库维护时，对话区上方会出现黄条。</p>
         <div class="empty-chips" role="group" aria-label="快捷提问">${chips}</div>
       </div>`;
     el.messages.querySelectorAll(".empty-chips .chip").forEach((btn) => {
@@ -352,7 +357,8 @@
     if (!el.citeList.querySelector(".cite-card")) {
       el.citeList.innerHTML = `
         <div class="cite-empty">
-          <p>提问后，这里会展示可展开的出处卡片（文档名、相关度与原文片段）。</p>
+          <p class="cite-empty-title">出处会收在这里</p>
+          <p>同一份文档一张卡。相关度最高的一段在前，其余段落折叠，点开再看。</p>
         </div>`;
     }
   }
@@ -362,7 +368,8 @@
     if (empty) empty.remove();
 
     const wrap = document.createElement("div");
-    wrap.className = "msg " + (opts.agent ? "agent-msg" : role) + (opts.refuse ? " refuse" : "");
+    const handoffClass = opts.handoff && !opts.refuse ? " handoff" : "";
+    wrap.className = "msg " + (opts.agent ? "agent-msg" : role) + (opts.refuse ? " refuse" : "") + handoffClass;
     const who = opts.who || (role === "user" ? "同学" : "校园助手");
     wrap.innerHTML = `<div class="who">${escapeHtml(who)}</div><div class="bubble">${linkCitationMarks(html, opts.citeCount)}</div>`;
     if (opts.refuse) {
@@ -389,22 +396,25 @@
     el.messages.scrollTop = el.messages.scrollHeight;
   }
 
+  function setPill(text, kind) {
+    if (!el.onlinePill) return;
+    el.onlinePill.textContent = text;
+    el.onlinePill.classList.toggle("warn", kind === "warn");
+    el.onlinePill.classList.toggle("live", kind === "live");
+  }
+
   function showMaintenance(on) {
     state.maintenance = !!on;
     if (!el.noticeBar || !el.onlinePill) return;
     if (!on) {
       el.noticeBar.hidden = true;
       if (el.statusText) el.statusText.classList.remove("warn");
-      if (!state.agentLive && el.onlinePill.textContent === "知识库维护中") {
-        el.onlinePill.textContent = "助手在线";
-        el.onlinePill.classList.remove("warn");
-      }
+      if (!state.agentLive && el.onlinePill.textContent === "知识库维护中") setPill("助手在线", "");
       return;
     }
     el.noticeBar.hidden = false;
     el.noticeBar.innerHTML = "<strong>知识库维护中</strong>机器人暂时不能回答办事问题。你的提问会登记给坐席，上线后回复。";
-    el.onlinePill.textContent = "知识库维护中";
-    el.onlinePill.classList.add("warn");
+    setPill("知识库维护中", "warn");
     if (el.statusText) {
       el.statusText.textContent = "知识库维护中 · 机器人暂停回答办事问题";
       el.statusText.classList.add("warn");
@@ -413,15 +423,18 @@
 
   function showAgentLive() {
     if (!state.ticketId || state.maintenance) return;
-    if (el.onlinePill) {
-      el.onlinePill.textContent = "人工接入中";
-      el.onlinePill.classList.remove("warn");
-    }
+    state.agentLive = true;
+    setPill("人工接入中", "live");
     if (el.statusText) {
       const who = state.agentName ? state.agentName + " · " : "";
       el.statusText.textContent = who + "人工接入中 · 工单 " + state.ticketId;
       el.statusText.classList.remove("warn");
     }
+  }
+
+  function showQueued() {
+    if (!state.ticketId || state.maintenance || state.agentLive) return;
+    setPill("排队中", "live");
   }
 
   function noteTurn(data) {
@@ -439,6 +452,7 @@
         : "已登记工单 " + data.ticket_id + "，排队中";
       appendSystem(line);
       state.messages.push({ role: "system", text: line });
+      if (!data.maintenance && data.agent_action === "human_handoff") showQueued();
     }
   }
 
@@ -480,6 +494,7 @@
       if (who) who.textContent = opts.who;
     }
     if (opts.refuse) row.classList.add("refuse");
+    if (opts.handoff && !opts.refuse) row.classList.add("handoff");
     const bubble = row.querySelector(".bubble");
     if (bubble) bubble.innerHTML = linkCitationMarks(formatAnswer(text), opts.citeCount);
     const cursor = row.querySelector(".stream-cursor");
@@ -494,6 +509,23 @@
     mountSuggestions(row, opts.suggestions, opts.clarify);
     mountBotTools(row);
     el.messages.scrollTop = el.messages.scrollHeight;
+  }
+
+  function mountHandoffAction(row, ticketId) {
+    if (!row || row.querySelector(".msg-actions")) return;
+    const actions = document.createElement("div");
+    actions.className = "msg-actions";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "solid";
+    button.textContent = "补充工单信息";
+    button.addEventListener("click", () => {
+      openTicket();
+      const subj = el.ticketForm.querySelector("input[name=subject]");
+      if (subj && !subj.value) subj.value = maskPhone(ticketId ? "跟进工单 " + ticketId : "转人工跟进");
+    });
+    actions.appendChild(button);
+    row.appendChild(actions);
   }
 
   function mountBotTools(row) {
@@ -724,6 +756,12 @@
     box.setAttribute("role", "group");
     box.classList.toggle("clarify-opts", !!clarify);
     box.setAttribute("aria-label", clarify ? "澄清选项" : "可选问题");
+    if (clarify) {
+      const label = document.createElement("span");
+      label.className = "clarify-label";
+      label.textContent = "澄清选项";
+      box.appendChild(label);
+    }
     const items = clarify ? suggestions.slice(0, 3) : suggestions;
     items.forEach((item) => {
       const label = (item && (item.label || item.query)) || "";
@@ -836,10 +874,13 @@
         const mark = Number(primary.mark) || i + 1;
         const rest = group.segments.slice(1);
         const heading = primary.title && primary.title !== group.document_name ? " · " + primary.title : "";
+        const foldNote = rest.length ? `<div class="fold-note">其余 ${rest.length} 段已折叠</div>` : "";
+        const chev = rest.length ? "展开其余" : "展开原文";
         return `<article class="cite-card" data-idx="${mark - 1}" tabindex="0" role="button" aria-expanded="false">
           <div class="doc"><span>${escapeHtml(group.document_name || "文档")}</span><span class="score">${score}</span></div>
-          <div class="meta"><span>${escapeHtml(group.dataset_name || "知识库")}${escapeHtml(heading)} · #${mark}</span><span class="chev">▶ 展开</span></div>
+          <div class="meta"><span>${escapeHtml(group.dataset_name || "知识库")}${escapeHtml(heading)} · #${mark}</span><span class="chev">${chev}</span></div>
           ${preview ? `<div class="snip-preview">${escapeHtml(preview)}${snip.length > 64 ? "…" : ""}</div>` : ""}
+          ${foldNote}
           <div class="snip">${escapeHtml(snip) || "（无原文片段）"}</div>
           ${rest.map((seg) => `<div class="snip-more">${escapeHtml((seg.content || "").slice(0, 800))}</div>`).join("")}
         </article>`;
@@ -850,7 +891,7 @@
         const open = card.classList.toggle("open");
         card.setAttribute("aria-expanded", open ? "true" : "false");
         const chev = card.querySelector(".chev");
-        if (chev) chev.textContent = open ? "▼ 收起" : "▶ 展开";
+        if (chev) chev.textContent = open ? "收起" : (card.querySelector(".fold-note") ? "展开其余" : "展开原文");
       };
       card.addEventListener("click", toggle);
       card.addEventListener("keydown", (e) => {
@@ -868,8 +909,8 @@
       renderCitations([], "maintenance");
       return;
     }
-    if (state.agentLive) {
-      showAgentLive();
+    if (state.agentLive || (data && data.handoff)) {
+      if (state.agentLive) showAgentLive();
       renderCitations([], "human");
       return;
     }
@@ -1016,15 +1057,17 @@
         if (data.rewrite) noteRewrite(data.rewrite);
         const suggestions = data.suggestions || [];
         finishBotStream(answer, {
-          refuse: refuse || handoff,
+          refuse,
+          handoff,
           suggestions,
           clarify: data.agent_action === "clarify",
           citeCount: citeSpan(data.citations),
         });
+        if (handoff && !refuse) mountHandoffAction(el.messages.lastElementChild, data.ticket_id || "");
         state.messages.push({
           role: "bot",
           text: answer,
-          refuse: refuse || handoff,
+          refuse,
           handoff,
           action: data.agent_action,
           suggestions,
@@ -1114,31 +1157,17 @@
       const suggestions = (finalPayload && finalPayload.suggestions) || [];
       if (finalPayload && finalPayload.rewrite) noteRewrite(finalPayload.rewrite);
       finishBotStream(answer, {
-        refuse: refuse || handoff,
+        refuse,
+        handoff,
         suggestions,
         clarify: action === "clarify",
         citeCount: citeSpan(citations),
       });
-      // 转人工也给出一键工单按钮
-      if (handoff) {
-        const row = el.messages.lastElementChild;
-        if (row && !row.querySelector(".msg-actions")) {
-          const actions = document.createElement("div");
-          actions.className = "msg-actions";
-          const tid = (finalPayload && finalPayload.ticket_id) || "";
-          actions.innerHTML = `<button type="button" class="solid" data-action="ticket">补充工单信息</button>`;
-          actions.querySelector("button").addEventListener("click", () => {
-            openTicket();
-            const subj = el.ticketForm.querySelector("input[name=subject]");
-            if (subj && !subj.value) subj.value = maskPhone(tid ? "跟进工单 " + tid : "转人工跟进");
-          });
-          row.appendChild(actions);
-        }
-      }
+      if (handoff && !refuse) mountHandoffAction(el.messages.lastElementChild, (finalPayload && finalPayload.ticket_id) || "");
       state.messages.push({
         role: "bot",
         text: answer,
-        refuse: refuse || handoff,
+        refuse,
         handoff,
         action,
         suggestions,
@@ -1285,7 +1314,17 @@
       el.ticketResult.hidden = false;
       el.ticketResult.textContent = data.message || (data.ok === false ? "未提交" : "已提交");
       if (data.ok === false) setStatus("工单未提交 · 请去掉证件号或病历");
-      else setStatus(data.ticket_id ? "工单 " + data.ticket_id + " 已登记" : "工单已提交");
+      else {
+        setStatus(data.ticket_id ? "工单 " + data.ticket_id + " 已登记" : "工单已提交");
+        if (data.ticket_id) {
+          state.ticketId = data.ticket_id;
+          showQueued();
+          const line = "已登记工单 " + data.ticket_id + "，排队中";
+          appendSystem(line);
+          state.messages.push({ role: "system", text: line });
+          persistCurrentSession();
+        }
+      }
     } catch (err) {
       el.ticketResult.hidden = false;
       el.ticketResult.textContent = "提交失败：" + (err.message || err);
@@ -1307,11 +1346,12 @@
       state.agentLive = !!(data.ticket && data.ticket.status === "active");
       state.agentName = (data.ticket && data.ticket.assignee_name) || "";
       if (data.ticket && data.ticket.public_id) state.ticketId = data.ticket.public_id;
+      const ticketStatus = data.ticket && data.ticket.status;
       showMaintenance(!!data.maintenance);
       if (!data.maintenance && state.agentLive) showAgentLive();
-      else if (!data.maintenance && el.onlinePill && el.onlinePill.textContent === "人工接入中") {
-        el.onlinePill.textContent = "助手在线";
-        el.onlinePill.classList.remove("warn");
+      else if (!data.maintenance && ticketStatus === "waiting") showQueued();
+      else if (!data.maintenance && ticketStatus === "closed" && el.onlinePill && el.onlinePill.textContent !== "助手在线") {
+        setPill("助手在线", "");
         if (el.statusText && state.ticketId) {
           el.statusText.textContent = "工单 " + state.ticketId + " 已结束，可以继续问校园助手";
         }

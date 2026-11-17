@@ -210,7 +210,7 @@ LITE_MODE=1 PORTAL_PORT=8787 python3 server/proxy.py
 
 ## 技术要点（答辩）
 
-- 前端：纯 HTML/CSS/JS；**E5** 近黑+香槟金、苹果 R 角；Cormorant / Manrope + 中文系统字体。  
+- 前端：纯 HTML/CSS/JS；**E5** 近黑+香槟金、苹果 R 角；Cormorant / Manrope 放在 `web/fonts/`，页面不请求外部字体。中文用系统字体。  
 - 代理：Python 3 `http.server`；默认 SSE；去掉模型 thinking 标签。  
 - 样例库：`sample-kb/客服样例FAQ.md` 一个文件、144 条，第一次启动写入 SQLite。  
 - 检索：BM25 一直可用；远程嵌入写进嵌入式 Chroma，和词法一起排序。加载失败就只用词法。
