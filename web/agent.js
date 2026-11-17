@@ -29,12 +29,22 @@
     return `${p(date.getHours())}:${p(date.getMinutes())}`;
   }
 
+  function emptyDesk(text) {
+    return `<div class="empty"><span class="mark" aria-hidden="true">云</span><p>${text}</p></div>`;
+  }
+
   function waitLabel(ticket) {
     const seconds = ticket.status === "active" ? ticket.active_seconds : ticket.wait_seconds;
     const n = Math.max(0, Math.floor((seconds || 0) / 60));
-    if (ticket.status === "closed") return "已结束";
-    if (ticket.status === "active") return `已接入 ${n} 分`;
-    return n < 1 ? "刚刚" : `等待 ${n} 分`;
+    if (ticket.status === "closed") {
+      return ticket.assignee_name ? `${ticket.assignee_name} 已结束` : "已结束";
+    }
+    if (ticket.status === "active") {
+      const mine = me && Number(ticket.assignee_id) === Number(me.user_id);
+      if (mine) return `你已接入 ${n} 分`;
+      return `${ticket.assignee_name || "坐席"}接入 · ${n} 分`;
+    }
+    return n < 1 ? "等待不到 1 分" : `等待 ${n} 分`;
   }
 
   async function api(path, options) {
@@ -65,14 +75,16 @@
     document.getElementById("tab-active").textContent = "处理中 " + (data.counts.active || 0);
     document.getElementById("tab-closed").textContent = "已结束 " + (data.counts.closed || 0);
     if (!data.tickets.length) {
-      queueEl.innerHTML = '<p class="empty">这一栏还没有工单。</p>';
+      queueEl.innerHTML = emptyDesk("这一栏还没有工单。");
       return;
     }
     queueEl.innerHTML = data.tickets.map((ticket) => {
       const currentMark = current && current.ticket.public_id === ticket.public_id ? ' aria-current="true"' : "";
-      const cls = sourceClass[ticket.source] || "";
+      const closed = ticket.status === "closed";
+      const cls = closed ? "ok" : (sourceClass[ticket.source] || "");
+      const label = closed ? "已结束" : ticket.source_label;
       return `<button type="button" class="ticket" data-id="${ticket.public_id}"${currentMark}>
-        <span class="row"><span>${ticket.public_id}</span><span class="badge ${cls}">${ticket.source_label}</span></span>
+        <span class="row"><span>${ticket.public_id}</span><span class="badge ${cls}">${label}</span></span>
         <span class="q">${escapeHtml(ticket.first_question)}</span>
         <span class="row"><span>${waitLabel(ticket)}</span><span>访客 ${escapeHtml(ticket.visitor || "")}</span></span>
       </button>`;
@@ -133,13 +145,15 @@
 
   function renderTrace(judgments) {
     if (!judgments || !judgments.length) {
-      tracePanel.innerHTML = '<p class="empty">这张工单还没有约束层记录。</p>';
+      tracePanel.innerHTML = emptyDesk("这张工单还没有约束层记录。");
       return;
     }
     tracePanel.innerHTML = judgments.map((item) => {
-      const steps = (item.trace || []).map((step) => {
-        const klass = step.ok ? "ok" : "bad";
-        return `<li class="${klass}"><span class="dot"></span><div><p class="t">${escapeHtml(step.step)}</p><p class="d">${escapeHtml(step.detail || "")}</p></div><span class="ms">${step.ms || 0} ms</span></li>`;
+      const steps = (item.trace || []).map((step, index) => {
+        const detail = step.detail || "";
+        const klass = step.ok === false ? "bad" : /维护/.test(detail) ? "warn" : "ok";
+        const timing = typeof step.ms === "number" ? `${step.ms} ms` : (step.ms || "");
+        return `<li class="${klass}"><span class="dot">${index + 1}</span><div><p class="t">${escapeHtml(step.step)}</p><p class="d">${escapeHtml(detail)}</p></div><span class="ms">${escapeHtml(String(timing))}</span></li>`;
       }).join("");
       return `<section id="tr-${item.id}"><p class="eyebrow">${escapeHtml(item.decision || "")} · ${fmt(item.created_at)}</p><p class="small">${escapeHtml(item.question_masked || "")}</p><ol class="trace">${steps}</ol></section>`;
     }).join("");
@@ -149,11 +163,12 @@
     const ticket = detail.ticket;
     current = detail;
     title.textContent = ticket.public_id + " · " + ticket.first_question;
-    sub.textContent = ticket.source_label + " · " + (ticket.assignee_name || "尚未接入");
+    const created = fmt(ticket.created_at);
+    sub.textContent = "访客 " + (ticket.visitor || "") + " · " + ticket.source_label + (created ? " · " + created + " 创建" : "");
     badge.hidden = false;
-    badge.textContent = ticket.status === "waiting" ? "待接入" : ticket.status === "active" ? "处理中" : "已结束";
+    const mine = Number(ticket.assignee_id) === Number(me && me.user_id);
+    badge.textContent = ticket.status === "waiting" ? "待接入" : ticket.status === "active" ? (mine ? "处理中 · 你已接入" : "处理中") : "已结束";
     badge.className = "badge " + (ticket.status === "closed" ? "ok" : ticket.status === "active" ? "info" : "");
-    const mine = Number(ticket.assignee_id) === Number(me.user_id);
     document.getElementById("btnClose").hidden = ticket.status === "closed" || !mine;
     replyForm.hidden = ticket.status !== "active" || !mine;
     const byMessage = new Map((detail.judgments || []).filter((item) => item.message_id).map((item) => [item.message_id, item]));
@@ -169,7 +184,7 @@
         ? `<div class="msg-tools"><button type="button" class="btn btn-quiet btn-sm" data-pick="${msg.id}">标记这条</button>${judgment ? `<button type="button" class="btn btn-quiet btn-sm" data-trace="${judgment.id}">查看判定</button>` : ""}</div>`
         : "";
       return `<div class="msg ${klass}${refused}"><div class="meta">${escapeHtml(who)} · ${fmt(msg.created_at)} ${badge}</div><div class="bubble">${escapeHtml(msg.body)}</div>${cites}${tools}</div>`;
-    }).join("") || '<p class="empty">还没有消息。</p>';
+    }).join("") || emptyDesk("还没有消息。");
     renderTrace(detail.judgments);
     const question = document.querySelector("#writeForm [name=question]");
     if (question && !question.value) question.value = ticket.first_question;
@@ -263,6 +278,7 @@
   thread.addEventListener("click", (event) => {
     const jump = event.target.closest("[data-trace]");
     if (jump) {
+      for (const node of thread.querySelectorAll(".msg")) node.classList.toggle("is-selected", node.contains(jump));
       selectTab(document.getElementById("tab-trace"));
       const node = document.getElementById("tr-" + jump.dataset.trace);
       if (node) node.scrollIntoView({ block: "nearest" });
@@ -399,20 +415,27 @@
     }
     me = (await res.json()).user;
     document.getElementById("who").textContent = me.display_name + " · " + (me.role === "admin" ? "管理员" : "坐席");
-    const probe = await fetch("/api/portal/state?session=staff-probe").then((r) => r.json()).catch(() => ({}));
-    const pill = document.getElementById("kbPill");
-    if (probe.maintenance) {
-      pill.textContent = "知识库维护中";
-      pill.className = "pill warn";
-    } else if (probe.probe_ok) {
-      pill.textContent = "知识库就绪";
-      pill.className = "pill ok";
+    async function refreshPill() {
+      const probe = await fetch("/api/portal/state?session=staff-probe").then((res) => res.json()).catch(() => ({}));
+      const pill = document.getElementById("kbPill");
+      if (!pill) return;
+      if (probe.maintenance) {
+        pill.textContent = "知识库维护中";
+        pill.className = "pill warn";
+      } else if (probe.probe_ok) {
+        pill.textContent = "知识库就绪";
+        pill.className = "pill ok";
+      }
     }
+    await refreshPill();
     await refreshQueue();
-    setInterval(() => refreshQueue().catch(() => {}), 5000);
+    setInterval(() => {
+      refreshQueue().catch(() => {});
+      refreshPill().catch(() => {});
+    }, 5000);
   }
 
   boot().catch((err) => {
-    queueEl.innerHTML = `<p class="empty">${escapeHtml(err.message)}</p>`;
+    queueEl.innerHTML = emptyDesk(escapeHtml(err.message));
   });
 })();

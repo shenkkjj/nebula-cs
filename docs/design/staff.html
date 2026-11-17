@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>S1 值班台 · DESIGN v1.0 已上线</title>
-<link rel="stylesheet" href="/fonts/fonts.css?v=20261117" />
-<link rel="stylesheet" href="../_shared/staff-e5.css" />
+  <title>S1 值班台 · 候选原型</title>
+  <link rel="stylesheet" href="/fonts/fonts.css?v=20261117b" />
+  <link rel="stylesheet" href="_shared/staff-e5.css" />
   <style>
     /* S1 值班台：坐席与后台是两个独立应用。坐席三栏同屏处理；后台左侧导航 + 密集表格。 */
     .s-agent { display: grid; grid-template-rows: auto minmax(0, 1fr); }
@@ -46,14 +46,13 @@
 </head>
 <body class="proto-page" data-option="S1 值班台">
   <a class="skip-link" href="#main">跳到主要内容</a>
-  <nav class="proto-bar" aria-label="对照页切换，不是生产界面">
-    <strong>S1 值班台</strong><span>DESIGN v1.0 已上线 · 此页是演示数据，生产界面在登录之后</span>
+  <nav class="proto-bar" aria-label="原型页面切换，不是产品界面">
+    <strong>候选 S1「值班台」</strong><span>原型 · 演示数据</span>
     <a href="#agent">坐席工作台</a>
     <a href="#audit">管理后台 · 审计日志</a>
     <a href="#eval">管理后台 · 评测</a>
     <span class="sp"></span>
-    <a href="../index.html">返回设计说明</a>
-    <a href="/login">登录</a>
+    <a href="index.html">返回设计首页</a>
   </nav>
   <div class="app" id="main" tabindex="-1">
     <section data-screen="agent" data-title="坐席工作台" class="s-agent">
@@ -322,6 +321,6 @@
   </div>
   <div class="toast" id="toast" hidden><span id="toast-msg"></span><button type="button" class="icon-btn" id="toast-close" aria-label="关闭提示">×</button></div>
   <p class="sr-only" id="live" role="status" aria-live="polite"></p>
-  <script src="../_shared/proto.js"></script>
+  <script src="_shared/proto.js"></script>
 </body>
 </html>

@@ -208,7 +208,7 @@
     const probe = data.probe;
     const box = document.getElementById("probeBox");
     if (!probe) {
-      box.innerHTML = '<p class="empty">还没有自检记录。点「立即自检」。</p>';
+      box.innerHTML = '<div class="empty"><span class="mark" aria-hidden="true">云</span><p>还没有自检记录。点「立即自检」。</p></div>';
       return;
     }
     const checks = (probe.checks || []).map((item) => `<li class="${item.ok ? "ok" : "bad"}"><span class="dot"></span><div><p class="t">${escapeHtml(item.name)}</p><p class="d">${escapeHtml(item.detail || "")}</p></div></li>`).join("");
@@ -227,10 +227,11 @@
     }
     body.innerHTML = data.rows.map((row, index) => {
       const id = "ad-" + index;
-      const steps = ((row.detail && row.detail.trace) || []).map((step) => `<li class="${step.ok ? "ok" : "bad"}"><span class="dot"></span><div><p class="t">${escapeHtml(step.step)}</p><p class="d">${escapeHtml(step.detail || "")}</p></div></li>`).join("");
+      const steps = ((row.detail && row.detail.trace) || []).map((step, index) => `<li class="${step.ok ? "ok" : "bad"}"><span class="dot">${index + 1}</span><div><p class="t">${escapeHtml(step.step)}</p><p class="d">${escapeHtml(step.detail || "")}</p></div></li>`).join("");
       const toggle = steps ? `<button type="button" class="row-toggle" aria-expanded="false" aria-controls="${id}">›</button>` : "";
       const detail = steps ? `<tr class="detail-row" id="${id}" hidden><td></td><td colspan="6"><div class="detail"><ol class="trace">${steps}</ol></div></td></tr>` : "";
-      return `<tr><td>${toggle}</td><td>${escapeHtml(row.created_at)}</td><td>${escapeHtml(row.session_ref)}</td><td class="clip">${escapeHtml(row.question)}</td><td>${escapeHtml(row.decision)}</td><td class="clip">${escapeHtml(row.source)}</td><td class="num">${row.latency_ms ?? "—"}</td></tr>${detail}`;
+      const tone = /拒|拦截|失败/.test(row.decision || "") ? "bad" : /通过/.test(row.decision || "") ? "ok" : /转人工|维护/.test(row.decision || "") ? "info" : "";
+      return `<tr><td>${toggle}</td><td>${escapeHtml(row.created_at)}</td><td>${escapeHtml(row.session_ref)}</td><td class="clip">${escapeHtml(row.question)}</td><td><span class="badge ${tone}">${escapeHtml(row.decision || "—")}</span></td><td class="clip">${escapeHtml(row.source)}</td><td class="num">${row.latency_ms ?? "—"}</td></tr>${detail}`;
     }).join("");
   }
 
@@ -267,7 +268,7 @@
       if (!byGroup[item.group]) byGroup[item.group] = item;
     }
     if (!latest || !latest.length) {
-      box.innerHTML = '<p class="empty">还没有实测结果。选数据集和组别后运行。B、C 需要连上知识库，没跑就不填数。</p>';
+      box.innerHTML = '<div class="empty"><span class="mark" aria-hidden="true">云</span><p>还没有实测结果。选数据集和组别后运行。B、C 需要连上知识库，没跑就不填数。</p></div>';
       document.getElementById("evalExport").hidden = true;
       return;
     }
@@ -280,10 +281,10 @@
       ["first_token_p50_ms", "首字 p50", "≤ 3 秒"],
       ["first_token_p95_ms", "首字 p95", "≤ 6 秒"],
     ];
-    const head = "<tr><th>指标</th><th>目标</th><th>A 改造前规则引擎</th><th>B 知识库直出</th><th>C 本系统</th></tr>";
-    const rows = keys.map(([key, label, goal]) => `<tr><th>${label}</th><td>${goal}</td>` + ["A", "B", "C"].map((group) => {
+    const head = '<tr><th scope="col">指标</th><th scope="col" class="num">目标</th><th scope="col" class="num">A 改造前规则引擎</th><th scope="col" class="num">B 知识库直出</th><th scope="col" class="num">C 本系统</th></tr>';
+    const rows = keys.map(([key, label, goal]) => `<tr><th scope="row">${label}</th><td class="num">${goal}</td>` + ["A", "B", "C"].map((group) => {
       const item = byGroup[group];
-      return `<td>${item ? metricCell(key, item.metrics, item.targets, item) : "未运行"}</td>`;
+      return `<td class="num">${item ? metricCell(key, item.metrics, item.targets, item) : "未运行"}</td>`;
     }).join("") + "</tr>").join("");
     const notes = latest.map((item) => {
       const stamp = item.historical ? "历史记录，不是当前引擎的成绩，数字未改写。" : "";
@@ -511,6 +512,17 @@
       return;
     }
     document.getElementById("who").textContent = data.user.display_name + " · 管理员";
+    fetch("/api/portal/state?session=admin-rail").then((res) => res.json()).then((probe) => {
+      const pill = document.getElementById("kbPill");
+      if (!pill) return;
+      if (probe.maintenance) {
+        pill.textContent = "知识库维护中";
+        pill.className = "pill warn";
+      } else if (probe.probe_ok) {
+        pill.textContent = "知识库就绪";
+        pill.className = "pill ok";
+      }
+    }).catch(() => {});
     show(location.hash.slice(1) || "docs");
   });
 })();

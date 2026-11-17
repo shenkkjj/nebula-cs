@@ -6,8 +6,8 @@
   <title>坐席工作台 · 校园客服</title>
   <link rel="preload" href="/fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="/fonts/manrope.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="/fonts/fonts.css?v=20261117" />
-  <link rel="stylesheet" href="/staff.css?v=20261117" />
+  <link rel="stylesheet" href="/fonts/fonts.css?v=20261117b" />
+  <link rel="stylesheet" href="/staff.css?v=20261117b" />
 </head>
 <body class="desk-page">
   <a class="skip-link" href="#main">跳到主要内容</a>
@@ -41,7 +41,7 @@
             <button type="button" class="btn btn-ghost btn-sm" id="btnClose" hidden>结束工单</button>
           </div>
         </div>
-        <div class="thread" id="thread" aria-label="对话记录"><p class="empty">还没有选中工单。</p></div>
+        <div class="thread" id="thread" aria-label="对话记录"><div class="empty"><span class="mark" aria-hidden="true">云</span><p>还没有选中工单。</p></div></div>
         <form class="composer" id="replyForm" hidden>
           <label class="sr-only" for="reply">回复访客</label>
           <textarea class="textarea" id="reply" rows="1" maxlength="800" required placeholder="回复访客，Enter 发送，Shift+Enter 换行"></textarea>
@@ -55,7 +55,7 @@
           <button type="button" role="tab" id="tab-write" data-panel="write" aria-selected="false" tabindex="-1">回写知识库</button>
           <button type="button" role="tab" id="tab-bad" data-panel="bad" aria-selected="false" tabindex="-1">标记坏例</button>
         </div>
-        <div class="tabpanel" id="panel-trace"><p class="empty">接入工单后，这里按时间列出打码、改写、检索、约束和输出。</p></div>
+        <div class="tabpanel" id="panel-trace"><div class="empty"><span class="mark" aria-hidden="true">云</span><p>接入工单后，这里按时间列出打码、改写、检索、约束和输出。</p></div></div>
         <div class="tabpanel" id="panel-write" hidden>
           <form id="writeForm">
             <p class="small muted">写入后成为一篇独立文档，来源标「坐席回写」。管理员可以删除。</p>
@@ -95,6 +95,6 @@
       </div>
     </form>
   </dialog>
-  <script src="/agent.js?v=20261117"></script>
+  <script src="/agent.js?v=20261117c"></script>
 </body>
 </html>

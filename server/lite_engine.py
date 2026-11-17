@@ -758,10 +758,11 @@ def _payload(
 
 
 def _clarify_text(chunks: list[Chunk]) -> str:
-    lines = ["我找到几条都相关，不想猜错。你想问的是哪一件？", ""]
-    for index, chunk in enumerate(chunks[:3], 1):
-        lines.append(f"{index}. {chunk.title}")
-    return "\n".join(lines)
+    """The bubble asks which one. The choices themselves are the chips underneath."""
+    blob = " ".join((chunk.title or "") + (chunk.question or "") for chunk in chunks[:3])
+    if "证明" in blob:
+        return "你说的「证明」指的是哪一种？选一个我再回答你："
+    return "你说的是哪一种？选一个我再回答你："
 
 
 def deepseek_api_key() -> str:

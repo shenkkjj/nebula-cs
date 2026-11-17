@@ -48,7 +48,7 @@ class DesignSurfaceTest(unittest.TestCase):
         self.assertIn("索引中", staff)
         self.assertIn("索引完成", staff)
         self.assertIn("请写一句处理说明", staff)
-        self.assertIn("max-width: 1279px", staff)
+        self.assertIn("max-width: 1180px", staff)
         self.assertIn("max-width: 760px", staff)
         self.assertIn("prefers-reduced-motion", staff)
 
@@ -119,7 +119,10 @@ class DesignSurfaceTest(unittest.TestCase):
         page = (ROOT / "docs" / "design" / "index.html").read_text(encoding="utf-8")
         for banned in ("尚未确认", "选定前不会替换", "无一款已确认", "沉默不算确认", "沈凯杰", "王瑞康", "美团", "腾讯", "阿里巴巴"):
             self.assertNotIn(banned, page)
-        self.assertIn("已上线", page)
+        self.assertIn("生产门户和值班台现在按这两张原型", page)
+        self.assertIn("这不是正式终验", page)
+        self.assertNotIn("新设计还没实施", page)
+        self.assertNotIn("旧版门户", page)
         self.assertIn("E5", page)
         self.assertIn("S1", page)
 

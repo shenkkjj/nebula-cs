@@ -261,7 +261,7 @@ body.desk-page { height: 100vh; overflow: hidden; }
 .login-card .seg { width: 100%; }
 .login-card .btn-solid { min-height: 44px; }
 .err { color: var(--bad); font-size: 13px; }
-@media (max-width: 1279px) {
+@media (max-width: 1180px) {
   body.desk-page { height: auto; min-height: 100vh; overflow: auto; }
   .desk { grid-template-columns: 260px minmax(0, 1fr); }
   .desk > .panel { min-height: 460px; }
