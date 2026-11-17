@@ -275,8 +275,24 @@ class DatasetAndGroupATest(unittest.TestCase):
         self.addCleanup(restore)
         payload = eval_runner.run_group(dataset, "C")
         self.assertIn("自建校园引擎", payload["note"])
+        self.assertEqual(payload["engine"], "campus")
+        self.assertTrue(eval_runner.result_is_current(payload))
         self.assertIn("一网通办", payload["items"][0]["answer"])
         self.assertIn("in_scope_accuracy", payload["metrics"])
+        stale = {
+            "ran": True,
+            "group": "C",
+            "dataset": "test",
+            "engine": "",
+            "note": "C 组是当前网关加约束层。",
+            "metrics": {"in_scope_accuracy": 1.0},
+        }
+        self.assertFalse(eval_runner.result_is_current(stale))
+        self.assertEqual(stale["metrics"]["in_scope_accuracy"], 1.0)
+        stored = json.loads((ROOT / "results" / "eval-C-test-20261115-r3.json").read_text(encoding="utf-8"))
+        self.assertEqual(stored["metrics"]["in_scope_accuracy"], 1.0)
+        self.assertIn("网关", stored["note"])
+        self.assertFalse(eval_runner.result_is_current(stored))
 
 
 if __name__ == "__main__":

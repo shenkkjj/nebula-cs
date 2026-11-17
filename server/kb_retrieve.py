@@ -19,6 +19,7 @@ from lite_engine import (
     FaqIndex,
     _Hit,
     _contained_chunk,
+    _display_score,
     _filter_peers,
     norm_key,
 )
@@ -54,8 +55,46 @@ def set_embedder_for_tests(fn) -> None:
     _EMBEDDER = fn
 
 
+# Vague complaints. They are not extra title words, so "校园卡出问题了" can
+# still clarify among 校园卡 articles. A real leftover such as 加急 stays blocking.
+_VAGUE_LEFTOVERS = ("出问题", "有问题", "东西坏", "好像不对", "上不去", "坏了", "不对")
+
+
+def _vague_leftover(leftovers: list[str]) -> bool:
+    if not leftovers:
+        return False
+    for run in leftovers:
+        if not any(symptom in run or run in symptom for symptom in _VAGUE_LEFTOVERS):
+            return False
+    return True
+
+
+# Spoken paraphrases of a title. Applied only when the rewritten question
+# contains that title whole. A looser rewrite must not turn a clarify into a guess.
+_PARAPHRASES = (
+    ("想申请", "如何申请"),
+    ("怎样", "如何"),
+    ("能不能", "可以"),
+    ("可不可以", "可以"),
+    ("去哪儿", "在哪里"),
+    ("去哪", "在哪里"),
+    ("哪儿", "哪里"),
+    ("指的是", "是"),
+    ("一般何时", "什么时候"),
+    ("何时", "什么时候"),
+    ("不凉", "不制冷"),
+    ("不冷", "不制冷"),
+)
+
+
 def search(query: str) -> dict:
     lexical = _lexical(query)
+    repaired = _repair_wording(query)
+    if repaired is not None:
+        lexical = repaired
+    alt, alt_query = _contained_paraphrase(query, lexical)
+    if alt is not None:
+        return _apply_chroma(alt_query, alt)
     if lexical["action"] in ("answer", "clarify"):
         return _apply_chroma(query, lexical)
     if lexical["reason"] == "oov-leftover":
@@ -64,6 +103,78 @@ def search(query: str) -> dict:
     if rescued["action"] != "none":
         return _apply_chroma(query, rescued)
     return _apply_chroma(query, lexical)
+
+
+def confidence(score: float, method: str, reason: str) -> float:
+    """Map a retrieval score onto the 0–1 citation threshold.
+
+    Cosine similarity and the character-overlap rescue are already 0–1.
+    A contained title is stored as 99 and BM25 often lands between 1 and 20.
+    Comparing those raw numbers with 0.99 would never filter, and pushing
+    every lexical hit under 0.5 would drop ordinary title matches.
+    """
+    number = float(score or 0)
+    kind = reason or ""
+    how = method or ""
+    if kind in ("chroma", "chroma-tie") or how == "char" or kind in ("char", "char-tie"):
+        if number > 1:
+            number = number / 100.0
+        return max(0.0, min(1.0, number))
+    return _display_score(number)
+
+
+def topic_terms(text: str) -> list[str]:
+    """Lexicon words actually written in the question, longest first.
+
+    ``concepts()`` keeps only a non-overlapping cover, so a whole title can
+    hide the shorter word a follow-up still shares. Generic verbs are left out
+    so they cannot break a real tie by themselves.
+    """
+    index = get_index()
+    skip = _GENERIC_TERMS | {
+        "如何",
+        "怎么",
+        "怎样",
+        "怎么办",
+        "申请",
+        "办理",
+        "查询",
+        "哪里",
+        "什么",
+        "如何办理",
+        "怎么办理",
+        "如何申请",
+        "怎么申请",
+        "怎么处理",
+        "如何处理",
+    }
+    present = [term for term in index._present(text) if len(term) >= 2 and term not in skip]
+    present.sort(key=len, reverse=True)
+    return present
+
+
+def related_segments(chunk: Chunk, limit: int = 2) -> list[Chunk]:
+    """Other paragraphs of the same document that share this article's topic.
+
+    An empty list means there is nothing to fold. Callers must not invent a
+    second paragraph from the one segment they already have.
+    """
+    if chunk is None or limit <= 0:
+        return []
+    index = get_index()
+    core = _core_term(chunk.title, index)
+    if len(core) < 3:
+        return []
+    found: list[Chunk] = []
+    for other in index.chunks:
+        if other.id == chunk.id or other.document_name != chunk.document_name:
+            continue
+        title = other.title or ""
+        if core in title or core in (other.question or ""):
+            found.append(other)
+        if len(found) >= limit:
+            break
+    return found
 
 
 def rebuild_embeddings() -> tuple[int, dict]:
@@ -186,8 +297,10 @@ def _lexical(query: str) -> dict:
     if leftovers:
         narrowed = [hit for hit in ranked if all(run in norm_key(hit.chunk.title) for run in leftovers)]
         if not narrowed:
-            return _empty("oov-leftover")
-        ranked = narrowed
+            if not _vague_leftover(leftovers):
+                return _empty("oov-leftover")
+        else:
+            ranked = narrowed
     ranked.sort(key=lambda hit: (hit.title_n, hit.body_n, hit.score), reverse=True)
     best = ranked[0]
     if best.title_n <= 0:
@@ -301,6 +414,58 @@ def _neighbors(query: str) -> list[tuple[str, float]] | None:
     ranked = [(segment_id, max(0.0, 1.0 - distance)) for segment_id, distance in rows]
     ranked.sort(key=lambda item: item[1], reverse=True)
     return ranked
+
+
+def _repair_wording(query: str) -> dict | None:
+    """「东西坏了」means a repair, not every article that mentions the place."""
+    if "东西坏了" not in (query or ""):
+        return None
+    alt = _lexical((query or "").replace("东西坏了", "报修"))
+    if alt.get("action") not in ("answer", "clarify") or not alt.get("chunks"):
+        return None
+    if not any("报修" in (chunk.title or "") for chunk in alt["chunks"]):
+        return None
+    return alt
+
+
+def _paraphrases(query: str) -> list[str]:
+    text = query or ""
+    folded = text
+    for source, target in _PARAPHRASES:
+        folded = folded.replace(source, target)
+    variants: list[str] = []
+    if folded != text:
+        variants.append(folded)
+    swapped = folded.replace("怎么", "如何")
+    if swapped != folded and swapped not in variants:
+        variants.append(swapped)
+    only_swap = text.replace("怎么", "如何")
+    if only_swap != text and only_swap not in variants:
+        variants.append(only_swap)
+    return variants
+
+
+def _contained_paraphrase(query: str, lexical: dict) -> tuple[dict | None, str]:
+    if lexical.get("action") == "answer":
+        return None, query
+    for variant in _paraphrases(query):
+        alt = _lexical(variant)
+        if alt.get("action") == "answer" and alt.get("reason") == "contained-title" and alt.get("chunks"):
+            return alt, variant
+    return None, query
+
+
+_GENERIC_TERMS = {"怎么办", "如何", "什么", "哪里", "这个", "那个", "可以", "同学", "校园"}
+
+
+def _core_term(title: str, index) -> str:
+    folded = norm_key(title)
+    for term in index.terms_by_len:
+        if len(term) < 3 or term in _GENERIC_TERMS:
+            continue
+        if term in folded:
+            return term
+    return ""
 
 
 def _chars(text: str) -> set[str]:

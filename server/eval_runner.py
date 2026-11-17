@@ -128,6 +128,21 @@ def summarize(rows: list[dict]) -> dict:
     return metrics
 
 
+def result_is_current(payload: dict) -> bool:
+    """True only for a run this process just produced under the active engine.
+
+    Files left by the old gateway have no engine stamp. Their scores stay as
+    written, but they are not a pass for the engine that is running now.
+    """
+    recorded = str((payload or {}).get("engine") or "")
+    if recorded != engine_mode():
+        return False
+    note = str((payload or {}).get("note") or "")
+    if recorded == "campus" and "网关" in note:
+        return False
+    return True
+
+
 def meets_target(name: str, value) -> bool | None:
     if value is None or name not in TARGETS:
         return None
@@ -403,6 +418,7 @@ def run_group(dataset_path: Path, group: str, limit: int = 0, progress=None) -> 
     payload = {
         "ran": True,
         "group": group,
+        "engine": engine_mode(),
         "dataset": name,
         "count": len(rows),
         "metrics": summarize(rows),
