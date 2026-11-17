@@ -1,7 +1,9 @@
 """SQLite knowledge base: documents, FAQ segments, and optional vectors.
 
 The sample FAQ is imported once into an empty database. Later edits, uploads,
-and deletions stay. Retrieval never needs a separate vector database.
+and deletions stay. Vector rows, when remote embeddings are configured, live
+in an embedded Chroma index under the same DATA_DIR. There is no second
+database server. The lexical index does not read Chroma.
 """
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree
 
+import chroma_store
 from lite_engine import Chunk, load_chunks
 import store
 
@@ -88,6 +91,14 @@ def reimport_sample() -> dict:
             ).fetchone()["n"]
             if count:
                 return {"ok": True, "already": True, "id": str(row["id"])}
+            ids = [
+                int(item["id"])
+                for item in conn.execute(
+                    "SELECT id FROM kb_segments WHERE document_id = ?",
+                    (row["id"],),
+                )
+            ]
+            _drop_vectors(conn, ids)
             conn.execute("DELETE FROM kb_segments WHERE document_id = ?", (row["id"],))
             conn.execute("DELETE FROM kb_documents WHERE id = ?", (row["id"],))
         document_id = _insert_sample(conn)
@@ -106,7 +117,7 @@ def stats() -> dict:
     return {
         "documents": int(documents),
         "segments": int(segments),
-        "vectors": int(vectors),
+        "vectors": _vector_total(int(vectors)),
     }
 
 
@@ -236,7 +247,7 @@ def update_segment(segment_id: str | int, title: str, body: str) -> dict:
             "UPDATE kb_segments SET title = ?, body = ?, enabled = 1, updated_at = ? WHERE id = ?",
             (clean_title, clean_body, stamp, number),
         )
-        conn.execute("DELETE FROM kb_vectors WHERE segment_id = ?", (number,))
+        _drop_vectors(conn, [number])
         conn.execute(
             "UPDATE kb_documents SET updated_at = ? WHERE id = ?",
             (stamp, row["document_id"]),
@@ -254,10 +265,11 @@ def delete_document(document_id: str | int) -> bool:
         row = conn.execute("SELECT id FROM kb_documents WHERE id = ?", (number,)).fetchone()
         if row is None:
             return False
-        conn.execute(
-            "DELETE FROM kb_vectors WHERE segment_id IN (SELECT id FROM kb_segments WHERE document_id = ?)",
-            (number,),
-        )
+        ids = [
+            int(item["id"])
+            for item in conn.execute("SELECT id FROM kb_segments WHERE document_id = ?", (number,))
+        ]
+        _drop_vectors(conn, ids)
         conn.execute("DELETE FROM kb_segments WHERE document_id = ?", (number,))
         conn.execute("DELETE FROM kb_documents WHERE id = ?", (number,))
     _bump()
@@ -276,7 +288,7 @@ def delete_segment(segment_id: str | int) -> bool:
         ).fetchone()
         if row is None:
             return False
-        conn.execute("DELETE FROM kb_vectors WHERE segment_id = ?", (number,))
+        _drop_vectors(conn, [number])
         conn.execute("DELETE FROM kb_segments WHERE id = ?", (number,))
         conn.execute(
             "UPDATE kb_documents SET updated_at = ? WHERE id = ?",
@@ -318,26 +330,51 @@ def chunks() -> list[Chunk]:
 
 
 def save_vectors(model: str, pairs: list[tuple[int, list[float]]]) -> int:
-    if not model or not pairs:
+    """Write segment vectors into the embedded Chroma index."""
+    saved = chroma_store.upsert(model, pairs)
+    if saved:
+        _bump()
+    return saved
+
+
+def knn(model: str, vector: list[float], limit: int = 8) -> list[tuple[str, float]]:
+    """Nearest segments from Chroma. Each row is (segment id, cosine distance)."""
+    return chroma_store.query(model, vector, limit)
+
+
+def migrate_legacy_vectors() -> int:
+    """Copy JSON vectors from older databases into Chroma once.
+
+    New builds write only to Chroma. If Chroma cannot open, the JSON rows
+    stay where they are and retrieval remains lexical.
+    """
+    if chroma_store.describe()["fallback"]:
         return 0
-    stamp = _now()
+    if chroma_store.count() > 0:
+        return 0
+    grouped: dict[str, list[tuple[int, list[float]]]] = {}
     with store.exclusive() as conn:
-        for segment_id, vector in pairs:
-            conn.execute(
-                """
-                INSERT INTO kb_vectors (segment_id, model, vector_json, updated_at)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(segment_id, model) DO UPDATE SET
-                  vector_json = excluded.vector_json,
-                  updated_at = excluded.updated_at
-                """,
-                (int(segment_id), model, json.dumps(vector), stamp),
-            )
-    _bump()
-    return len(pairs)
+        rows = conn.execute(
+            "SELECT segment_id, model, vector_json FROM kb_vectors"
+        ).fetchall()
+    for row in rows:
+        try:
+            vector = json.loads(row["vector_json"])
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(vector, list) or not vector:
+            continue
+        grouped.setdefault(str(row["model"]), []).append(
+            (int(row["segment_id"]), [float(item) for item in vector])
+        )
+    if not grouped:
+        return 0
+    model = max(grouped, key=lambda key: len(grouped[key]))
+    return save_vectors(model, grouped[model])
 
 
 def vectors_for(model: str) -> dict[str, list[float]]:
+    """Legacy JSON vectors. Search does not read these; Chroma does."""
     if not model:
         return {}
     with store.exclusive() as conn:
@@ -357,15 +394,8 @@ def vectors_for(model: str) -> dict[str, list[float]]:
 
 
 def vector_count(model: str = "") -> int:
-    with store.exclusive() as conn:
-        if model:
-            row = conn.execute(
-                "SELECT COUNT(*) AS n FROM kb_vectors WHERE model = ?",
-                (model,),
-            ).fetchone()
-        else:
-            row = conn.execute("SELECT COUNT(*) AS n FROM kb_vectors").fetchone()
-    return int(row["n"])
+    sql_count = _sql_vector_count(model)
+    return _vector_total(sql_count) if not model else _vector_total_for_model(model, sql_count)
 
 
 def segment_rows() -> list[dict]:
@@ -494,6 +524,51 @@ def _clean_pair(title: str, body: str) -> tuple[str, str]:
     if len(clean_title) > _MAX_TITLE or len(clean_body) > _MAX_BODY:
         raise ValueError("标题不超过 180 字，正文不超过 8000 字")
     return clean_title, clean_body
+
+
+def _drop_vectors(conn, segment_ids: list[int]) -> None:
+    if not segment_ids:
+        return
+    marks = ",".join("?" for _ in segment_ids)
+    conn.execute(
+        f"DELETE FROM kb_vectors WHERE segment_id IN ({marks})",
+        segment_ids,
+    )
+    chroma_store.delete_ids(segment_ids)
+
+
+def _sql_vector_count(model: str = "") -> int:
+    with store.exclusive() as conn:
+        if model:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM kb_vectors WHERE model = ?",
+                (model,),
+            ).fetchone()
+        else:
+            row = conn.execute("SELECT COUNT(*) AS n FROM kb_vectors").fetchone()
+    return int(row["n"])
+
+
+def _vector_total(sql_count: int) -> int:
+    if chroma_store.describe()["fallback"]:
+        return sql_count
+    if not chroma_store.store_present() and not chroma_store.describe()["loaded"]:
+        return sql_count
+    counted = chroma_store.count()
+    if chroma_store.describe()["fallback"]:
+        return sql_count
+    return counted
+
+
+def _vector_total_for_model(model: str, sql_count: int) -> int:
+    if chroma_store.describe()["fallback"]:
+        return sql_count
+    if not chroma_store.store_present() and not chroma_store.describe()["loaded"]:
+        return sql_count
+    counted = chroma_store.count(model)
+    if chroma_store.describe()["fallback"]:
+        return sql_count
+    return counted
 
 
 def _require_segment(segment_id: int) -> dict:

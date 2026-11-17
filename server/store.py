@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import chroma_store
 from masking import mask_text
 from passwords import hash_password
 from settings import data_dir
@@ -164,6 +165,7 @@ def db_file() -> Path:
 def reconnect() -> None:
     """Drop the cached connection so a new DATA_DIR takes effect."""
     global _CONN, _PATH
+    chroma_store.close()
     with _LOCK:
         if _CONN is not None:
             _CONN.close()

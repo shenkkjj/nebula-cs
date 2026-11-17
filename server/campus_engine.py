@@ -15,6 +15,7 @@ import urllib.error
 import urllib.request
 
 from followup import is_back, is_handoff_intent, is_restart, rewrite_query_for_retrieval
+import chroma_store
 from kb_retrieve import embedding_config, search
 from lite_engine import (
     _BARE_CLARIFY,
@@ -223,16 +224,39 @@ def run_probe() -> dict:
 
 
 def health_payload() -> dict:
+    embed = embedding_config()
+    if embed["enabled"]:
+        kb_store.migrate_legacy_vectors()
+        if not chroma_store.describe()["fallback"]:
+            chroma_store.ensure()
     info = kb_store.stats()
     probe = store.latest_probe()
-    embed = embedding_config()
-    vectors = kb_store.vector_count(embed["model"]) if embed["enabled"] else kb_store.vector_count()
-    if embed["enabled"] and vectors:
-        embeddings = "ready"
-    elif embed["enabled"]:
-        embeddings = "configured_unindexed"
-    else:
+    backend = chroma_store.describe()
+    if not embed["enabled"]:
         embeddings = "off"
+    elif backend["fallback"]:
+        embeddings = "lexical_fallback"
+    elif chroma_store.count(embed["model"]):
+        embeddings = "ready"
+    else:
+        embeddings = "configured_unindexed"
+    if backend["fallback"]:
+        chroma_state = "lexical_fallback"
+    elif backend["loaded"]:
+        chroma_state = "open"
+    else:
+        chroma_state = "standby"
+    features = [
+        "kb",
+        "bm25",
+        "query_rewrite",
+        "human_handoff",
+        "streaming",
+        "citations",
+        "everyday_chat",
+    ]
+    if chroma_state == "open":
+        features.append("chroma")
     return {
         "ok": True,
         "service": "nebula-cs",
@@ -242,21 +266,14 @@ def health_payload() -> dict:
         "maintenance": bool(probe and not probe.get("ok")),
         "probe": probe,
         "lite_mode": False,
-        "features": [
-            "kb",
-            "bm25",
-            "query_rewrite",
-            "human_handoff",
-            "streaming",
-            "citations",
-            "everyday_chat",
-        ],
+        "features": features,
         "components": {
             "knowledge_base": "up" if info["segments"] else "empty",
             "documents": info["documents"],
             "segments": info["segments"],
             "deepseek": "configured" if env("DEEPSEEK_API_KEY") else "optional_missing",
             "embeddings": embeddings,
+            "chroma": chroma_state,
             "database": "up",
         },
     }

@@ -1,5 +1,5 @@
 默认引擎是自建校园知识库（ENGINE=campus，或未设置 ENGINE 且未打开 LITE_MODE）。
-SQLite 存文档和分段，词法检索始终可用。DeepSeek 与远程向量都是可选的。
-不依赖 Ollama，也不把 Dify 当作默认运行时。
+SQLite 存文档和分段，词法检索始终可用。配了远程嵌入以后，向量写进进程内的 Chroma（DATA_DIR/chroma），不另起数据库。
+DeepSeek 与远程向量都是可选的。不依赖 Ollama，也不把 Dify 当作默认运行时。
 
 ENGINE=dify 仍走原来的 Dify 网关。LITE_MODE=1 仍走旧规则引擎，Render 旧镜像用的是这条。

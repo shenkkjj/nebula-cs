@@ -1,0 +1,8 @@
+# Campus engine vector index. Not installed by the root Dockerfile.
+# Render stays on requirements.txt with LITE_MODE=1 and does not pip-install this.
+#
+#   pip install -r requirements-campus.txt
+#
+# chromadb is the embedded client (PersistentClient). It is not a Chroma
+# server, and this file does not pull LangChain, Ollama, or a local embedder.
+chromadb==1.5.9

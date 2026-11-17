@@ -351,7 +351,7 @@
     status.textContent = "正在请求远程向量…";
     try {
       const data = await api("/api/admin/embeddings", { method: "POST" });
-      status.textContent = data.ok ? `已写入 ${data.count || 0} 条向量。` : (data.error || "没有生成向量");
+      status.textContent = data.ok ? `已写入 ${data.count || 0} 条向量到 Chroma。` : (data.error || "没有生成向量");
     } catch (err) {
       status.textContent = err.message;
     }

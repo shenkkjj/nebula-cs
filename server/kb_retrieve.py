@@ -1,18 +1,19 @@
-"""Lexical retrieval over the SQLite knowledge base, with optional vectors.
+"""Lexical retrieval over the SQLite knowledge base, with optional Chroma vectors.
 
 BM25 uses the existing campus FAQ index: titles, aliases, and a small lexicon,
 so 办理 / 申请 alone cannot drag in a lookalike article. Character overlap is
-only a rescue when that index has no concept to score. Remote embeddings, when
-configured and already stored, can break a tie or rescue a miss. They are never
-required to start or to answer.
+only a rescue when that index has no concept to score. When remote embeddings
+are configured and already stored in embedded Chroma, a vector hit can break a
+lexical tie or rescue a miss. Embeddings are never required to start or to answer.
+If Chroma cannot load, the result stays lexical.
 """
 from __future__ import annotations
 
 import json
-import math
 import urllib.error
 import urllib.request
 
+import chroma_store
 from lite_engine import (
     Chunk,
     FaqIndex,
@@ -56,22 +57,28 @@ def set_embedder_for_tests(fn) -> None:
 def search(query: str) -> dict:
     lexical = _lexical(query)
     if lexical["action"] in ("answer", "clarify"):
-        return _maybe_embeddings(query, lexical)
+        return _apply_chroma(query, lexical)
     if lexical["reason"] == "oov-leftover":
         return lexical
     rescued = _char_rescue(query)
     if rescued["action"] != "none":
-        return rescued
-    return _maybe_embeddings(query, lexical)
+        return _apply_chroma(query, rescued)
+    return _apply_chroma(query, lexical)
 
 
 def rebuild_embeddings() -> tuple[int, dict]:
-    """Store remote vectors for every enabled segment. Lexical search stays if this fails."""
+    """Store remote vectors in embedded Chroma. Lexical search stays if this fails."""
     cfg = embedding_config()
     if not cfg["enabled"] and _EMBEDDER is None:
         return 400, {
             "ok": False,
             "error": "没有配置 EMBEDDING_API_KEY 或 EMBEDDING_BASE_URL。检索仍用词法，可以不配向量。",
+        }
+    if not chroma_store.ensure():
+        return 503, {
+            "ok": False,
+            "error": "Chroma 没有加载，这次不请求嵌入接口。检索仍用词法。",
+            "fallback": "lexical",
         }
     rows = kb_store.segment_rows()
     pairs: list[tuple[int, list[float]]] = []
@@ -85,7 +92,14 @@ def rebuild_embeddings() -> tuple[int, dict]:
         for item, vector in zip(batch, vectors):
             pairs.append((int(item["id"]), vector))
     saved = kb_store.save_vectors(cfg["model"], pairs)
-    return 200, {"ok": True, "count": saved, "model": cfg["model"]}
+    if saved != len(pairs):
+        return 502, {
+            "ok": False,
+            "error": "向量没有全部写入 Chroma。词法检索不受影响。",
+            "count": saved,
+            "fallback": "lexical",
+        }
+    return 200, {"ok": True, "count": saved, "model": cfg["model"], "backend": "chroma"}
 
 
 def embed_texts(texts: list[str]) -> list[list[float]] | None:
@@ -228,63 +242,70 @@ def _char_rescue(query: str) -> dict:
     return _empty("no-char")
 
 
-def _maybe_embeddings(query: str, lexical: dict) -> dict:
-    cfg = embedding_config()
-    model = cfg["model"]
-    if _EMBEDDER is None and not cfg["enabled"]:
+def _apply_chroma(query: str, lexical: dict) -> dict:
+    """Blend Chroma cosine similarity into the lexical decision.
+
+    A confident lexical answer is kept. A tie can be broken, and a lexical
+    miss can be rescued, only when the embedded index has a clear neighbor.
+    """
+    neighbors = _neighbors(query)
+    if not neighbors:
         return lexical
-    if kb_store.vector_count(model) <= 0 and _EMBEDDER is None:
-        return lexical
-    vectors = kb_store.vectors_for(model)
-    if not vectors:
-        return lexical
+    by_id = {chunk.id: chunk for chunk in get_index().chunks}
     if lexical["action"] == "clarify":
-        pool = lexical["chunks"]
-    elif lexical["action"] == "none":
-        pool = [chunk for chunk in get_index().chunks if chunk.id in vectors]
-    else:
+        pool = {chunk.id for chunk in lexical["chunks"]}
+        ranked = [
+            (score, by_id[segment_id])
+            for segment_id, score in neighbors
+            if segment_id in pool and segment_id in by_id
+        ]
+        if len(ranked) < 2:
+            return lexical
+        best, second = ranked[0][0], ranked[1][0]
+        if best >= 0.55 and best - second >= 0.08:
+            return _pack("answer", [ranked[0][1]], "chroma-tie", [best], "hybrid")
         return lexical
-    if len(pool) < 2 and lexical["action"] != "none":
+    if lexical["action"] == "answer":
+        top = lexical["chunks"][0]
+        if neighbors[0][0] == top.id and neighbors[0][1] >= 0.55:
+            return _pack("answer", lexical["chunks"], lexical["reason"], list(lexical["scores"]), "hybrid")
         return lexical
+    if lexical["action"] == "none":
+        best_id, best = neighbors[0]
+        second = neighbors[1][1] if len(neighbors) > 1 else -1.0
+        chunk = by_id.get(best_id)
+        if chunk is not None and best >= 0.78 and best - second >= 0.05:
+            return _pack("answer", [chunk], "chroma", [best], "hybrid")
+    return lexical
+
+
+def _neighbors(query: str) -> list[tuple[str, float]] | None:
+    """Segment id and cosine similarity, best first. None when vectors are off."""
+    cfg = embedding_config()
+    if _EMBEDDER is None and not cfg["enabled"]:
+        return None
+    if chroma_store.describe()["fallback"]:
+        return None
+    kb_store.migrate_legacy_vectors()
+    if chroma_store.describe()["fallback"]:
+        return None
+    model = cfg["model"]
+    if chroma_store.count(model) <= 0:
+        return None
     embedded = embed_texts([query])
     if not embedded:
-        return lexical
-    query_vector = embedded[0]
-    ranked: list[tuple[float, Chunk]] = []
-    for chunk in pool:
-        vector = vectors.get(chunk.id)
-        if not vector or len(vector) != len(query_vector):
-            continue
-        ranked.append((_cosine(query_vector, vector), chunk))
-    if not ranked:
-        return lexical
-    ranked.sort(key=lambda item: item[0], reverse=True)
-    best_score, best_chunk = ranked[0]
-    second = ranked[1][0] if len(ranked) > 1 else -1.0
-    gap = best_score - second
-    if lexical["action"] == "clarify" and best_score >= 0.55 and gap >= 0.08:
-        return _pack("answer", [best_chunk], "embedding-tie", [best_score], "embedding")
-    if lexical["action"] == "none" and best_score >= 0.78 and gap >= 0.05:
-        return _pack("answer", [best_chunk], "embedding", [best_score], "embedding")
-    return lexical
+        return None
+    rows = chroma_store.query(model, embedded[0], 8)
+    if not rows:
+        return None
+    ranked = [(segment_id, max(0.0, 1.0 - distance)) for segment_id, distance in rows]
+    ranked.sort(key=lambda item: item[1], reverse=True)
+    return ranked
 
 
 def _chars(text: str) -> set[str]:
     folded = norm_key(text)
     return {char for char in folded if char not in _FUNC_CHARS and not char.isdigit()}
-
-
-def _cosine(left: list[float], right: list[float]) -> float:
-    dot = 0.0
-    left_norm = 0.0
-    right_norm = 0.0
-    for a, b in zip(left, right):
-        dot += a * b
-        left_norm += a * a
-        right_norm += b * b
-    if left_norm <= 0 or right_norm <= 0:
-        return 0.0
-    return dot / math.sqrt(left_norm * right_norm)
 
 
 def _empty(reason: str) -> dict:
