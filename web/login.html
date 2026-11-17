@@ -4,15 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>登录 · 校园客服</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/staff.css" />
+  <link rel="preload" href="/fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/manrope.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/fonts/fonts.css?v=20261117" />
+  <link rel="stylesheet" href="/staff.css?v=20261117" />
 </head>
 <body>
   <main class="login-wrap">
     <form class="panel login-card" id="loginForm">
       <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role" id="roleLabel">坐席登录</span></div>
+      <hr class="login-rule" />
       <div class="seg" role="tablist" aria-label="登录身份">
         <button type="button" role="tab" id="roleAgent" data-role="agent" aria-selected="true">坐席</button>
         <button type="button" role="tab" id="roleAdmin" data-role="admin" aria-selected="false" tabindex="-1">管理员</button>
@@ -25,6 +26,6 @@
       <button class="btn btn-solid" type="submit">登录</button>
     </form>
   </main>
-  <script src="/login.js"></script>
+  <script src="/login.js?v=20261117"></script>
 </body>
 </html>

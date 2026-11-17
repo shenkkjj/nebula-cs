@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>校园客服 · 私有知识库智能客服</title>
   <meta name="description" content="校园助手 · 虚构星云大学办事知识库 · 夜间贵宾席" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="preload" href="/fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/manrope.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/fonts/fonts.css?v=20261117" />
+  <link rel="stylesheet" href="/styles.css?v=20261117" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230b0c0e'/%3E%3Cpath d='M18 40c6-14 22-14 28 0' stroke='%23e8dcc4' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='24' r='5' fill='%23b89b5e'/%3E%3C/svg%3E" />
 </head>
 <body>
@@ -27,12 +27,32 @@
       </div>
     </header>
 
-    <div class="faq" id="faqChips" role="group" aria-label="快捷问题"></div>
+    <div class="faq" id="faqChips" role="group" aria-label="快捷问题">
+      <button type="button" class="chip">在读证明如何办理？</button>
+      <button type="button" class="chip">证明怎么开？</button>
+      <button type="button" class="chip">图书馆开放时间是什么？</button>
+      <button type="button" class="chip">宿舍报修怎么提交？</button>
+      <button type="button" class="chip">校园网如何认证登录？</button>
+      <button type="button" class="chip">什么情况下应转人工？</button>
+    </div>
 
     <div class="workspace">
       <section class="lounge" aria-label="对话区">
         <div id="noticeBar" class="notice-bar warn" hidden></div>
-        <div class="messages" id="messages" role="log" aria-live="polite"></div>
+        <div class="messages" id="messages" role="log" aria-live="polite">
+          <div class="empty-state">
+            <div class="mark" aria-hidden="true">云</div>
+            <h3>你好，我是校园助手</h3>
+            <p>办事问题按知识库回答，出处收在右侧。问得含糊时先给澄清选项；同一份文档只留一张出处卡，其余段落折叠。说「转人工」就排队。知识库维护时，对话区上方会出现黄条。</p>
+            <div class="empty-chips" role="group" aria-label="快捷提问">
+              <button type="button" class="chip" data-q="在读证明如何办理？">在读证明</button>
+              <button type="button" class="chip" data-q="证明怎么开？">证明怎么开</button>
+              <button type="button" class="chip" data-q="宿舍报修怎么提交？">宿舍报修</button>
+              <button type="button" class="chip" data-q="校园网如何认证登录？">校园网</button>
+              <button type="button" class="chip" data-q="转人工">转人工</button>
+            </div>
+          </div>
+        </div>
         <form class="composer" id="composer">
           <textarea
             id="queryInput"
@@ -50,12 +70,19 @@
         <div class="silk-block">
           <h2>会话</h2>
           <hr class="rule" />
-          <div class="session-list" id="sessionList" aria-label="历史会话"></div>
+          <div class="session-list" id="sessionList" aria-label="历史会话">
+            <div class="session-empty">本机暂无历史。发送问题后会出现在这里。</div>
+          </div>
         </div>
         <div class="silk-block silk-cites">
           <h2>出处</h2>
           <hr class="rule" />
-          <div class="cite-list" id="citeList"></div>
+          <div class="cite-list" id="citeList">
+            <div class="cite-empty">
+              <p class="cite-empty-title">出处会收在这里</p>
+              <p>同一份文档一张卡。相关度最高的一段在前，其余段落折叠，点开再看。</p>
+            </div>
+          </div>
         </div>
         <p class="status-foot" id="statusText">就绪 · 流式经本地代理转发，密钥不进入浏览器</p>
       </aside>
@@ -103,7 +130,7 @@
     </div>
   </div>
 
-  <script src="/mask.js"></script>
-  <script src="/app.js"></script>
+  <script src="/mask.js?v=20261117"></script>
+  <script src="/app.js?v=20261117"></script>
 </body>
 </html>

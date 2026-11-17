@@ -19,7 +19,7 @@
   - 门户：正常问答（chips → 输入 → 流式回答 + 引用卡）｜澄清（机器人给 2-3 个候选 chip）｜拒答 + 转人工按钮｜人工接入（顶栏「人工接入中」、消息标「人工客服」）｜知识库维护（顶栏黄色「知识库维护中」、页面顶部通知条、新问题自动建工单）
   - 坐席：队列三态（待接入｜处理中｜已结束）→ 点卡片 → 三栏（左队列｜中对话 + 回复框｜右判定详情 / 回写 / 标坏例三 tab）→ 结束工单弹层（必填处理说明）
   - 后台：左侧导航 + 主区表格 / 表单。审计日志可展开行看追溯；评测页列三组对照、可运行、可导出 MD/CSV
-- **响应式与降级**：1280px 以下三栏变两栏（判定面板到下方），≤ 760px 单栏。`prefers-reduced-motion: reduce` 时动画直接跳终态。Google Fonts 加载失败回退到 Noto Serif SC / PingFang SC / Microsoft YaHei。
+- **响应式与降级**：1280px 以下三栏变两栏（判定面板到下方），≤ 760px 单栏。`prefers-reduced-motion: reduce` 时动画直接跳终态。Cormorant Garamond 与 Manrope 由本站 `/fonts/` 提供，不请求 fonts.googleapis.com。这两套字体没有中文，缺字回退到 PingFang SC / Microsoft YaHei。
 
 ## 3. 页面与关键状态清单
 
