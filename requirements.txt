@@ -1,4 +1,6 @@
 # Lite / Render Free: stdlib-only runtime (urllib + http.server).
 # Keep this file so Render's native Python build detects a Python service.
 # No heavy deps — fits ~512MB free instances.
+# Do not add chromadb here. The campus engine declares it in
+# requirements-campus.txt. The root image stays LITE_MODE=1 without that package.
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Default product: self-built campus knowledge base. No Dify, no Ollama.
+# Vector search needs: pip install -r requirements-campus.txt
+# Without that package the process still answers from the BM25 index.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
