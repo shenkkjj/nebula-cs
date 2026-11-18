@@ -346,7 +346,7 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
         return payload
 
     if is_handoff_intent(masked):
-        ticket = _open_or_create(visitor, portal_session, "user", masked)
+        ticket, _ = store.open_or_create_ticket(visitor, portal_session, "user", masked)
         return _ticket_payload(ticket, HANDOFF_TEXT, "human_handoff", conversation_id, notices, reason="访客要求转人工")
 
     if _is_social(masked):
@@ -436,7 +436,7 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
         }
     maintenance = _maintenance_on()
     if maintenance and _needs_kb(target, found):
-        ticket = _open_or_create(visitor, portal_session, "maintenance", masked)
+        ticket, _ = store.open_or_create_ticket(visitor, portal_session, "maintenance", masked)
         return _ticket_payload(
             ticket,
             MAINTENANCE_TEXT,
@@ -588,7 +588,7 @@ def _refuse(cfg: dict, conversation_id: str, notices: list, rewrite, why: str, v
     text = f"{base}\n\n原因：{why}\n下一步：把事情说具体一点，例如要办的证明或业务名称；如果这件事要人来处理，可以说「转人工」。"
     ticket = None
     if cfg.get("auto_ticket_on_refusal"):
-        ticket = _open_or_create(visitor, portal_session, "refusal", question)
+        ticket, _ = store.open_or_create_ticket(visitor, portal_session, "refusal", question)
         text += f"\n\n已登记工单 {ticket['public_id']}，坐席上线后回复。"
     return _base(
         text,
@@ -920,14 +920,6 @@ def _stopped_payload(conversation_id: str) -> dict:
         generator="stopped",
         reason="访客停止了生成",
     )
-
-
-def _open_or_create(visitor: str, portal_session: str, source: str, question: str) -> dict:
-    existing = store.open_ticket(visitor, portal_session)
-    if existing:
-        store.claim_session_judgments(existing["id"], visitor, portal_session)
-        return existing
-    return store.create_ticket(visitor, portal_session, source, question)
 
 
 def _maintenance_on() -> bool:

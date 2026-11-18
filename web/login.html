@@ -3,29 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>登录 · 校园客服</title>
-  <link rel="preload" href="/fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="preload" href="/fonts/manrope.woff2" as="font" type="font/woff2" crossorigin />
+  <meta name="theme-color" content="#f7f8f3" />
+  <title>工作台登录 · 校园客服</title>
   <link rel="stylesheet" href="/fonts/fonts.css?v=20261117b" />
-  <link rel="stylesheet" href="/staff.css?v=20261117b" />
+  <link rel="stylesheet" href="/campus.css?v=20261118" />
+  <link rel="stylesheet" href="/staff.css?v=20261118" />
 </head>
-<body>
+<body class="login-page">
+  <header class="topbar">
+    <a class="brandmark" href="/" aria-label="校园客服首页">
+      <span class="brandmark-icon"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#school" /></svg></span>
+      <span><strong>校园客服</strong><small>星云大学 · 模拟校园</small></span>
+    </a>
+    <a class="btn btn-quiet btn-sm" href="/">返回访客门户</a>
+  </header>
   <main class="login-wrap">
-    <form class="panel login-card" id="loginForm">
-      <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role" id="roleLabel">坐席登录</span></div>
-      <hr class="login-rule" />
-      <div class="seg" role="tablist" aria-label="登录身份">
-        <button type="button" role="tab" id="roleAgent" data-role="agent" aria-selected="true">坐席</button>
-        <button type="button" role="tab" id="roleAdmin" data-role="admin" aria-selected="false" tabindex="-1">管理员</button>
-      </div>
-      <p class="small muted" id="roleHint">坐席进入值班台，处理待接入的工单。</p>
+    <h1 class="page-title">工作台登录</h1>
+    <div class="seg" role="tablist" aria-label="登录身份">
+      <button type="button" role="tab" id="roleAgent" data-role="agent" aria-controls="loginForm" aria-selected="true">坐席</button>
+      <button type="button" role="tab" id="roleAdmin" data-role="admin" aria-controls="loginForm" aria-selected="false" tabindex="-1">管理员</button>
+    </div>
+    <form id="loginForm" role="tabpanel" aria-labelledby="roleAgent">
       <input type="hidden" name="role" value="agent" />
       <label class="field"><span>账号</span><input class="input" name="username" autocomplete="username" required maxlength="40" /></label>
       <label class="field"><span>密码</span><input class="input" name="password" type="password" autocomplete="current-password" required maxlength="80" /></label>
-      <p class="err" id="loginError" hidden></p>
-      <button class="btn btn-solid" type="submit">登录</button>
+      <p class="err" id="loginError" role="alert" hidden></p>
+      <button class="btn btn-solid" type="submit" id="roleLabel">登录坐席工作台</button>
     </form>
   </main>
-  <script src="/login.js?v=20261117b"></script>
+  <script src="/login.js?v=20261118" defer></script>
 </body>
 </html>

@@ -3,8 +3,7 @@
   const form = document.getElementById("loginForm");
   const error = document.getElementById("loginError");
   const next = new URLSearchParams(location.search).get("next") || "";
-  const hint = document.getElementById("roleHint");
-  const label = document.getElementById("roleLabel");
+  const submit = document.getElementById("roleLabel");
   const tabs = [...document.querySelectorAll("[data-role]")];
   const roleInput = form.querySelector('input[name="role"]');
 
@@ -15,13 +14,10 @@
       tab.setAttribute("aria-selected", String(on));
       tab.tabIndex = on ? 0 : -1;
     }
-    if (roleInput.value === "admin") {
-      if (label) label.textContent = "管理员登录";
-      if (hint) hint.textContent = "管理员进入后台，维护知识库、审计和评测。";
-    } else {
-      if (label) label.textContent = "坐席登录";
-      if (hint) hint.textContent = "坐席进入值班台，处理待接入的工单。";
-    }
+    const active = tabs.find((tab) => tab.dataset.role === roleInput.value);
+    form.setAttribute("aria-labelledby", active.id);
+    submit.textContent = roleInput.value === "admin" ? "登录管理后台" : "登录坐席工作台";
+    error.hidden = true;
   }
 
   for (const tab of tabs) {
@@ -40,24 +36,36 @@
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (submit.disabled) return;
     error.hidden = true;
     const body = {
-      username: form.username.value.trim(),
-      password: form.password.value,
+      username: form.elements.username.value.trim(),
+      password: form.elements.password.value,
       role: roleInput.value,
       next,
     };
-    const res = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok) {
-      error.hidden = false;
-      error.textContent = data.error || "登录失败";
-      return;
+    const label = submit.textContent;
+    submit.disabled = true;
+    submit.textContent = "正在登录…";
+    for (const tab of tabs) tab.disabled = true;
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        location.href = data.redirect || (data.role === "admin" ? "/admin" : "/agent");
+        return;
+      }
+      error.textContent = data.error || "登录失败，请检查账号和密码。";
+    } catch {
+      error.textContent = "无法连接服务，请稍后重试。";
     }
-    location.href = data.redirect || (data.role === "admin" ? "/admin" : "/agent");
+    error.hidden = false;
+    submit.textContent = label;
+    submit.disabled = false;
+    for (const tab of tabs) tab.disabled = false;
   });
 })();

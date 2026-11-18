@@ -55,10 +55,8 @@ FAQ_HINT = "样例知识库是 sample-kb/客服样例FAQ.md 这一个文件（14
 
 def feedback_summary(days: int = 7) -> dict:
     since = (datetime.now(timezone.utc) - timedelta(days=days)).replace(microsecond=0).isoformat()
-    rows = store.list_feedback(since=since, limit=500)
-    helpful = sum(1 for row in rows if row.get("helpful"))
-    unhappy = sum(1 for row in rows if not row.get("helpful"))
-    total = helpful + unhappy
+    total, helpful = store.feedback_counts(since)
+    unhappy = total - helpful
     return {
         "ok": True,
         "days": days,
@@ -67,6 +65,19 @@ def feedback_summary(days: int = 7) -> dict:
         "helpful": helpful,
         "unhappy": unhappy,
         "unhappy_rate": round(unhappy / total, 4) if total else None,
+    }
+
+
+def overview() -> dict:
+    mode = engine_mode()
+    return {
+        "ok": True,
+        "engine": mode,
+        "updated_at": store.now(),
+        "tickets": store.ticket_counts(),
+        "feedback": feedback_summary(),
+        "probe": store.latest_probe_status(),
+        "local_knowledge": store.local_kb_counts() if mode == "campus" else None,
     }
 
 

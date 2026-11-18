@@ -62,6 +62,20 @@ class FeedbackTest(unittest.TestCase):
         self.assertEqual(status, 403)
         self.assertEqual(store.list_feedback(), [])
 
+    def test_overview_counts_the_whole_seven_day_window(self) -> None:
+        for i in range(503):
+            message_id = store.add_message("visitor-a", "bot", "办理答复", "session-a")
+            store.upsert_feedback("visitor-a", "session-a", message_id, i % 2 == 0, "")
+        old = store.upsert_feedback("visitor-a", "session-a", self.message_id, True, "")
+        with store.exclusive():
+            conn = store.connection()
+            conn.execute("UPDATE feedback SET updated_at = ? WHERE id = ?", ("2000-01-01T00:00:00+00:00", old["id"]))
+            conn.commit()
+        summary = admin_api.overview()["feedback"]
+        self.assertEqual(summary["total"], 503)
+        self.assertEqual(summary["helpful"], 252)
+        self.assertEqual(summary["unhappy"], 251)
+
     def test_seven_day_summary_and_bad_case(self) -> None:
         submit_feedback("visitor-a", self.message_id, False, comment="窗口没写", portal_session="session-a")
         summary = admin_api.feedback_summary()

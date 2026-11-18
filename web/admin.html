@@ -4,34 +4,79 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>管理后台 · 校园客服</title>
-  <link rel="preload" href="/fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="preload" href="/fonts/manrope.woff2" as="font" type="font/woff2" crossorigin />
+  <meta name="theme-color" content="#f7f8f3" />
   <link rel="stylesheet" href="/fonts/fonts.css?v=20261117b" />
-  <link rel="stylesheet" href="/staff.css?v=20261117b" />
+  <link rel="stylesheet" href="/campus.css?v=20261118" />
+  <link rel="stylesheet" href="/staff.css?v=20261118" />
 </head>
 <body class="desk-page">
   <a class="skip-link" href="#main">跳到主要内容</a>
-  <div class="admin" id="main">
+  <div class="admin">
     <aside class="rail" aria-label="后台导航">
-      <div class="brand"><span class="brand-name">校园客服</span><span class="brand-role">管理后台</span></div>
-      <nav>
-        <a class="item" href="#docs" data-nav="docs">知识库文档</a>
-        <a class="item" href="#probe" data-nav="probe">绑定自检</a>
-        <a class="item" href="#audit" data-nav="audit">审计日志</a>
-        <a class="item" href="#config" data-nav="config">约束参数</a>
-        <a class="item" href="#eval" data-nav="eval">评测</a>
-        <a class="item" href="#segments" data-nav="segments">分段</a>
-        <a class="item" href="#handoffs" data-nav="handoffs">会话与转人工</a>
-        <a class="item" href="#feedback" data-nav="feedback">用户评价</a>
+      <a class="brandmark" href="/" aria-label="校园客服首页">
+        <span class="brandmark-icon"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#school" /></svg></span>
+        <span><strong>校园客服</strong><small>管理后台</small></span>
+      </a>
+      <nav aria-label="管理功能">
+        <a class="item" href="#overview" data-nav="overview" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#grid" /></svg>服务总览</a>
+        <div class="nav-group">
+          <p>服务运营</p>
+          <a class="item" href="#handoffs" data-nav="handoffs"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#inbox" /></svg>会话与工单</a>
+          <a class="item" href="#feedback" data-nav="feedback"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chat" /></svg>用户评价</a>
+          <a class="item" href="#docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#book" /></svg>知识库文档</a>
+          <a class="item" href="#segments" data-nav="segments"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#file" /></svg>知识库分段</a>
+        </div>
+        <div class="nav-group">
+          <p>维护与评估</p>
+          <a class="item" href="#probe" data-nav="probe"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#check" /></svg>运行自检</a>
+          <a class="item" href="#audit" data-nav="audit"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#history" /></svg>审计日志</a>
+          <a class="item" href="#config" data-nav="config"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#tools" /></svg>约束参数</a>
+          <a class="item" href="#eval" data-nav="eval"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chart" /></svg>问答评测</a>
+        </div>
       </nav>
       <div class="rail-foot">
-        <span class="pill" id="kbPill">知识库状态待查</span>
         <span class="who" id="who">管理员</span>
-        <button type="button" class="btn btn-quiet btn-sm" id="btnLogout">退出</button>
+        <button type="button" class="btn btn-quiet btn-sm" id="btnLogout"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#logout" /></svg>退出</button>
       </div>
     </aside>
-    <div class="admin-main">
-      <section data-page="docs">
+    <main class="admin-main" id="main" tabindex="-1">
+      <section data-page="overview" aria-labelledby="overviewTitle">
+        <header class="page-head">
+          <div><h1 class="page-title" id="overviewTitle">服务总览</h1><p class="page-sub">查看工单进度、访客评价和知识库状态。</p></div>
+          <button class="btn" type="button" id="btnOverview"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#refresh" /></svg>刷新数据</button>
+        </header>
+        <p class="overview-status small muted" id="overviewStatus" role="status">正在加载数据…</p>
+        <div id="overviewData" hidden>
+          <div class="overview-metrics" aria-label="工单和评价统计">
+            <a class="metric panel" href="#handoffs"><span class="metric-icon tone-warn"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#inbox" /></svg></span><span class="metric-label">待接入</span><strong id="metricWaiting">—</strong><span class="metric-note">等待人工坐席</span></a>
+            <a class="metric panel" href="#handoffs"><span class="metric-icon tone-info"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#headset" /></svg></span><span class="metric-label">处理中</span><strong id="metricActive">—</strong><span class="metric-note">坐席已接入</span></a>
+            <a class="metric panel" href="#handoffs"><span class="metric-icon"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#check" /></svg></span><span class="metric-label">已结束</span><strong id="metricClosed">—</strong><span class="metric-note">累计结单</span></a>
+            <a class="metric panel" href="#feedback"><span class="metric-icon"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chat" /></svg></span><span class="metric-label">近 7 日有帮助率</span><strong id="metricHelpful">—</strong><span class="metric-note" id="metricFeedbackCount"></span></a>
+          </div>
+          <div class="overview-details">
+            <section class="panel" aria-labelledby="knowledgeTitle">
+              <div class="panel-head"><h2 class="panel-title" id="knowledgeTitle"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#book" /></svg>知识库运行状态</h2><span class="pill" id="overviewProbe">尚未自检</span></div>
+              <div class="panel-body">
+                <dl class="overview-facts">
+                  <div><dt>知识库来源</dt><dd id="overviewEngine">—</dd></div>
+                  <div><dt>最近自检</dt><dd id="overviewChecked">—</dd></div>
+                  <div id="overviewDocuments"><dt>本地知识库</dt><dd id="overviewKnowledge">—</dd></div>
+                </dl>
+                <div class="form-actions"><a class="btn btn-sm" href="#docs">管理文档</a><a class="btn btn-sm btn-quiet" href="#probe">查看自检</a></div>
+              </div>
+            </section>
+            <section class="panel" aria-labelledby="operationsTitle">
+              <div class="panel-head"><h2 class="panel-title" id="operationsTitle"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#grid" /></svg>快捷入口</h2></div>
+              <div class="operation-list">
+                <a href="/agent"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#headset" /></svg><span><strong>坐席工作台</strong><small>查看队列并接入工单</small></span><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chevron" /></svg></a>
+                <a href="#audit"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#history" /></svg><span><strong>审计日志</strong><small>查看答复判定与操作记录</small></span><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chevron" /></svg></a>
+                <a href="#eval"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chart" /></svg><span><strong>问答评测</strong><small>运行测试或查看评测结果</small></span><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chevron" /></svg></a>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+      <section data-page="docs" hidden>
         <div class="page-head"><div><h1 class="page-title">知识库文档</h1><p class="page-sub" id="docsHint"></p></div></div>
         <form id="uploadForm" class="filters">
           <label class="field grow"><span>上传 md / txt / pdf / docx，单个 ≤ 15MB</span><input class="input" type="file" name="file" accept=".md,.txt,.pdf,.docx" required /></label>
@@ -68,7 +113,7 @@
         <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>时间</th><th>会话</th><th>问题</th><th>改写</th><th>判定</th></tr></thead><tbody id="sessionBody"></tbody></table></div></div>
       </section>
       <section data-page="probe" hidden>
-        <div class="page-head"><div><h1 class="page-title">绑定自检</h1><p class="page-sub">启动时、每 10 分钟，以及你点「立即自检」。</p></div><button type="button" class="btn btn-solid" id="btnProbe">立即自检</button></div>
+        <div class="page-head"><div><h1 class="page-title">运行自检</h1><p class="page-sub">启动时和每 10 分钟自动检查，也可以手动运行。</p></div><button type="button" class="btn btn-solid" id="btnProbe">立即自检</button></div>
         <div class="panel" id="probeBox"><p class="empty">还没有自检记录。</p></div>
       </section>
       <section data-page="feedback" hidden>
@@ -120,8 +165,8 @@
         <div class="panel" id="evalTable"><p class="empty">还没有实测结果。</p></div>
         <div class="table-foot" id="evalExport" hidden></div>
       </section>
-    </div>
+    </main>
   </div>
-  <script src="/admin.js?v=20261117c"></script>
+  <script src="/admin.js?v=20261118" defer></script>
 </body>
 </html>

@@ -19,6 +19,7 @@ from settings import data_dir
 _LOCK = threading.RLock()
 _CONN: sqlite3.Connection | None = None
 _PATH: str | None = None
+_PORTAL_PAGE_SIZE = 20
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -151,6 +152,14 @@ CREATE TABLE IF NOT EXISTS kb_vectors (
   PRIMARY KEY (segment_id, model)
 );
 CREATE INDEX IF NOT EXISTS idx_kb_segments_doc ON kb_segments(document_id);
+CREATE INDEX IF NOT EXISTS idx_portal_tickets ON tickets(visitor_token, portal_session, id);
+CREATE INDEX IF NOT EXISTS idx_visitor_tickets ON tickets(visitor_token, id);
+CREATE INDEX IF NOT EXISTS idx_ticket_messages ON messages(ticket_id, id);
+CREATE INDEX IF NOT EXISTS idx_ticket_judgments ON judgments(ticket_id, id);
+CREATE INDEX IF NOT EXISTS idx_session_judgments ON judgments(visitor_token, portal_session, id);
+CREATE INDEX IF NOT EXISTS idx_portal_updates ON messages(visitor_token, portal_session, id)
+    WHERE role IN ('agent', 'system');
+CREATE INDEX IF NOT EXISTS idx_feedback_updated ON feedback(updated_at);
 """
 
 
@@ -350,12 +359,14 @@ def create_ticket(visitor: str, portal_session: str, source: str, question: str)
     return ticket or {"public_id": public_id, "id": ticket_id}
 
 
-def claim_session_judgments(ticket_id: int, visitor: str, portal_session: str) -> None:
-    """Hang earlier answers from this chat onto the ticket that was just opened."""
-    with _LOCK:
-        conn = connection()
-        _claim_open_records(conn, ticket_id, visitor, portal_session or "")
-        conn.commit()
+def open_or_create_ticket(visitor: str, portal_session: str, source: str, question: str) -> tuple[dict, bool]:
+    """Return the open ticket for this chat and whether it was just created."""
+    with exclusive() as conn:
+        existing = open_ticket(visitor, portal_session)
+        if existing:
+            _claim_open_records(conn, existing["id"], visitor, portal_session or "")
+            return existing, False
+        return create_ticket(visitor, portal_session, source, question), True
 
 
 def _claim_open_records(conn: sqlite3.Connection, ticket_id: int, visitor: str, portal_session: str) -> None:
@@ -413,6 +424,74 @@ def open_ticket(visitor: str, portal_session: str) -> dict | None:
             (visitor, portal_session or ""),
         ).fetchone()
     return _one(row)
+
+
+def latest_portal_ticket(visitor: str, portal_session: str) -> dict | None:
+    with _LOCK:
+        row = connection().execute(
+            """
+            SELECT public_id, status, assignee_name FROM tickets
+            WHERE visitor_token = ? AND portal_session = ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (visitor, portal_session),
+        ).fetchone()
+    return _one(row)
+
+
+def list_portal_tickets(visitor: str, before: int | None = None) -> tuple[list[dict], int | None]:
+    cutoff = " AND id < ?" if before is not None else ""
+    args = [visitor] if before is None else [visitor, before]
+    with _LOCK:
+        rows = connection().execute(
+            f"""
+            SELECT id, public_id, status, substr(first_question, 1, 80) AS subject, created_at
+            FROM tickets WHERE visitor_token = ?{cutoff}
+            ORDER BY id DESC LIMIT ?
+            """,
+            (*args, _PORTAL_PAGE_SIZE + 1),
+        ).fetchall()
+    return _portal_page(rows)
+
+
+def portal_ticket_detail(visitor: str, public_id: str, before: int | None = None) -> dict | None:
+    with _LOCK:
+        conn = connection()
+        ticket = conn.execute(
+            """
+            SELECT id, public_id, status, first_question AS subject, portal_session, created_at,
+                   COALESCE(assignee_name, '') AS assignee_name
+            FROM tickets WHERE public_id = ? AND visitor_token = ?
+            """,
+            (public_id, visitor),
+        ).fetchone()
+        if ticket is None:
+            return None
+        cutoff = " AND id < ?" if before is not None else ""
+        args = [ticket["id"], visitor]
+        if before is not None:
+            args.append(before)
+        rows = conn.execute(
+            f"""
+            SELECT id, COALESCE(author, '') AS author, body, created_at
+            FROM messages WHERE ticket_id = ? AND visitor_token = ? AND role = 'agent'{cutoff}
+            ORDER BY id DESC LIMIT ?
+            """,
+            (*args, _PORTAL_PAGE_SIZE + 1),
+        ).fetchall()
+    detail = dict(ticket)
+    detail.pop("id")
+    replies, next_before = _portal_page(rows)
+    return {"ticket": detail, "replies": replies, "next_before": next_before}
+
+
+def _portal_page(rows: list[sqlite3.Row]) -> tuple[list[dict], int | None]:
+    page = rows[:_PORTAL_PAGE_SIZE]
+    next_before = page[-1]["id"] if len(rows) > _PORTAL_PAGE_SIZE else None
+    items = [dict(row) for row in page]
+    for item in items:
+        item.pop("id")
+    return items, next_before
 
 
 def list_tickets(status: str | None = None) -> list[dict]:
@@ -529,6 +608,40 @@ def get_message(message_id: int) -> dict | None:
     except json.JSONDecodeError:
         item["meta"] = {}
     return item
+
+
+def portal_updates(visitor: str, portal_session: str, after: int = 0) -> list[dict]:
+    # Without a cursor, show the latest page. With one, send the earliest unseen page.
+    order = "ASC" if after else "DESC"
+    with _LOCK:
+        rows = connection().execute(
+            f"""
+            SELECT id, role, COALESCE(author, '') AS author, body, created_at
+            FROM messages
+            WHERE visitor_token = ? AND portal_session = ? AND id > ? AND role IN ('agent', 'system')
+            ORDER BY id {order} LIMIT 40
+            """,
+            (visitor, portal_session, after),
+        ).fetchall()
+    return [dict(row) for row in (rows if after else reversed(rows))]
+
+
+def has_ticket_updates(ticket: dict, after: int, trace_after: int | None = None) -> bool:
+    with _LOCK:
+        conn = connection()
+        if conn.execute(
+            "SELECT 1 FROM messages WHERE ticket_id = ? AND id > ? LIMIT 1",
+            (ticket["id"], after),
+        ).fetchone():
+            return True
+        if trace_after is None:
+            return False
+        # A trace can be recorded after its message has already been read.
+        return bool(conn.execute(
+            "SELECT 1 FROM judgments WHERE ticket_id = ? AND id > ? "
+            "UNION ALL SELECT 1 FROM judgments WHERE visitor_token = ? AND portal_session = ? AND id > ? LIMIT 1",
+            (ticket["id"], trace_after, ticket["visitor_token"], ticket["portal_session"], trace_after),
+        ).fetchone())
 
 
 def list_messages(
@@ -719,6 +832,12 @@ def save_probe(ok: bool, checks: list) -> dict:
     return {"ok": ok, "checked_at": stamp, "checks": checks}
 
 
+def latest_probe_status() -> dict | None:
+    with _LOCK:
+        row = connection().execute("SELECT ok, created_at FROM probe_runs ORDER BY id DESC LIMIT 1").fetchone()
+    return {"ok": bool(row["ok"]), "checked_at": row["created_at"]} if row else None
+
+
 def latest_probe() -> dict | None:
     with _LOCK:
         row = connection().execute(
@@ -801,6 +920,25 @@ def upsert_feedback(visitor: str, portal_session: str, message_id: int, helpful:
             (visitor, message_id),
         ).fetchone()
     return dict(row) if row else {}
+
+
+def feedback_counts(since: str) -> tuple[int, int]:
+    with _LOCK:
+        row = connection().execute(
+            "SELECT COUNT(*) AS total, COUNT(CASE WHEN helpful = 1 THEN 1 END) AS helpful "
+            "FROM feedback WHERE updated_at >= ?",
+            (since,),
+        ).fetchone()
+    return row["total"], row["helpful"]
+
+
+def local_kb_counts() -> dict:
+    with _LOCK:
+        row = connection().execute(
+            "SELECT (SELECT COUNT(*) FROM kb_documents) AS documents, "
+            "(SELECT COUNT(*) FROM kb_segments WHERE enabled = 1) AS segments"
+        ).fetchone()
+    return dict(row)
 
 
 def list_feedback(helpful: int | None = None, since: str | None = None, limit: int = 100) -> list[dict]:

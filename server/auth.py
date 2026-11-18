@@ -31,10 +31,14 @@ def clear_cookie(name: str) -> str:
     return f"{name}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0"
 
 
+def current_visitor(handler) -> str | None:
+    token = parse_cookies(handler.headers.get("Cookie")).get(VISITOR_COOKIE)
+    return token if token and store.visitor_exists(token) else None
+
+
 def ensure_visitor(handler) -> str:
-    cookies = parse_cookies(handler.headers.get("Cookie"))
-    token = cookies.get(VISITOR_COOKIE)
-    if token and store.visitor_exists(token):
+    token = current_visitor(handler)
+    if token:
         return token
     token = secrets.token_urlsafe(24)
     store.create_visitor(token)

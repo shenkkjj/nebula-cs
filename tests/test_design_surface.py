@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DESIGN v1.0 strings that the production pages have to keep."""
+"""Portal and staff UI contracts, with previous design prototypes retained."""
 from __future__ import annotations
 
 import sys
@@ -30,39 +30,27 @@ class DesignSurfaceTest(unittest.TestCase):
             self.assertNotIn(banned, blob)
 
     def test_portal_states_and_staff_desk_are_in_the_pages(self) -> None:
-        portal = _text("web/app.js", "web/styles.css", "web/index.html")
-        self.assertIn("澄清选项", portal)
-        self.assertIn("人工客服", portal)
-        self.assertIn("人工接入中", portal)
-        self.assertIn("知识库维护中", portal)
-        self.assertIn("人工客服的回答不附引用", portal)
-        self.assertIn("outline: 2px solid var(--gold)", portal)
-        staff = _text("web/agent.html", "web/agent.js", "web/staff.css")
-        self.assertIn("待接入", staff)
-        self.assertIn("处理中", staff)
-        self.assertIn("已结束", staff)
-        self.assertIn('aria-current="true"', staff)
-        self.assertIn("判定详情", staff)
-        self.assertIn("回写知识库", staff)
-        self.assertIn("标记坏例", staff)
-        self.assertIn("索引中", staff)
-        self.assertIn("索引完成", staff)
-        self.assertIn("请写一句处理说明", staff)
-        self.assertIn("max-width: 1180px", staff)
-        self.assertIn("max-width: 760px", staff)
-        self.assertIn("prefers-reduced-motion", staff)
+        portal = _text("web/app.js", "web/index.html")
+        for state in ("澄清选项", "人工客服", "等待坐席接入", "人工已接入", "知识库维护中"):
+            self.assertIn(state, portal)
+        self.assertIn('id="sourcePanel"', portal)
+        self.assertIn('id="ticketProgress"', portal)
+        self.assertIn('aria-labelledby="ticketTitle"', portal)
+        staff = _text("web/agent.html", "web/agent.js")
+        for label in ("待接入", "处理中", "已结束", "处理详情", "写入知识库", "标记坏例", "索引中", "索引完成", "请写一句处理说明"):
+            self.assertIn(label, staff)
+        self.assertIn('setAttribute("aria-current", "true")', staff)
+        self.assertIn('role="tablist"', staff)
+        shared = _text("web/campus.css")
+        self.assertIn(":focus-visible", shared)
+        self.assertIn("prefers-reduced-motion", shared)
 
-    def test_admin_nav_follows_s1_and_eval_stays_honest(self) -> None:
+    def test_admin_nav_and_eval_stay_honest(self) -> None:
         admin = _text("web/admin.html", "web/admin.js")
-        docs = admin.index("知识库文档")
-        probe = admin.index("绑定自检")
-        audit = admin.index("审计日志")
-        config = admin.index("约束参数")
-        evaluation = admin.index(">评测<")
-        self.assertLess(docs, probe)
-        self.assertLess(probe, audit)
-        self.assertLess(audit, config)
-        self.assertLess(config, evaluation)
+        panels = ("overview", "handoffs", "feedback", "docs", "segments", "probe", "audit", "config", "eval")
+        positions = [admin.index(f'data-nav="{panel}"') for panel in panels]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn('/api/admin/overview', admin)
         self.assertIn("未运行", admin)
         self.assertIn("知识库直出", admin)
         login = _text("web/login.html", "web/login.js")
@@ -73,10 +61,10 @@ class DesignSurfaceTest(unittest.TestCase):
         self.assertNotIn("agent123", login)
         self.assertNotIn("演示账号", login)
         home = _text("web/index.html")
-        self.assertIn("澄清选项", home)
-        self.assertIn("其余段落折叠", home)
         self.assertIn("/fonts/fonts.css?v=", home)
-        self.assertIn("styles.css?v=", home)
+        self.assertIn("/campus.css?v=", home)
+        self.assertIn("/portal.css?v=", home)
+        self.assertNotIn("campus.webp", home + login + _text("web/portal.css", "web/staff.css"))
         self.assertIn("app.js?v=", home)
         admin = _text("web/admin.js")
         self.assertIn("历史记录", admin)
@@ -119,7 +107,8 @@ class DesignSurfaceTest(unittest.TestCase):
         page = (ROOT / "docs" / "design" / "index.html").read_text(encoding="utf-8")
         for banned in ("尚未确认", "选定前不会替换", "无一款已确认", "沉默不算确认", "沈凯杰", "王瑞康", "美团", "腾讯", "阿里巴巴"):
             self.assertNotIn(banned, page)
-        self.assertIn("生产门户和值班台现在按这两张原型", page)
+        self.assertIn("现代校园", page)
+        self.assertIn("归档", page)
         self.assertIn("这不是正式终验", page)
         self.assertNotIn("新设计还没实施", page)
         self.assertNotIn("旧版门户", page)

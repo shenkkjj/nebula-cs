@@ -527,6 +527,144 @@ class CampusHttpTest(unittest.TestCase):
         self.assertEqual(payload["engine"], "campus")
         self.assertTrue(payload["citations"])
 
+    def test_portal_updates_page_in_order_without_crossing_visitor_or_session(self) -> None:
+        visitor = "updates-test-visitor"
+        session = "updates-test-session"
+        store.create_visitor(visitor)
+        store.create_visitor("updates-other-visitor")
+        cookie = {"Cookie": f"nebula_visitor={visitor}"}
+        ticket = store.create_ticket(visitor, session, "user", "咨询")
+        ids = [store.add_message(visitor, "agent", f"答复 {i}", session, ticket["id"]) for i in range(85)]
+        store.add_message(visitor, "agent", "另一个会话", "another-session")
+        store.add_message("updates-other-visitor", "agent", "另一个访客", session)
+        store.add_message(visitor, "bot", "助手答复不轮询", session)
+        store.update_ticket(ticket["public_id"], status="closed")
+
+        def get_state(path, headers):
+            conn = HTTPConnection("127.0.0.1", self.port, timeout=10)
+            try:
+                conn.request("GET", path, headers=headers)
+                resp = conn.getresponse()
+                self.assertEqual(resp.status, 200)
+                return json.loads(resp.read())
+            finally:
+                conn.close()
+
+        path = f"/api/portal/state?session={session}"
+        latest = get_state(path, cookie)
+        self.assertEqual(latest["ticket"]["status"], "closed")
+        self.assertEqual([row["id"] for row in latest["messages"]], ids[-40:])
+        foreign = get_state(path, {"Cookie": "nebula_visitor=updates-other-visitor"})
+        self.assertIsNone(foreign["ticket"])
+        self.assertEqual([row["body"] for row in foreign["messages"]], ["另一个访客"])
+        unseen = []
+        cursor = ids[0]
+        for _ in range(3):
+            page = get_state(f"{path}&after={cursor}", cookie)["messages"]
+            self.assertLessEqual(len(page), 40)
+            unseen.extend(row["id"] for row in page)
+            cursor = page[-1]["id"]
+        self.assertEqual(unseen, ids[1:])
+        self.assertEqual(get_state(f"{path}&after={cursor}", cookie)["messages"], [])
+
+    def _get_portal_tickets(self, suffix: str = "", visitor: str = "") -> tuple[int, dict, dict]:
+        conn = HTTPConnection("127.0.0.1", self.port, timeout=10)
+        headers = {"Cookie": f"nebula_visitor={visitor}"} if visitor else {}
+        try:
+            conn.request("GET", f"/api/portal/tickets{suffix}", headers=headers)
+            resp = conn.getresponse()
+            return resp.status, {name.lower(): value for name, value in resp.getheaders()}, json.loads(resp.read())
+        finally:
+            conn.close()
+
+    def test_visitor_ticket_list_pages_across_own_sessions(self) -> None:
+        visitor, foreign = "history-list-visitor", "history-list-foreign"
+        store.create_visitor(visitor)
+        store.create_visitor(foreign)
+        own = [store.create_ticket(visitor, f"session-{i}", "user", f"事项 {i}") for i in range(23)]
+        store.update_ticket(own[-1]["public_id"], status="closed", close_note="仅坐席可见")
+        store.create_ticket(foreign, "session-22", "user", "外部工单")
+        status, headers, initial = self._get_portal_tickets(visitor=visitor)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        self.assertNotIn("set-cookie", headers)
+        self.assertEqual(len(initial["tickets"]), 20)
+        self.assertEqual(initial["tickets"][0]["status"], "closed")
+        self.assertEqual(set(initial["tickets"][0]), {"public_id", "subject", "status", "created_at"})
+        later = store.create_ticket(visitor, "another-session", "user", "晚提交的工单")
+        _, _, older = self._get_portal_tickets(f"?before={initial['next_before']}", visitor)
+        self.assertEqual(
+            [row["public_id"] for row in initial["tickets"] + older["tickets"]],
+            [ticket["public_id"] for ticket in reversed(own)],
+        )
+        self.assertIsNone(older["next_before"])
+        self.assertEqual(self._get_portal_tickets(visitor=visitor)[2]["tickets"][0]["public_id"], later["public_id"])
+        for missing in ("", "unknown-history-cookie"):
+            with self.subTest(cookie=missing):
+                status, headers, empty = self._get_portal_tickets(visitor=missing)
+                self.assertEqual(status, 200)
+                self.assertEqual(empty, {"ok": True, "tickets": [], "next_before": None})
+                self.assertNotIn("set-cookie", headers)
+
+    def test_visitor_ticket_detail_returns_only_its_public_replies(self) -> None:
+        visitor, foreign, session = "history-detail-visitor", "history-detail-foreign", "same-session"
+        store.create_visitor(visitor)
+        store.create_visitor(foreign)
+        ticket = store.create_ticket(visitor, session, "user", "较早的人工工单")
+        store.update_ticket(ticket["public_id"], status="closed", assignee_name="王老师", close_note="内部处理说明")
+        other = store.create_ticket(visitor, session, "user", "同会话的新工单")
+        for i in range(22):
+            store.add_message(visitor, "agent", f"人工答复 {i}", session, ticket["id"], author="王老师")
+        store.add_message(visitor, "user", "工单补充", session, ticket["id"], meta={"contact": "visitor@example.org"})
+        store.add_message(visitor, "system", "分配留痕", session, ticket["id"])
+        store.add_message(visitor, "agent", "新工单答复", session, other["id"])
+        path = f"/{ticket['public_id']}"
+        status, headers, detail = self._get_portal_tickets(path, visitor)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        self.assertEqual(detail["ticket"], {
+            "public_id": ticket["public_id"], "status": "closed", "subject": "较早的人工工单",
+            "portal_session": session, "created_at": ticket["created_at"], "assignee_name": "王老师",
+        })
+        self.assertEqual(set(detail["replies"][0]), {"author", "body", "created_at"})
+        self.assertEqual(len(detail["replies"]), 20)
+        _, _, older = self._get_portal_tickets(f"{path}?before={detail['next_before']}", visitor)
+        self.assertEqual([row["body"] for row in detail["replies"] + older["replies"]], [f"人工答复 {i}" for i in reversed(range(22))])
+        self.assertIsNone(older["next_before"])
+        for cookie, target in ((foreign, path), ("", path), (visitor, "/unknown-ticket")):
+            with self.subTest(cookie=cookie, target=target):
+                status, _, error = self._get_portal_tickets(target, cookie)
+                self.assertEqual(status, 404)
+                self.assertEqual(error, {"ok": False, "error": "没有找到这张工单"})
+
+    def test_manual_ticket_updates_one_open_ticket_then_can_start_another(self) -> None:
+        visitor = "manual-ticket-visitor"
+        session = "manual-ticket-session"
+        store.create_visitor(visitor)
+
+        def submit(subject, detail):
+            conn = HTTPConnection("127.0.0.1", self.port, timeout=10)
+            try:
+                conn.request("POST", "/api/ticket", json.dumps({
+                    "subject": subject, "detail": detail, "portal_session": session,
+                }), {"Cookie": f"nebula_visitor={visitor}", "Content-Type": "application/json"})
+                resp = conn.getresponse()
+                self.assertEqual(resp.status, 200)
+                return json.loads(resp.read())
+            finally:
+                conn.close()
+
+        first = submit("领取窗口", "想核对时间")
+        public_id = first["ticket_id"]
+        self.assertTrue(first["queue"])
+        self.assertEqual(first["ticket"]["status"], "waiting")
+        store.update_ticket(public_id, status="active", assignee_name="王老师")
+        updated = submit("补充事项", "周五能领取吗？")
+        self.assertEqual(updated["ticket"], {"public_id": public_id, "status": "active", "assignee_name": "王老师"})
+        self.assertIn("补充事项 · 周五能领取吗？", [row["body"] for row in store.list_messages(ticket_id=store.get_ticket(public_id)["id"])])
+        store.update_ticket(public_id, status="closed")
+        self.assertNotEqual(submit("新的事项", "")["ticket_id"], public_id)
+
 
 if __name__ == "__main__":
     unittest.main()

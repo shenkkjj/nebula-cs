@@ -34,10 +34,12 @@ def queue(status: str) -> dict:
     return {"ok": True, "status": chosen, "counts": store.ticket_counts(), "tickets": items}
 
 
-def detail(public_id: str) -> tuple[int, dict]:
+def detail(public_id: str, after: int | None = None, trace_after: int | None = None) -> tuple[int, dict]:
     ticket = store.get_ticket(public_id)
     if not ticket:
         return 404, {"ok": False, "error": "没有这张工单"}
+    if after is not None and not store.has_ticket_updates(ticket, after, trace_after):
+        return 200, {"ok": True, "ticket": _card(ticket)}
     messages = store.list_messages(ticket_id=ticket["id"])
     judgments = _ticket_judgments(ticket)
     return 200, {
@@ -49,24 +51,25 @@ def detail(public_id: str) -> tuple[int, dict]:
 
 
 def take(public_id: str, user: dict) -> tuple[int, dict]:
-    ticket = store.get_ticket(public_id)
-    if not ticket:
-        return 404, {"ok": False, "error": "没有这张工单"}
-    if ticket["status"] == "closed":
-        return 400, {"ok": False, "error": "这张工单已经结束"}
-    if ticket["status"] == "active" and ticket.get("assignee_id") not in (None, user["user_id"]):
-        name = ticket.get("assignee_name") or "其他坐席"
-        return 409, {"ok": False, "error": f"已被 {name} 接入"}
-    was_waiting = ticket["status"] == "waiting"
-    if was_waiting or ticket.get("assignee_id") in (None, user["user_id"]):
-        store.update_ticket(
-            public_id,
-            status="active",
-            assignee_id=user["user_id"],
-            assignee_name=user["display_name"],
-            taken_at=ticket.get("taken_at") or store.now(),
-        )
-        if was_waiting:
+    # Keep the ownership check and transition serialized on the shared store.
+    with store.exclusive():
+        ticket = store.get_ticket(public_id)
+        if not ticket:
+            return 404, {"ok": False, "error": "没有这张工单"}
+        if ticket["status"] == "closed":
+            return 400, {"ok": False, "error": "这张工单已经结束"}
+        assignee = ticket.get("assignee_id")
+        if ticket["status"] == "active" and assignee not in (None, user["user_id"]):
+            name = ticket.get("assignee_name") or "其他坐席"
+            return 409, {"ok": False, "error": f"已被 {name} 接入"}
+        if ticket["status"] == "waiting" or assignee is None:
+            store.update_ticket(
+                public_id,
+                status="active",
+                assignee_id=user["user_id"],
+                assignee_name=user["display_name"],
+                taken_at=ticket.get("taken_at") or store.now(),
+            )
             stamp = datetime.now().astimezone().strftime("%H:%M")
             store.add_message(
                 ticket["visitor_token"],
@@ -86,20 +89,21 @@ def reply(public_id: str, user: dict, text: str) -> tuple[int, dict]:
         return 400, {"ok": False, "error": "回复内容不能为空"}
     if len(body) > 800:
         return 400, {"ok": False, "error": "回复请控制在 800 字以内"}
-    ticket = store.get_ticket(public_id)
-    if not ticket:
-        return 404, {"ok": False, "error": "没有这张工单"}
-    if ticket["status"] != "active" or ticket.get("assignee_id") != user["user_id"]:
-        return 403, {"ok": False, "error": "只有接入这张工单的坐席可以回复"}
-    store.add_message(
-        ticket["visitor_token"],
-        "agent",
-        body,
-        ticket.get("portal_session") or "",
-        ticket["id"],
-        author=user["display_name"],
-    )
-    store.add_audit("ticket_reply", actor=user["username"], session_ref=public_id, decision="回复", question=body[:120])
+    with store.exclusive():
+        ticket = store.get_ticket(public_id)
+        if not ticket:
+            return 404, {"ok": False, "error": "没有这张工单"}
+        if ticket["status"] != "active" or ticket.get("assignee_id") != user["user_id"]:
+            return 403, {"ok": False, "error": "只有接入这张工单的坐席可以回复"}
+        store.add_message(
+            ticket["visitor_token"],
+            "agent",
+            body,
+            ticket.get("portal_session") or "",
+            ticket["id"],
+            author=user["display_name"],
+        )
+        store.add_audit("ticket_reply", actor=user["username"], session_ref=public_id, decision="回复", question=body[:120])
     return detail(public_id)
 
 
@@ -109,23 +113,24 @@ def close(public_id: str, user: dict, note: str) -> tuple[int, dict]:
         return 400, {"ok": False, "error": "请写一句处理说明"}
     if len(text) > 300:
         return 400, {"ok": False, "error": "处理说明请控制在 300 字以内"}
-    ticket = store.get_ticket(public_id)
-    if not ticket:
-        return 404, {"ok": False, "error": "没有这张工单"}
-    if ticket["status"] == "closed":
-        return 400, {"ok": False, "error": "这张工单已经结束"}
-    if ticket.get("assignee_id") != user["user_id"]:
-        return 403, {"ok": False, "error": "只有接入这张工单的坐席可以结束"}
-    store.update_ticket(public_id, status="closed", closed_at=store.now(), close_note=text)
-    store.add_message(
-        ticket["visitor_token"],
-        "system",
-        "工单已结束，可以继续问校园助手。",
-        ticket.get("portal_session") or "",
-        ticket["id"],
-        author="系统",
-    )
-    store.add_audit("ticket_close", actor=user["username"], session_ref=public_id, decision="结束", detail={"note": text})
+    with store.exclusive():
+        ticket = store.get_ticket(public_id)
+        if not ticket:
+            return 404, {"ok": False, "error": "没有这张工单"}
+        if ticket["status"] == "closed":
+            return 400, {"ok": False, "error": "这张工单已经结束"}
+        if ticket.get("assignee_id") != user["user_id"]:
+            return 403, {"ok": False, "error": "只有接入这张工单的坐席可以结束"}
+        store.update_ticket(public_id, status="closed", closed_at=store.now(), close_note=text)
+        store.add_message(
+            ticket["visitor_token"],
+            "system",
+            "工单已结束，可以继续问校园助手。",
+            ticket.get("portal_session") or "",
+            ticket["id"],
+            author="系统",
+        )
+        store.add_audit("ticket_close", actor=user["username"], session_ref=public_id, decision="结束", detail={"note": text})
     return detail(public_id)
 
 

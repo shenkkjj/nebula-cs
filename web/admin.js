@@ -21,13 +21,52 @@
     return data;
   }
 
+  async function loadOverview() {
+    const status = document.getElementById("overviewStatus");
+    const panel = document.getElementById("overviewData");
+    const refresh = document.getElementById("btnOverview");
+    if (refresh.disabled) return;
+    refresh.disabled = true;
+    status.className = "overview-status small muted";
+    status.textContent = "正在加载数据…";
+    const put = (id, value) => { document.getElementById(id).textContent = value; };
+    const number = new Intl.NumberFormat("zh-CN");
+    const time = (value) => value ? new Date(value).toLocaleString("zh-CN", { hour12: false }) : "暂无记录";
+    try {
+      const data = await api("/api/admin/overview");
+      put("metricWaiting", number.format(data.tickets.waiting));
+      put("metricActive", number.format(data.tickets.active));
+      put("metricClosed", number.format(data.tickets.closed));
+      put("metricHelpful", data.feedback.total ? `${(100 * data.feedback.helpful / data.feedback.total).toFixed(1)}%` : "—");
+      put("metricFeedbackCount", data.feedback.total ? `共 ${number.format(data.feedback.total)} 条评价` : "近七日暂无评价");
+      const probe = document.getElementById("overviewProbe");
+      probe.className = `pill${data.probe ? (data.probe.ok ? " ok" : " warn") : ""}`;
+      probe.textContent = data.probe ? (data.probe.ok ? "自检通过" : "维护中") : "尚未自检";
+      const engines = { campus: "本地校园知识库", dify: "Dify 知识库", lite: "规则问答（演示）" };
+      put("overviewEngine", engines[data.engine] || "未知");
+      put("overviewChecked", time(data.probe?.checked_at));
+      document.getElementById("overviewDocuments").hidden = !data.local_knowledge;
+      if (data.local_knowledge) {
+        put("overviewKnowledge", `${number.format(data.local_knowledge.documents)} 份文档 · ${number.format(data.local_knowledge.segments)} 个启用分段`);
+      }
+      status.textContent = `更新于 ${time(data.updated_at)}`;
+      panel.hidden = false;
+    } catch {
+      status.className = "overview-status form-status";
+      status.textContent = panel.hidden ? "数据暂不可用，请重试。" : "刷新失败，当前显示上次加载的数据。";
+    } finally {
+      refresh.disabled = false;
+    }
+  }
+
   function show(name) {
-    const page = pages.some((item) => item.dataset.page === name) ? name : "docs";
+    const page = pages.some((item) => item.dataset.page === name) ? name : "overview";
     for (const item of pages) item.hidden = item.dataset.page !== page;
     for (const item of nav) {
       if (item.dataset.nav === page) item.setAttribute("aria-current", "page");
       else item.removeAttribute("aria-current");
     }
+    if (page === "overview") loadOverview();
     if (page === "docs") loadDocs();
     if (page === "segments") loadSegments();
     if (page === "handoffs") loadHandoffs();
@@ -335,7 +374,14 @@
     if (job.running) setTimeout(loadEval, 1500);
   }
 
-  window.addEventListener("hashchange", () => show(location.hash.slice(1)));
+  window.addEventListener("hashchange", () => {
+    show(location.hash.slice(1));
+    const heading = document.querySelector("[data-page]:not([hidden]) h1");
+    heading?.setAttribute("tabindex", "-1");
+    heading?.focus();
+    window.scrollTo(0, 0);
+  });
+  document.getElementById("btnOverview").addEventListener("click", loadOverview);
   document.getElementById("docsBody").addEventListener("click", async (event) => {
     const open = event.target.closest("[data-open]");
     if (open) {
@@ -512,17 +558,8 @@
       return;
     }
     document.getElementById("who").textContent = data.user.display_name + " · 管理员";
-    fetch("/api/portal/state?session=admin-rail").then((res) => res.json()).then((probe) => {
-      const pill = document.getElementById("kbPill");
-      if (!pill) return;
-      if (probe.maintenance) {
-        pill.textContent = "知识库维护中";
-        pill.className = "pill warn";
-      } else if (probe.probe_ok) {
-        pill.textContent = "知识库就绪";
-        pill.className = "pill ok";
-      }
-    }).catch(() => {});
-    show(location.hash.slice(1) || "docs");
+    show(location.hash.slice(1));
+  }).catch(() => {
+    document.getElementById("overviewStatus").textContent = "身份校验暂不可用，请刷新页面重试。";
   });
 })();

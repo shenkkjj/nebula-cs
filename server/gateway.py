@@ -116,7 +116,7 @@ def iter_events(req: dict):
         return
 
     if is_handoff(masked):
-        ticket = _open_or_create(visitor, portal_session, "user", masked, source_if_new=_handoff_source(visitor, portal_session))
+        ticket, _ = store.open_or_create_ticket(visitor, portal_session, _handoff_source(visitor, portal_session), masked)
         yield from finish(_ticket_reply(ticket, HANDOFF_TEXT, action="human_handoff"))
         return
 
@@ -138,7 +138,7 @@ def iter_events(req: dict):
 
     probe = store.latest_probe()
     if probe is not None and not probe.get("ok"):
-        ticket = _open_or_create(visitor, portal_session, "maintenance", masked)
+        ticket, _ = store.open_or_create_ticket(visitor, portal_session, "maintenance", masked)
         text = MAINTENANCE_TEXT + f"\n\n工单 {ticket['public_id']}。"
         yield from finish(_ticket_reply(ticket, text, action="maintenance", maintenance=True))
         return
@@ -192,14 +192,14 @@ def iter_events(req: dict):
             raw = value
     if raw.error:
         store.save_probe(False, [{"name": "chat", "ok": False, "detail": "这次调用知识引擎失败：" + raw.error}])
-        ticket = _open_or_create(visitor, portal_session, "maintenance", masked)
+        ticket, _ = store.open_or_create_ticket(visitor, portal_session, "maintenance", masked)
         text = MAINTENANCE_TEXT + f"\n\n工单 {ticket['public_id']}。"
         yield from finish(_ticket_reply(ticket, text, action="maintenance", maintenance=True, rewrite=rewrite))
         return
 
     decision = _decide(raw, cfg, query=upstream_query or masked, history=masked_history)
     if decision["refuse"] and cfg.get("auto_ticket_on_refusal"):
-        ticket = _open_or_create(visitor, portal_session, "refusal", masked)
+        ticket, _ = store.open_or_create_ticket(visitor, portal_session, "refusal", masked)
         decision["handoff"] = True
         decision["ticket_id"] = ticket["public_id"]
         decision["ticket_status"] = ticket["status"]
@@ -392,14 +392,6 @@ def _handoff_source(visitor: str, portal_session: str) -> str:
             return "refusal"
         break
     return "user"
-
-
-def _open_or_create(visitor: str, portal_session: str, source: str, question: str, source_if_new: str | None = None) -> dict:
-    existing = store.open_ticket(visitor, portal_session)
-    if existing:
-        store.claim_session_judgments(existing["id"], visitor, portal_session)
-        return existing
-    return store.create_ticket(visitor, portal_session, source_if_new or source, question)
 
 
 def _trace(notices: list, rewrite: dict | None, raw: ChatRaw, decision: dict, cfg: dict) -> list:

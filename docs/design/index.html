@@ -52,12 +52,11 @@
 </head>
 <body>
   <div class="wrap">
-    <p class="eyebrow">DESIGN v1.0 · 2026-11-14 已确认</p>
+    <p class="eyebrow">DESIGN v1.0 · 原型归档</p>
     <h1>校园客服 · 设计原型</h1>
     <p class="lead">
-      门户沿用 <strong>E5 黑金</strong>；坐席与后台采用 <strong>S1「值班台」</strong>——坐席和后台各一个应用。
-      以下为静态 HTML 原型，对话、结果与指标均为<strong>模拟数据</strong>，不接业务 API。<br />
-      <small>本页 2026-11-17 更新：前两张卡是 11-14 确认的新设计。生产门户和值班台现在按这两张原型走。第三张打开正在运行的门户。第四张是历史选款归档。这不是正式终验。</small>
+      这里归档了 2026-11-14 确认的 <strong>E5 黑金</strong>门户和 <strong>S1 值班台</strong>静态原型，内含模拟对话与指标。<br />
+      <small>本地应用已更新为现代校园风格。第三张卡打开当前服务的实际访客门户。这里的原型与截图只作设计对照。这不是正式终验。</small>
     </p>
 
     <div class="grid">
@@ -76,8 +75,8 @@
       </a>
 
       <a class="card" href="../../">
-        <span class="tag">生产门户 · 现有实现</span>
-        <h2>E5 门户</h2>
+        <span class="tag">正在运行的应用</span>
+        <h2>现代校园门户</h2>
         <p>当前运行的问答页面：流式回答、停止、引用卡、本机会话历史、转人工入口。运行 <code>python server/proxy.py</code> 后通过服务器根路径打开。</p>
         <div class="ids">R-101 · R-102 · R-105 · R-107 ｜ <code>web/index.html</code></div>
       </a>
@@ -91,12 +90,11 @@
     </div>
 
     <p class="note">
-      <strong>待补齐：</strong>后台的知识库文档、绑定自检、约束参数三页和登录页在 DESIGN v1.0 中标注为「选定后补齐（按钮占位）」，
-      已在后台左导航留出入口，原型尚未展开；实施阶段按 PLAN T4 / T6 补齐。
+      可在运行中的应用访问 <a href="/login">登录</a>、<a href="/agent">坐席工作台</a>、<a href="/admin">管理后台</a>。
     </p>
 
     <p class="foot">
-      打开方式：运行门户后访问 <code>http://127.0.0.1:8787/design/</code>；或在本目录执行
+      默认服务的原型入口为 <code>http://127.0.0.1:8080/design/</code>。也可在本目录执行
       <code>python -m http.server 8790</code> 后访问 <code>http://127.0.0.1:8790/</code>。<br />
       文档：<a href="../DESIGN.md">docs/DESIGN.md</a> · <a href="../PRD.md">docs/PRD.md</a> · <a href="../PLAN.md">docs/PLAN.md</a> · <a href="../STATUS.md">docs/STATUS.md</a>
     </p>

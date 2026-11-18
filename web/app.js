@@ -1,45 +1,17 @@
 (() => {
   "use strict";
 
-  const FAQ = [
-    "在读证明如何办理？",
-    "成绩在哪里查询？",
-    "选课时间是什么时候？",
-    "如何退课？",
-    "国家助学贷款如何申请？",
-    "图书馆开放时间是什么？",
-    "如何借书和续借？",
-    "宿舍报修怎么提交？",
-    "宿舍水电费如何查询和缴纳？",
-    "宿舍门禁时间是什么？",
-    "校园网如何认证登录？",
-    "VPN 如何使用？",
-    "校园卡如何充值和挂失？",
-    "校医院如何预约挂号？",
-    "心理咨询如何预约？",
-    "教室借用怎么申请？",
-    "寒暑假校园作息怎么安排？",
-    "办事进度如何查询？",
-    "办事进度状态分别是什么意思？",
-    "什么情况下应转人工？",
-  ];
-
-  /** 空态高频意图：少量入口，其余问题仍在顶栏。 */
-  const EMPTY_CHIPS = [
-    { label: "在读证明", query: "在读证明如何办理？" },
-    { label: "证明怎么开", query: "证明怎么开？" },
-    { label: "宿舍报修", query: "宿舍报修怎么提交？" },
-    { label: "校园网", query: "校园网如何认证登录？" },
-    { label: "转人工", query: "转人工" },
-  ];
-
   const LS_KEY = "nebula-cs-sessions-v1";
   const LS_ACTIVE = "nebula-cs-active-session";
 
   const el = {
     messages: document.getElementById("messages"),
     citeList: document.getElementById("citeList"),
-    faqChips: document.getElementById("faqChips"),
+    sourcePanel: document.getElementById("sourcePanel"),
+    sourceQuestion: document.getElementById("sourceQuestion"),
+    sourceCount: document.getElementById("sourceCount"),
+    emptyTemplate: document.getElementById("emptyTemplate"),
+    ticketProgress: document.getElementById("ticketProgress"),
     sessionList: document.getElementById("sessionList"),
     composer: document.getElementById("composer"),
     input: document.getElementById("queryInput"),
@@ -60,7 +32,15 @@
     btnTicketTop: document.getElementById("btnTicketTop"),
     btnCloseTicket: document.getElementById("btnCloseTicket"),
     btnCancelTicket: document.getElementById("btnCancelTicket"),
-    btnToggleFaq: document.getElementById("btnToggleFaq"),
+    btnMyTickets: document.getElementById("btnMyTickets"),
+    myTicketsModal: document.getElementById("myTicketsModal"),
+    myTicketsHint: document.getElementById("myTicketsHint"),
+    myTicketsStatus: document.getElementById("myTicketsStatus"),
+    myTicketsContent: document.getElementById("myTicketsContent"),
+    btnRefreshMyTickets: document.getElementById("btnRefreshMyTickets"),
+    btnCloseMyTickets: document.getElementById("btnCloseMyTickets"),
+    btnBackMyTickets: document.getElementById("btnBackMyTickets"),
+    btnMoreMyTickets: document.getElementById("btnMoreMyTickets"),
     noticeBar: document.getElementById("noticeBar"),
     onlinePill: document.getElementById("onlinePill"),
   };
@@ -75,11 +55,14 @@
     messages: [], // {role, text, refuse?, suggestions?}
     historyCutoff: 0,
     ticketId: "",
-    agentLive: false,
     agentName: "",
     maintenance: false,
-    seenServerIds: {},
+    ticketStatus: "",
+    pollRequest: null,
+    portalCursor: 0,
+    ticketSubmitting: false,
   };
+  const myTickets = { id: "", before: null, request: null };
 
   function loadUserId() {
     try {
@@ -118,22 +101,8 @@
     return text || label;
   }
 
-  function ensureNotice() {
-    if (!el.noticeBar) {
-      el.noticeBar = document.createElement("div");
-      el.noticeBar.id = "noticeBar";
-      el.noticeBar.className = "notice-bar";
-      el.noticeBar.hidden = true;
-    }
-    if (el.noticeBar.parentElement !== el.messages) el.messages.prepend(el.noticeBar);
-    return el.noticeBar;
-  }
-
   function clearThread() {
-    ensureNotice();
-    for (const node of [...el.messages.children]) {
-      if (node !== el.noticeBar) node.remove();
-    }
+    el.messages.replaceChildren();
   }
 
   function setStatus(text) {
@@ -176,29 +145,50 @@
     return out.join("\n");
   }
 
-  function citeSpan(citations) {
-    if (!citations || !citations.length) return 0;
-    return citations.reduce((max, item, index) => Math.max(max, Number(item && item.mark) || index + 1), 0);
-  }
+  const rowAnswers = new WeakMap();
 
-  function linkCitationMarks(html, count) {
-    const total = Number(count) || 0;
-    if (total < 1) return html;
-    return String(html).replace(/\[(\d+)\]/g, (all, raw) => {
-      const n = Number(raw);
-      if (!Number.isInteger(n) || n < 1 || n > total) return all;
-      return `<button type="button" class="cite-mark" data-cite="${n - 1}" aria-label="查看出处 ${n}">[${n}]</button>`;
+  function linkCitationMarks(html, citations) {
+    if (!citations?.length) return html;
+    return html.replace(/\[(\d+)\]/g, (original, raw) => {
+      const mark = Number(raw);
+      if (!citations.some((card) => card.mark === mark)) return original;
+      return `<button type="button" class="cite-mark" data-cite="${mark}" aria-label="查看出处 ${mark}">[${mark}]</button>`;
     });
   }
 
-  const PHASE_TEXT = { retrieving: "正在查找依据", generating: "正在作答" };
-
-  function tagServerMessage(id) {
-    if (!id) return;
-    const rows = el.messages.querySelectorAll(".msg.bot, .msg.agent-msg");
-    const row = rows[rows.length - 1];
-    if (row) row.dataset.messageId = String(id);
+  function citationSnapshot(citations) {
+    if (!Array.isArray(citations)) return [];
+    const piece = (item) => ({
+      title: String(item.title || "").slice(0, 160),
+      content: String(item.content || "").slice(0, 800),
+      score: typeof item.score === "number" ? item.score : -1,
+    });
+    return citations.slice(0, 8).flatMap((item, index) => {
+      if (!item || typeof item !== "object") return [];
+      return [{
+        ...piece(item),
+        mark: Number(item.mark) || index + 1,
+        document_id: String(item.document_id || "").slice(0, 160),
+        document_name: String(item.document_name || "文档").slice(0, 160),
+        segments: Array.isArray(item.segments) ? item.segments.filter(Boolean).slice(0, 3).map(piece) : [],
+      }];
+    });
   }
+
+  function attachSources(row, answer) {
+    if (!answer?.citations?.length) return;
+    rowAnswers.set(row, answer);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mini";
+    button.dataset.cite = "";
+    button.textContent = "查看依据";
+    const bar = row.querySelector(".bot-tools");
+    if (bar) bar.prepend(button);
+    else row.appendChild(button);
+  }
+
+  const PHASE_TEXT = { retrieving: "正在查找依据", generating: "正在作答" };
 
   function showPhase(phase) {
     const label = PHASE_TEXT[phase];
@@ -259,8 +249,13 @@
       id: state.sessionId,
       conversationId: state.conversationId || "",
       updatedAt: Date.now(),
-      historyCutoff: state.historyCutoff || 0,
-      messages: state.messages.slice(-40),
+      historyCutoff: Math.max(0, state.historyCutoff - Math.max(0, state.messages.length - 40)),
+      portalCursor: state.portalCursor,
+      messages: state.messages.slice(-40).map((message, index, rows) => {
+        if (!message.citations || index >= rows.length - 12) return message;
+        const { citations, ...rest } = message;
+        return rest;
+      }),
     });
     if (idx >= 0) list[idx] = entry;
     else list.unshift(entry);
@@ -295,25 +290,31 @@
   }
 
   function restoreSession(sid) {
-    if (state.busy) return;
+    if (state.busy || state.ticketSubmitting) return false;
     const list = loadSessions();
     const s = list.find((x) => x.id === sid);
-    if (!s) return;
-    state.sessionId = s.id;
-    state.conversationId = s.conversationId || "";
-    state.historyCutoff = s.historyCutoff || 0;
-    const stored = globalThis.nebulaMask.maskStoredSession(s);
-    state.messages = stored.messages.slice();
+    if (!s) return false;
+    resetTicket();
+    hydrateSession(s);
     try {
       localStorage.setItem(LS_ACTIVE, sid);
     } catch {
       /* ignore */
     }
     renderMessagesFromState();
-    renderCitations([]);
+    restoreSources();
     renderSessionList();
     setStatus("已切换会话 · 可继续追问");
     pollPortal();
+    return true;
+  }
+
+  function hydrateSession(session) {
+    state.sessionId = session.id;
+    state.conversationId = session.conversationId || "";
+    state.historyCutoff = session.historyCutoff || 0;
+    state.messages = session.messages.slice();
+    state.portalCursor = state.messages.reduce((cursor, row) => Math.max(cursor, Number(row.serverId) || 0), Number(session.portalCursor) || 0);
   }
 
   function renderMessagesFromState() {
@@ -336,11 +337,10 @@
           suggestions: m.suggestions || [],
           clarify: m.action === "clarify",
           agent: m.role === "agent",
-          who: m.role === "agent" ? (m.author || "人工客服") + " · 人工客服" + (m.createdAt ? " · " + m.createdAt : "") : "",
-          citeCount: m.citeCount || 0,
-          persist: false,
+          who: m.role === "agent" ? agentLabel(m) : "",
+          answer: m,
         });
-        if (row && m.serverMessageId) row.dataset.messageId = String(m.serverMessageId);
+        if (m.handoff && !m.refuse) mountHandoffAction(row, m.ticketId);
       }
     });
   }
@@ -349,72 +349,40 @@
     return "s-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
   }
 
-  function startNewChat(opts = {}) {
-    if (state.busy && state.abort) {
-      stopGenerating();
-    }
+  function startNewChat() {
+    if (state.busy || state.ticketSubmitting) return;
+    resetTicket();
     state.conversationId = "";
     state.taskId = "";
     state.historyCutoff = 0;
     state.messages = [];
     state.sessionId = newSessionId();
-    state.ticketId = "";
-    state.agentLive = false;
-    state.agentName = "";
-    if (!state.maintenance) setPill("助手在线", "");
-    try {
-      localStorage.setItem(LS_ACTIVE, state.sessionId);
-    } catch {
-      /* ignore */
-    }
-    if (el.faqChips) el.faqChips.querySelectorAll(".chip").forEach((x) => x.classList.remove("active"));
+    try { localStorage.removeItem(LS_ACTIVE); } catch { /* optional storage */ }
     renderEmpty();
-    renderCitations([], "welcome");
     renderSessionList();
-    setStatus(opts.status || "新对话已开始");
+    setStatus("新对话已开始");
     el.input.focus();
   }
 
   function renderEmpty() {
-    const chips = EMPTY_CHIPS.map(
-      (c) =>
-        `<button type="button" class="chip" data-q="${escapeHtml(c.query)}">${escapeHtml(
-          c.label
-        )}</button>`
-    ).join("");
-    clearThread();
-    const empty = document.createElement("div");
-    empty.className = "empty-state";
-    empty.innerHTML = `
-        <div class="mark" aria-hidden="true">云</div>
-        <h3>你好，我是校园助手</h3>
-        <p>办事问题按知识库回答，出处收在右侧。问得含糊时先给澄清选项；同一份文档只留一张出处卡，其余段落折叠。说「转人工」就排队。知识库维护时，对话区上方会出现黄条。</p>
-        <div class="empty-chips" role="group" aria-label="快捷提问">${chips}</div>`;
-    el.messages.appendChild(empty);
-    el.messages.querySelectorAll(".empty-chips .chip").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const q = btn.getAttribute("data-q") || btn.textContent;
-        sendQuery(q);
-      });
-    });
-    if (!el.citeList.querySelector(".cite-card")) {
-      el.citeList.innerHTML = `
-        <div class="cite-empty">
-          <p class="cite-empty-title">出处会收在这里</p>
-          <p>同一份文档一张卡。相关度最高的一段在前，其余段落折叠，点开再看。</p>
-        </div>`;
-    }
+    el.messages.replaceChildren(el.emptyTemplate.content.cloneNode(true));
+    document.body.classList.remove("in-conversation");
+    renderCitations([]);
+  }
+
+  function enterThread() {
+    el.messages.querySelector(".empty-state")?.remove();
+    document.body.classList.add("in-conversation");
   }
 
   function appendMessage(role, html, opts = {}) {
-    const empty = el.messages.querySelector(".empty-state");
-    if (empty) empty.remove();
+    enterThread();
 
     const wrap = document.createElement("div");
     const handoffClass = opts.handoff && !opts.refuse ? " handoff" : "";
     wrap.className = "msg " + (opts.agent ? "agent-msg" : role) + (opts.refuse ? " refuse" : "") + handoffClass;
-    const who = opts.who || (role === "user" ? "同学" : "校园助手");
-    wrap.innerHTML = `<div class="who">${escapeHtml(who)}</div><div class="bubble">${linkCitationMarks(html, opts.citeCount)}</div>`;
+    const who = opts.who || (role === "user" ? "你" : "校园助手");
+    wrap.innerHTML = `<div class="who">${escapeHtml(who)}</div><div class="bubble">${linkCitationMarks(html, opts.answer?.citations)}</div>`;
     if (opts.refuse) {
       const actions = document.createElement("div");
       actions.className = "msg-actions";
@@ -423,15 +391,15 @@
       wrap.appendChild(actions);
     }
     mountSuggestions(wrap, opts.suggestions, opts.clarify);
-    if (role === "bot" && !opts.agent && !opts.clarify) mountBotTools(wrap);
+    if (role === "bot" && !opts.agent && !opts.clarify) mountBotTools(wrap, opts.answer?.serverMessageId);
+    attachSources(wrap, opts.answer);
     el.messages.appendChild(wrap);
     el.messages.scrollTop = el.messages.scrollHeight;
     return wrap;
   }
 
   function appendSystem(text) {
-    const empty = el.messages.querySelector(".empty-state");
-    if (empty) empty.remove();
+    enterThread();
     const line = document.createElement("p");
     line.className = "sys-line";
     line.textContent = text;
@@ -441,78 +409,78 @@
 
   function setPill(text, kind) {
     if (!el.onlinePill) return;
-    el.onlinePill.textContent = text;
+    if (el.onlinePill.textContent !== text) el.onlinePill.textContent = text;
     el.onlinePill.classList.toggle("warn", kind === "warn");
     el.onlinePill.classList.toggle("live", kind === "live");
   }
 
   function showMaintenance(on) {
     const next = !!on;
-    const changed = state.maintenance !== next;
     state.maintenance = next;
-    ensureNotice();
     if (!el.onlinePill) return;
     if (!on) {
       el.noticeBar.hidden = true;
-      if (el.statusText) el.statusText.classList.remove("warn");
-      if (!state.agentLive && el.onlinePill.textContent === "知识库维护中") setPill("助手在线", "");
-      if (changed && el.citeList && /维护期间暂无引用/.test(el.citeList.textContent) && !state.messages.length) {
-        renderCitations([], "welcome");
-      }
       return;
     }
-    el.noticeBar.hidden = false;
-    el.noticeBar.innerHTML = "<strong>知识库维护中</strong>机器人暂时不能回答办事问题。你的提问已登记，坐席上线后会回复。";
+    if (el.noticeBar.hidden) {
+      el.noticeBar.innerHTML = "<strong>知识库维护中</strong>校园办事问题将交给人工坐席处理。";
+      el.noticeBar.hidden = false;
+    }
     setPill("知识库维护中", "warn");
-    if (changed) renderCitations([], "maintenance");
-    if (el.statusText) {
-      el.statusText.textContent = "知识库维护中 · 机器人暂停回答办事问题";
-      el.statusText.classList.add("warn");
+  }
+
+  const TICKET_LABELS = {
+    waiting: "等待坐席接入",
+    active: "坐席处理中",
+    closed: "已结束",
+  };
+
+  function resetTicket() {
+    state.pollRequest?.abort();
+    state.pollRequest = null;
+    state.portalCursor = 0;
+    setTicketProgress(null);
+  }
+
+  function setTicketProgress(ticket) {
+    const id = ticket?.public_id || "";
+    const status = ticket?.status || "";
+    const name = ticket?.assignee_name || "";
+    const changed = state.ticketId !== id || state.ticketStatus !== status || state.agentName !== name;
+    state.ticketId = id;
+    state.ticketStatus = status;
+    state.agentName = name;
+    el.ticketProgress.hidden = !id;
+    if (changed && id) {
+      el.ticketProgress.dataset.status = status;
+      const label = TICKET_LABELS[status] || "状态待确认";
+      const next = status === "closed" ? " · 可继续向助手提问" : "";
+      el.ticketProgress.innerHTML = `<strong>工单 ${escapeHtml(id)}</strong><span>${label}${next}${name ? " · " + escapeHtml(name) : ""}</span>`;
+    }
+    if (!state.maintenance) {
+      if (status === "waiting") setPill("等待人工", "live");
+      else if (status === "active") setPill("人工已接入", "live");
+      else setPill("助手在线", "");
     }
   }
 
-  function showAgentLive() {
-    if (!state.ticketId || state.maintenance) return;
-    state.agentLive = true;
-    setPill("人工接入中", "live");
-    if (el.statusText) {
-      const who = state.agentName ? "人工客服 " + state.agentName + " 接入中" : "人工接入中";
-      el.statusText.textContent = who + " · 工单 " + state.ticketId;
-      el.statusText.classList.remove("warn");
-    }
-  }
-
-  function showQueued() {
-    if (!state.ticketId || state.maintenance || state.agentLive) return;
-    setPill("排队中", "live");
-    if (el.statusText) {
-      el.statusText.textContent = "排队中 · 工单 " + state.ticketId;
-      el.statusText.classList.remove("warn");
-    }
-  }
-
-  function noteTurn(data) {
-    if (!data) return;
-    if (data.ticket_id) {
-      state.ticketId = data.ticket_id;
-      if (el.statusText && data.agent_action !== "maintenance") {
-        el.statusText.textContent = "工单 " + data.ticket_id + " · 坐席上线后回复";
-      }
-    }
-    if (data.maintenance) showMaintenance(true);
-    if (data.ticket_id && (data.agent_action === "human_handoff" || data.agent_action === "maintenance")) {
-      const line = data.agent_action === "maintenance"
-        ? "已为你登记人工工单 " + data.ticket_id + "，坐席上线后回复"
-        : queuedLine(data.ticket_id);
+  function noteTicket(ticket) {
+    if (!ticket?.public_id) return;
+    const isNew = state.ticketId !== ticket.public_id;
+    setTicketProgress(ticket);
+    if (isNew && ticket.status === "waiting") {
+      const line = queuedLine(ticket.public_id);
       appendSystem(line);
       state.messages.push({ role: "system", text: line });
-      if (!data.maintenance && data.agent_action === "human_handoff") showQueued();
     }
+  }
+
+  function agentLabel(message) {
+    return [...new Set([message.author, "人工客服", message.createdAt].filter(Boolean))].join(" · ");
   }
 
   function beginBotStream() {
-    const empty = el.messages.querySelector(".empty-state");
-    if (empty) empty.remove();
+    enterThread();
     const wrap = document.createElement("div");
     wrap.className = "msg bot";
     wrap.id = "streamRow";
@@ -538,8 +506,7 @@
     opts = opts || {};
     const row = document.getElementById("streamRow");
     if (!row) {
-      appendMessage("bot", formatAnswer(text), opts);
-      return;
+      return appendMessage("bot", formatAnswer(text), opts);
     }
     row.id = "";
     if (opts.agent) row.classList.add("agent-msg");
@@ -550,7 +517,7 @@
     if (opts.refuse) row.classList.add("refuse");
     if (opts.handoff && !opts.refuse) row.classList.add("handoff");
     const bubble = row.querySelector(".bubble");
-    if (bubble) bubble.innerHTML = linkCitationMarks(formatAnswer(text), opts.citeCount);
+    if (bubble) bubble.innerHTML = linkCitationMarks(formatAnswer(text), opts.answer?.citations);
     const cursor = row.querySelector(".stream-cursor");
     if (cursor) cursor.remove();
     if (opts.refuse && !row.querySelector(".msg-actions")) {
@@ -561,8 +528,10 @@
       row.appendChild(actions);
     }
     mountSuggestions(row, opts.suggestions, opts.clarify);
-    if (!opts.clarify && !opts.agent) mountBotTools(row);
+    if (!opts.clarify && !opts.agent) mountBotTools(row, opts.answer?.serverMessageId);
+    attachSources(row, opts.answer);
     el.messages.scrollTop = el.messages.scrollHeight;
+    return row;
   }
 
   function mountHandoffAction(row, ticketId) {
@@ -582,7 +551,7 @@
     row.appendChild(actions);
   }
 
-  function mountBotTools(row) {
+  function mountBotTools(row, messageId) {
     if (!row || row.querySelector(".bot-tools")) return;
     const bar = document.createElement("div");
     bar.className = "bot-tools";
@@ -591,17 +560,18 @@
     copy.className = "mini";
     copy.textContent = "复制";
     copy.addEventListener("click", () => copyAnswer(row, copy));
-    const yes = document.createElement("button");
-    yes.type = "button";
-    yes.className = "mini";
-    yes.textContent = "有帮助";
-    yes.addEventListener("click", () => recordFeedback(row, true));
-    const no = document.createElement("button");
-    no.type = "button";
-    no.className = "mini";
-    no.textContent = "没解决";
-    no.addEventListener("click", () => recordFeedback(row, false));
-    bar.append(copy, yes, no);
+    bar.appendChild(copy);
+    if (messageId) {
+      row.dataset.messageId = String(messageId);
+      for (const [label, helpful] of [["有帮助", true], ["没解决", false]]) {
+        const rating = document.createElement("button");
+        rating.type = "button";
+        rating.className = "mini";
+        rating.textContent = label;
+        rating.addEventListener("click", () => recordFeedback(row, helpful));
+        bar.appendChild(rating);
+      }
+    }
     row.appendChild(bar);
   }
 
@@ -732,7 +702,7 @@
 
   function openNav() {
     if (!el.navModal) return;
-    el.navModal.hidden = false;
+    if (!el.navModal.open) el.navModal.showModal();
     if (el.navSearch) {
       el.navSearch.value = "";
       el.navSearch.focus();
@@ -755,7 +725,7 @@
   }
 
   function closeNav() {
-    if (el.navModal) el.navModal.hidden = true;
+    if (el.navModal?.open) el.navModal.close();
   }
 
   function renderNav() {
@@ -841,35 +811,19 @@
     const index = new Map();
     (citations || []).forEach((raw, order) => {
       if (!raw || typeof raw !== "object") return;
-      const key = String(raw.document_id || raw.document_name || "doc-" + order);
+      const key = raw.document_id || raw.document_name || "doc-" + order;
       let group = index.get(key);
       if (!group) {
         group = {
           document_name: raw.document_name || "文档",
-          dataset_name: raw.dataset_name || "知识库",
+          marks: [],
           segments: [],
         };
         index.set(key, group);
         groups.push(group);
       }
-      const incoming = [
-        {
-          content: raw.content || "",
-          score: typeof raw.score === "number" ? raw.score : -1,
-          title: raw.title || "",
-          mark: Number(raw.mark) || 0,
-        },
-      ];
-      (raw.segments || []).forEach((seg) => {
-        if (!seg || typeof seg !== "object") return;
-        incoming.push({
-          content: seg.content || "",
-          score: typeof seg.score === "number" ? seg.score : -1,
-          title: seg.title || "",
-          mark: Number(seg.mark) || 0,
-        });
-      });
-      incoming.forEach((piece) => {
+      group.marks.push(raw.mark);
+      [raw, ...raw.segments].forEach((piece) => {
         if (!piece.content) return;
         if (group.segments.some((item) => item.content === piece.content)) return;
         group.segments.push(piece);
@@ -886,110 +840,34 @@
     return groups;
   }
 
-  function renderCitations(citations, mode) {
-    if (mode === "human") {
-      el.citeList.innerHTML = `<div class="cite-empty"><p class="small muted">人工客服的回答不附引用</p></div>`;
-      return;
-    }
-    if (mode === "maintenance") {
-      el.citeList.innerHTML = `<div class="cite-empty"><p class="small muted">维护期间暂无引用</p></div>`;
-      return;
-    }
-    if (mode === "clarify") {
-      el.citeList.innerHTML = `<div class="cite-empty"><p class="small muted">选择一个澄清选项后会出现引用</p></div>`;
-      return;
-    }
-    if (mode === "welcome") {
-      el.citeList.innerHTML = `
-        <div class="cite-empty">
-          <p class="cite-empty-title">出处会收在这里</p>
-          <p>同一份文档一张卡。相关度最高的一段在前，其余段落折叠，点开再看。</p>
-        </div>`;
-      return;
-    }
+  function renderCitations(citations, question = "", mark = null) {
     const groups = groupCitations(citations);
+    el.sourcePanel.hidden = !groups.length;
     if (!groups.length) {
-      el.citeList.innerHTML = `
-        <div class="cite-empty">
-          <p>本轮未返回检索片段。若回答提示转人工，请使用右上角「转人工」。</p>
-        </div>`;
-      return;
+      el.citeList.replaceChildren();
+      return 0;
     }
-    el.citeList.innerHTML = groups
-      .map((group, i) => {
-        const primary = group.segments[0] || { content: "", score: -1, title: "", mark: 0 };
-        const score =
-          typeof primary.score === "number" && primary.score >= 0
-            ? (primary.score * 100).toFixed(1) + "%"
-            : "—";
-        const snip = primary.content || "";
-        const preview = snip.replace(/\s+/g, " ").slice(0, 64);
-        const mark = Number(primary.mark) || i + 1;
-        const rest = group.segments.slice(1);
-        const heading = primary.title && primary.title !== group.document_name ? " · " + primary.title : "";
-        const foldNote = rest.length ? `<div class="fold-note">其余 ${rest.length} 段已折叠</div>` : "";
-        const chev = rest.length ? "展开其余" : "展开原文";
-        return `<article class="cite-card" data-idx="${mark - 1}" tabindex="0" role="button" aria-expanded="false">
-          <div class="doc"><span>${escapeHtml(group.document_name || "文档")}</span><span class="score">${score}</span></div>
-          <div class="meta"><span>${escapeHtml(group.dataset_name || "知识库")}${escapeHtml(heading)} · #${mark}</span><span class="chev">${chev}</span></div>
-          ${preview ? `<div class="snip-preview">${escapeHtml(preview)}${snip.length > 64 ? "…" : ""}</div>` : ""}
-          ${foldNote}
-          <div class="snip">${escapeHtml(snip) || "（无原文片段）"}</div>
-          ${rest.map((seg) => `<div class="snip-more">${escapeHtml((seg.content || "").slice(0, 800))}</div>`).join("")}
-        </article>`;
-      })
-      .join("");
-    el.citeList.querySelectorAll(".cite-card").forEach((card) => {
-      const toggle = () => {
-        const open = card.classList.toggle("open");
-        card.setAttribute("aria-expanded", open ? "true" : "false");
-        const chev = card.querySelector(".chev");
-        if (chev) chev.textContent = open ? "收起" : (card.querySelector(".fold-note") ? "展开其余" : "展开原文");
-      };
-      card.addEventListener("click", toggle);
-      card.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          toggle();
-        }
-      });
-    });
+    el.sourceCount.hidden = false;
+    el.sourceCount.textContent = `${groups.length} 份文档`;
+    el.sourceQuestion.hidden = !question;
+    el.sourceQuestion.textContent = question ? `对应提问 · ${question.slice(0, 80)}` : "";
+    el.citeList.innerHTML = groups.map((group) => {
+      const preview = (group.segments[0]?.content || "").replace(/\s+/g, " ");
+      const marks = group.marks.join(" ");
+      const parts = group.segments.map((segment) => `<div class="cite-segment">
+        ${segment.title ? `<h3>${escapeHtml(segment.title)}</h3>` : ""}<p>${escapeHtml(segment.content)}</p>
+      </div>`).join("");
+      return `<details class="cite-card" data-marks="${escapeHtml(marks)}"${group.marks.includes(mark) ? " open" : ""}>
+        <summary><strong>${escapeHtml(group.document_name)}</strong>${preview ? `<span class="cite-preview">${escapeHtml(preview.slice(0, 70))}${preview.length > 70 ? "…" : ""}</span>` : ""}</summary>
+        <div class="cite-segments">${parts || '<p class="cite-empty">暂无可展示的原文片段。</p>'}</div>
+      </details>`;
+    }).join("");
+    return groups.length;
   }
 
-  function applyPortalChrome(data, citations) {
-    if (data && data.maintenance) {
-      showMaintenance(true);
-      renderCitations([], "maintenance");
-      return;
-    }
-    if (data && (data.agent_action === "clarify" || data.clarify)) {
-      renderCitations([], "clarify");
-      return;
-    }
-    if (state.agentLive || (data && data.handoff)) {
-      if (state.agentLive) showAgentLive();
-      renderCitations([], "human");
-      return;
-    }
-    renderCitations(citations || []);
-  }
-
-  function buildChips() {
-    el.faqChips.innerHTML = "";
-    FAQ.forEach((q) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "chip";
-      btn.textContent = q;
-      btn.addEventListener("click", () => {
-        el.faqChips.querySelectorAll(".chip").forEach((x) => x.classList.remove("active"));
-        btn.classList.add("active");
-        el.input.value = q;
-        autosize();
-        sendQuery(q);
-      });
-      el.faqChips.appendChild(btn);
-    });
+  function restoreSources() {
+    const answer = [...state.messages].reverse().find((row) => row.role === "bot" || row.role === "agent");
+    renderCitations(answer?.citations || [], answer?.question);
   }
 
   function autosize() {
@@ -1000,7 +878,8 @@
 
   function setBusy(busy) {
     state.busy = busy;
-    el.btnSend.disabled = busy;
+    el.btnSend.disabled = busy || state.ticketSubmitting;
+    el.btnNewChat.disabled = busy || state.ticketSubmitting;
     el.btnStop.hidden = !busy;
     if (!busy) {
       state.abort = null;
@@ -1036,7 +915,7 @@
   function historyPayload() {
     // 最近若干轮，供代理侧查询改写（短指代追问）。重新开始之后不再带上旧话题。
     const start = state.historyCutoff || 0;
-    return state.messages.slice(start).slice(-10).map((m) => ({
+    return state.messages.slice(start, -1).filter((m) => m.role === "bot" || m.role === "user").slice(-10).map((m) => ({
       role: m.role === "bot" ? "assistant" : "user",
       text: maskPhone(String(m.text || "")).slice(0, 500),
     }));
@@ -1053,9 +932,52 @@
     );
   }
 
+  function completeAnswer(data, text, query) {
+    if (data.conversation_id) state.conversationId = data.conversation_id;
+    const answer = {
+      role: "bot",
+      text,
+      refuse: !!data.refuse,
+      handoff: !!data.handoff,
+      action: data.agent_action || "",
+      suggestions: data.suggestions || [],
+      citations: citationSnapshot(data.citations),
+      question: query,
+      serverMessageId: data.server_message_id || 0,
+      ticketId: data.ticket_id || "",
+    };
+    const row = finishBotStream(text, { ...answer, answer, clarify: answer.action === "clarify" });
+    if (answer.handoff && !answer.refuse) mountHandoffAction(row, answer.ticketId);
+    state.messages.push(answer);
+    if (answer.action === "restart") {
+      state.historyCutoff = state.messages.length;
+      state.conversationId = "";
+    }
+    if (data.maintenance) showMaintenance(true);
+    if (data.queue && answer.ticketId) {
+      const sameTicket = state.ticketId === answer.ticketId;
+      noteTicket({
+        public_id: answer.ticketId,
+        status: data.ticket_status || (sameTicket ? state.ticketStatus : "waiting"),
+        assignee_name: sameTicket ? state.agentName : "",
+      });
+    }
+    const count = renderCitations(answer.citations, query);
+    if (data.maintenance) setStatus("知识库维护中 · 校园办事问题已转人工");
+    else if (answer.action === "clarify") setStatus("请选择一个具体问题");
+    else if (answer.handoff && answer.ticketId) setStatus(`${data.queue ? "人工服务" : "演示回执"} · 工单 ${answer.ticketId}`);
+    else if (answer.action === "order_lookup") setStatus(data.order_found ? "已查询演示办事单" : "未找到办事单 · 可转人工");
+    else if (answer.action === "restart") setStatus("已重新开始");
+    else if (answer.action === "safety") setStatus("请勿发送证件号、银行卡号或病历");
+    else if (data.intent === "needs_model") setStatus("开放问答暂不可用 · 仍可查询校园办事");
+    else if (answer.refuse) setStatus("可以换个问法或转人工");
+    else setStatus(count ? `答复完成 · 引用 ${count} 份文档` : "答复完成");
+    persistCurrentSession();
+  }
+
   async function sendQuery(raw) {
     const typed = (raw || el.input.value || "").trim();
-    if (!typed || state.busy) return;
+    if (!typed || state.busy || state.ticketSubmitting) return;
     const scrubbed = scrubLocal(typed);
     const query = maskPhone(scrubbed || typed);
 
@@ -1070,13 +992,12 @@
     persistCurrentSession();
 
     beginBotStream();
-    setStatus("检索知识库并流式生成…");
+    setStatus("正在查找依据…");
 
     const controller = new AbortController();
     state.abort = controller;
     let acc = "";
     let finalPayload = null;
-    let stopped = false;
 
     try {
       const res = await fetch("/api/chat", {
@@ -1100,68 +1021,9 @@
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           const err = data.error || data.detail || "请求失败";
-          finishBotStream(String(err), true);
-          state.messages.push({ role: "bot", text: String(err), refuse: true });
-          renderCitations([]);
-          setStatus("调用失败");
-          persistCurrentSession();
-          return;
+          throw new Error(String(err));
         }
-        if (data.conversation_id) state.conversationId = data.conversation_id;
-        const answer = data.answer || "（空响应）";
-        const refuse = !!data.refuse;
-        const handoff = !!data.handoff;
-        if (data.rewrite) noteRewrite(data.rewrite);
-        const suggestions = data.suggestions || [];
-        finishBotStream(answer, {
-          refuse,
-          handoff,
-          suggestions,
-          clarify: data.agent_action === "clarify",
-          citeCount: citeSpan(data.citations),
-        });
-        if (handoff && !refuse) mountHandoffAction(el.messages.lastElementChild, data.ticket_id || "");
-        state.messages.push({
-          role: "bot",
-          text: answer,
-          refuse,
-          handoff,
-          action: data.agent_action,
-          suggestions,
-          citeCount: citeSpan(data.citations),
-          serverMessageId: data.server_message_id || 0,
-        });
-        tagServerMessage(data.server_message_id);
-        noteTurn(data);
-        if (data.agent_action === "restart") {
-          state.historyCutoff = state.messages.length;
-          state.conversationId = "";
-        }
-        const cardCount = groupCitations(data.citations || []).length;
-        if (handoff && !data.maintenance) {
-          setStatus("排队中 · 工单 " + (data.ticket_id || ""));
-        } else if (data.agent_action === "order_lookup") {
-          setStatus(data.order_found ? "办事进度已查出 · 演示存根" : "办事单未找到 · 可转人工");
-        } else if (data.agent_action === "clarify") {
-          setStatus("有几条都相关 · 点一个具体问题");
-        } else if (data.agent_action === "restart") {
-          setStatus("已重新开始");
-        } else if (data.agent_action === "safety") {
-          setStatus("已隐去敏感信息 · 请不要发送证件号或病历");
-        } else if (data.intent === "needs_model") {
-          setStatus("开放聊天需要配置 DEEPSEEK_API_KEY");
-        } else if (data.agent_action === "general_skill") {
-          setStatus("已用本地能力回答 · 未引用校规");
-        } else {
-          setStatus(
-            refuse
-              ? "这件事我做不了 · 可以换个问法或转人工"
-              : `回答完成 · ${cardCount} 条引用（非流式）` +
-                (data.rewrite ? " · 已改写" : "")
-          );
-        }
-        applyPortalChrome(data, data.citations || []);
-        persistCurrentSession();
+        completeAnswer(data, data.answer || "（空响应）", query);
         return;
       }
 
@@ -1206,94 +1068,33 @@
         }
       }
 
-      const answer = (finalPayload && finalPayload.answer) || acc || "（空响应）";
-      const refuse = finalPayload ? !!finalPayload.refuse : false;
-      const citations = (finalPayload && finalPayload.citations) || [];
-      const handoff = !!(finalPayload && finalPayload.handoff);
-      const action = (finalPayload && finalPayload.agent_action) || "";
-      const suggestions = (finalPayload && finalPayload.suggestions) || [];
-      if (finalPayload && finalPayload.rewrite) noteRewrite(finalPayload.rewrite);
-      finishBotStream(answer, {
-        refuse,
-        handoff,
-        suggestions,
-        clarify: action === "clarify",
-        citeCount: citeSpan(citations),
-      });
-      if (handoff && !refuse) mountHandoffAction(el.messages.lastElementChild, (finalPayload && finalPayload.ticket_id) || "");
-      state.messages.push({
-        role: "bot",
-        text: answer,
-        refuse,
-        handoff,
-        action,
-        suggestions,
-        citeCount: citeSpan(citations),
-        serverMessageId: (finalPayload && finalPayload.server_message_id) || 0,
-      });
-      tagServerMessage(finalPayload && finalPayload.server_message_id);
-      noteTurn(finalPayload);
-      if (action === "restart") {
-        state.historyCutoff = state.messages.length;
-        state.conversationId = "";
-      }
-      const cardCount = groupCitations(citations).length;
-      const maintaining = !!(finalPayload && finalPayload.maintenance);
-      if (handoff && !maintaining) {
-        setStatus("排队中 · 工单 " + ((finalPayload && finalPayload.ticket_id) || ""));
-      } else if (action === "order_lookup") {
-        setStatus(
-          (finalPayload && finalPayload.order_found)
-            ? "办事进度已查出 · 演示存根"
-            : "办事单未找到 · 可转人工"
-        );
-      } else if (action === "clarify") {
-        setStatus("有几条都相关 · 点一个具体问题");
-      } else if (action === "restart") {
-        setStatus("已重新开始");
-      } else if (action === "safety") {
-        setStatus("已隐去敏感信息 · 请不要发送证件号或病历");
-      } else if (finalPayload && finalPayload.intent === "needs_model") {
-        setStatus("开放聊天需要配置 DEEPSEEK_API_KEY");
-      } else if (action === "general_skill" || action === "assistant_intro") {
-        setStatus(action === "assistant_intro" ? "校园助手已就绪" : "已用本地能力回答 · 未引用校规");
-      } else {
-        setStatus(
-          refuse
-            ? "这件事我做不了 · 可以换个问法或转人工"
-            : `回答完成 · ${cardCount} 条引用 · 流式` +
-              (finalPayload && finalPayload.rewrite ? " · 已改写" : "")
-        );
-      }
-      applyPortalChrome(finalPayload, citations);
-      persistCurrentSession();
+      if (!finalPayload) throw new Error("答复连接提前结束，请重试");
+      completeAnswer(finalPayload, finalPayload.answer || acc || "（空响应）", query);
     } catch (err) {
-      if (err && err.name === "AbortError") {
-        stopped = true;
-        const partial = acc.trim() || "（已停止生成）";
-        finishBotStream(partial + (acc.trim() ? "\n\n— 已停止生成 —" : ""), false);
-        state.messages.push({ role: "bot", text: partial + "\n\n— 已停止生成 —", refuse: false });
-        setStatus("已停止生成");
-        persistCurrentSession();
-      } else {
-        const msg = "网络异常：" + (err && err.message ? err.message : err);
-        finishBotStream(msg, true);
-        state.messages.push({ role: "bot", text: msg, refuse: true });
-        setStatus("网络异常");
-        persistCurrentSession();
-      }
+      const stopped = err?.name === "AbortError";
+      const text = stopped
+        ? [acc.trim(), "已停止生成"].filter(Boolean).join("\n\n")
+        : "答复失败 · " + (err?.message || "请稍后重试");
+      finishBotStream(text, { refuse: !stopped });
+      state.messages.push({ role: "bot", text, refuse: !stopped });
+      setStatus(stopped ? "已停止生成" : "可重试或联系人工");
+      persistCurrentSession();
     } finally {
       setBusy(false);
-      if (!stopped) el.input.focus();
-      else el.input.focus();
+      pollPortal();
+      if (el.input === document.activeElement || document.activeElement === document.body) el.input.focus();
     }
   }
 
   function openTicket() {
+    if (state.ticketSubmitting) return;
     el.ticketResult.hidden = true;
     el.ticketResult.textContent = "";
     el.ticketForm.reset();
-    el.ticketModal.hidden = false;
+    el.ticketForm.querySelector('[type="submit"]').hidden = false;
+    el.btnCancelTicket.textContent = "取消";
+    el.ticketResult.classList.remove("error");
+    if (!el.ticketModal.open) el.ticketModal.showModal();
     const first = el.ticketForm.querySelector("input[name=subject]");
     const lastUser = [...state.messages].reverse().find((m) => m.role === "user");
     if (first && lastUser && !first.value) {
@@ -1303,8 +1104,134 @@
   }
 
   function closeTicket() {
-    el.ticketModal.hidden = true;
+    if (!state.ticketSubmitting && el.ticketModal.open) el.ticketModal.close();
   }
+
+  function ticketBadge(status) {
+    return `<span class="badge my-ticket-badge" data-status="${escapeHtml(status)}">${TICKET_LABELS[status] || "状态待确认"}</span>`;
+  }
+
+  function showMyTicketsStatus(text, error = false) {
+    el.myTicketsStatus.textContent = text;
+    el.myTicketsStatus.classList.toggle("error", error);
+    el.myTicketsStatus.hidden = !text;
+  }
+
+  function renderMyTickets(tickets, append) {
+    const rows = tickets.map((ticket) => `
+      <li><button type="button" class="my-ticket-row" data-my-ticket="${escapeHtml(ticket.public_id)}">
+        <span><strong>${escapeHtml(ticket.subject || "人工服务")}</strong>
+          <small>${escapeHtml(ticket.public_id)} · ${escapeHtml(fmtTime(ticket.created_at))}</small></span>
+        ${ticketBadge(ticket.status)}
+      </button></li>`).join("");
+    if (append) el.myTicketsContent.querySelector("ul").insertAdjacentHTML("beforeend", rows);
+    else el.myTicketsContent.innerHTML = rows ? `<ul class="my-tickets-list" aria-label="工单列表">${rows}</ul>` : "";
+  }
+
+  function renderMyTicket({ ticket, replies }, append) {
+    const rows = replies.map((reply) => `
+      <li><p class="my-ticket-reply-byline">${escapeHtml(reply.author || "人工客服")} · ${escapeHtml(fmtTime(reply.created_at))}</p>
+        <p class="my-ticket-reply-body">${escapeHtml(reply.body)}</p></li>`).join("");
+    if (append) {
+      el.myTicketsContent.querySelector("ul").insertAdjacentHTML("beforeend", rows);
+      return;
+    }
+    const localSession = ticket.portal_session && loadSessions().some((s) => s.id === ticket.portal_session);
+    el.myTicketsContent.innerHTML = `<section class="my-ticket-detail" aria-labelledby="myTicketSubject">
+      <div class="my-ticket-summary">
+        <div class="my-ticket-heading"><h3 id="myTicketSubject">${escapeHtml(ticket.subject || "人工服务")}</h3>${ticketBadge(ticket.status)}</div>
+        <p class="muted">${escapeHtml(ticket.public_id)} · ${escapeHtml(fmtTime(ticket.created_at))}${ticket.assignee_name ? ` · ${escapeHtml(ticket.assignee_name)}` : ""}</p>
+      </div>
+      <div><h4>人工回复</h4>
+        ${rows ? `<ul class="my-ticket-replies">${rows}</ul>` : '<p class="muted">暂未收到人工回复。</p>'}
+      </div>
+      ${localSession ? `<button type="button" class="btn btn-sm" data-resume-session="${escapeHtml(ticket.portal_session)}">返回原对话</button>` : ""}
+    </section>`;
+  }
+
+  async function loadMyTickets(before = null) {
+    myTickets.request?.abort();
+    const request = new AbortController();
+    myTickets.request = request;
+    const id = myTickets.id;
+    const path = id ? `/api/portal/tickets/${encodeURIComponent(id)}` : "/api/portal/tickets";
+    const query = before === null ? "" : `?before=${encodeURIComponent(before)}`;
+    el.btnMoreMyTickets.disabled = true;
+    showMyTicketsStatus("正在读取工单…");
+    try {
+      const res = await fetch(path + query, { signal: request.signal });
+      if (request !== myTickets.request || !el.myTicketsModal.open) return;
+      if (res.status === 404 && id) {
+        el.myTicketsContent.replaceChildren();
+        el.btnMoreMyTickets.hidden = true;
+        showMyTicketsStatus("没有找到这张工单。", true);
+        return;
+      }
+      if (!res.ok) throw new Error("工单读取失败");
+      const data = await res.json();
+      if (request !== myTickets.request || !el.myTicketsModal.open) return;
+      if (id) renderMyTicket(data, before !== null);
+      else renderMyTickets(data.tickets, before !== null);
+      myTickets.before = data.next_before ?? null;
+      el.btnMoreMyTickets.hidden = myTickets.before === null;
+      el.btnMoreMyTickets.textContent = id ? "更早的回复" : "更早的工单";
+      showMyTicketsStatus(!id && before === null && !data.tickets.length ? "暂无工单。提交人工服务后可在这里查看。" : "");
+    } catch {
+      if (request === myTickets.request && el.myTicketsModal.open) showMyTicketsStatus("读取失败，请刷新重试。", true);
+    } finally {
+      if (request === myTickets.request) {
+        myTickets.request = null;
+        el.btnMoreMyTickets.disabled = false;
+      }
+    }
+  }
+
+  function selectMyTicket(id = "") {
+    el.myTicketsContent.replaceChildren();
+    el.myTicketsModal.scrollTop = 0;
+    el.btnBackMyTickets.hidden = !id;
+    el.btnMoreMyTickets.hidden = true;
+    el.myTicketsHint.hidden = !!id;
+    myTickets.id = id;
+    myTickets.before = null;
+    loadMyTickets();
+  }
+
+  el.btnMyTickets.addEventListener("click", () => {
+    el.myTicketsModal.showModal();
+    selectMyTicket();
+  });
+  el.btnCloseMyTickets.addEventListener("click", () => el.myTicketsModal.close());
+  el.btnRefreshMyTickets.addEventListener("click", () => loadMyTickets());
+  el.btnBackMyTickets.addEventListener("click", () => {
+    el.btnRefreshMyTickets.focus();
+    selectMyTicket();
+  });
+  el.btnMoreMyTickets.addEventListener("click", () => loadMyTickets(myTickets.before));
+  el.myTicketsModal.addEventListener("close", () => {
+    if (el.myTicketsModal.open) return;
+    myTickets.request?.abort();
+    myTickets.request = null;
+  });
+  el.myTicketsModal.addEventListener("click", (event) => {
+    if (event.target === el.myTicketsModal) el.myTicketsModal.close();
+    const ticket = event.target.closest("[data-my-ticket]");
+    if (ticket) {
+      selectMyTicket(ticket.dataset.myTicket);
+      el.btnBackMyTickets.focus();
+    }
+    const resume = event.target.closest("[data-resume-session]");
+    if (!resume) return;
+    if (restoreSession(resume.dataset.resumeSession)) {
+      el.myTicketsModal.close();
+      document.getElementById("assistant").focus();
+    } else if (state.busy || state.ticketSubmitting) {
+      showMyTicketsStatus("请等待当前操作结束，再返回对话。");
+    } else {
+      resume.remove();
+      showMyTicketsStatus("本机历史里已找不到原对话。你仍可在这里查看回复。");
+    }
+  });
 
   el.composer.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -1312,7 +1239,7 @@
   });
 
   el.input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
       e.preventDefault();
       sendQuery();
     }
@@ -1323,7 +1250,7 @@
     if (state.busy) stopGenerating();
   });
 
-  el.btnNewChat.addEventListener("click", () => startNewChat({ status: "新对话已开始" }));
+  el.btnNewChat.addEventListener("click", startNewChat);
   if (el.btnExport) el.btnExport.addEventListener("click", exportConversation);
   if (el.btnNav) el.btnNav.addEventListener("click", openNav);
   if (el.btnCloseNav) el.btnCloseNav.addEventListener("click", closeNav);
@@ -1340,9 +1267,17 @@
   el.ticketModal.addEventListener("click", (e) => {
     if (e.target === el.ticketModal) closeTicket();
   });
+  el.ticketModal.addEventListener("cancel", (e) => {
+    if (state.ticketSubmitting) e.preventDefault();
+  });
 
   el.ticketForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (state.ticketSubmitting || state.busy) {
+      el.ticketResult.hidden = false;
+      el.ticketResult.textContent = state.busy ? "请等待当前答复结束后再提交工单。" : "正在提交工单…";
+      return;
+    }
     const fd = new FormData(el.ticketForm);
     const subject = maskPhone(String(fd.get("subject") || "").trim()).slice(0, 80);
     const detail = maskPhone(String(fd.get("detail") || "").trim());
@@ -1353,12 +1288,14 @@
     if (subjectInput) subjectInput.value = subject;
     if (detailInput) detailInput.value = detail;
     if (contactInput) contactInput.value = contact;
-    const payload = {
-      subject: subject,
-      detail: detail,
-      contact: contact,
-      portal_session: state.sessionId || "",
-    };
+    const payload = { subject, detail, contact, portal_session: state.sessionId };
+    const submit = el.ticketForm.querySelector('[type="submit"]');
+    state.ticketSubmitting = true;
+    setBusy(false);
+    submit.disabled = true;
+    el.ticketResult.classList.remove("error");
+    el.ticketResult.textContent = "正在提交工单…";
+    el.ticketResult.hidden = false;
     try {
       const res = await fetch("/api/ticket", {
         method: "POST",
@@ -1366,92 +1303,84 @@
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      el.ticketResult.hidden = false;
-      el.ticketResult.textContent = data.message || (data.ok === false ? "未提交" : "已提交");
-      if (data.ok === false) setStatus("工单未提交 · 请去掉证件号或病历");
-      else {
-        setStatus(data.ticket_id ? "工单 " + data.ticket_id + " 已登记" : "工单已提交");
-        if (data.ticket_id) {
-          state.ticketId = data.ticket_id;
-          showQueued();
-          const line = queuedLine(data.ticket_id);
-          appendSystem(line);
-          state.messages.push({ role: "system", text: line });
-          persistCurrentSession();
-        }
+      if (!res.ok || !data.ok) throw new Error(data.message || data.error || "请稍后重试");
+      if (data.queue) {
+        noteTicket(data.ticket || { public_id: data.ticket_id, status: "waiting" });
+        const line = detail ? `工单补充 · ${detail}` : `工单主题 · ${subject}`;
+        appendSystem(line);
+        state.messages.push({ role: "system", text: line });
+        persistCurrentSession();
       }
+      setStatus(`${data.queue ? "已提交" : "演示回执"} · 工单 ${data.ticket_id}`);
+      el.ticketResult.textContent = data.message || "工单已提交";
+      submit.hidden = true;
+      el.btnCancelTicket.textContent = "返回对话";
+      el.btnCancelTicket.focus();
     } catch (err) {
-      el.ticketResult.hidden = false;
-      el.ticketResult.textContent = "提交失败：" + (err.message || err);
+      el.ticketResult.classList.add("error");
+      el.ticketResult.textContent = "提交失败 · " + (err.message || err);
+    } finally {
+      submit.disabled = false;
+      state.ticketSubmitting = false;
+      setBusy(false);
+      pollPortal();
     }
   });
 
-  if (el.btnToggleFaq) {
-    el.btnToggleFaq.addEventListener("click", () => {
-      if (el.faqChips) el.faqChips.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }
-
   async function pollPortal() {
-    if (!state.sessionId) return;
+    if (!state.sessionId || state.pollRequest || state.busy || state.ticketSubmitting || document.hidden) return;
+    const request = new AbortController();
+    state.pollRequest = request;
+    const params = new URLSearchParams({ session: state.sessionId });
+    if (state.portalCursor) params.set("after", String(state.portalCursor));
     try {
-      const res = await fetch("/api/portal/state?session=" + encodeURIComponent(state.sessionId));
+      const res = await fetch(`/api/portal/state?${params}`, { signal: request.signal });
       if (!res.ok) return;
       const data = await res.json();
-      state.agentLive = !!(data.ticket && data.ticket.status === "active");
-      state.agentName = (data.ticket && data.ticket.assignee_name) || "";
-      if (data.ticket && data.ticket.public_id) state.ticketId = data.ticket.public_id;
-      const ticketStatus = data.ticket && data.ticket.status;
-      showMaintenance(!!data.maintenance);
-      if (!data.maintenance && state.agentLive) showAgentLive();
-      else if (!data.maintenance && ticketStatus === "waiting") showQueued();
-      else if (!data.maintenance && ticketStatus === "closed" && el.onlinePill && el.onlinePill.textContent !== "助手在线") {
-        setPill("助手在线", "");
-        if (el.statusText && state.ticketId) {
-          el.statusText.textContent = "工单 " + state.ticketId + " 已结束，可以继续问校园助手";
-        }
-      }
+      if (request !== state.pollRequest || state.busy || state.ticketSubmitting) return;
+      showMaintenance(data.maintenance);
+      setTicketProgress(data.ticket);
       let added = false;
-      (data.messages || []).forEach((msg) => {
-        if (!msg || state.seenServerIds[msg.id]) return;
-        state.seenServerIds[msg.id] = true;
+      for (const msg of data.messages || []) {
+        if (msg.id <= state.portalCursor) continue;
+        const row = { role: msg.role, text: msg.body, serverId: msg.id };
         if (msg.role === "agent") {
-          const stamp = clockOf(msg.created_at);
-          appendMessage("bot", formatAnswer(msg.body), {
+          row.createdAt = clockOf(msg.created_at);
+          row.author = msg.author || "人工客服";
+          appendMessage("bot", formatAnswer(row.text), {
             agent: true,
-            who: (msg.author || "人工客服") + " · 人工客服" + (stamp ? " · " + stamp : ""),
+            who: agentLabel(row),
           });
-          state.messages.push({
-            role: "agent",
-            text: msg.body,
-            author: msg.author || "人工客服",
-            createdAt: stamp,
-            serverId: msg.id,
-          });
-          renderCitations([], "human");
-          added = true;
-        } else if (msg.role === "system") {
-          appendSystem(msg.body);
-          state.messages.push({ role: "system", text: msg.body, serverId: msg.id });
-          added = true;
-        }
-      });
+          renderCitations([]);
+        } else if (msg.role === "system") appendSystem(row.text);
+        else continue;
+        state.messages.push(row);
+        state.portalCursor = msg.id;
+        added = true;
+      }
       if (added) persistCurrentSession();
     } catch {
-      /* 门户仍可继续提问 */
+      if (!request.signal.aborted && request === state.pollRequest) setPill("状态暂不可用", "warn");
+    } finally {
+      if (request === state.pollRequest) state.pollRequest = null;
     }
   }
 
   el.messages.addEventListener("click", (event) => {
-    const mark = event.target.closest(".cite-mark");
-    if (!mark || !el.citeList) return;
-    const card = el.citeList.querySelector('.cite-card[data-idx="' + mark.dataset.cite + '"]');
-    if (!card) return;
-    if (!card.classList.contains("open")) card.click();
-    card.focus();
+    const trigger = event.target.closest("[data-cite]");
+    const answer = trigger && rowAnswers.get(trigger.closest(".msg"));
+    if (!answer) return;
+    const mark = Number(trigger.dataset.cite) || answer.citations[0].mark;
+    renderCitations(answer.citations, answer.question, mark);
+    const card = el.citeList.querySelector(`[data-marks~="${mark}"]`);
+    card?.querySelector("summary")?.focus({ preventScroll: true });
+    card?.scrollIntoView({ block: "nearest" });
   });
 
-  if (el.faqChips) buildChips();
+  document.querySelector("#main").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-q]");
+    if (button) sendQuery(button.dataset.q);
+  });
 
   // 恢复上次活动会话（若有消息）；否则空态
   const sessions = loadSessions();
@@ -1463,19 +1392,17 @@
   }
   const active = sessions.find((s) => s.id === activeId && s.messages && s.messages.length);
   if (active) {
-    state.sessionId = active.id;
-    state.conversationId = active.conversationId || "";
-    state.messages = active.messages.slice();
+    hydrateSession(active);
     renderMessagesFromState();
-    renderCitations([]);
+    restoreSources();
     setStatus("已恢复本机会话 · 可继续追问");
   } else {
     state.sessionId = newSessionId();
     renderEmpty();
-    setStatus("就绪 · 流式经本地代理转发，密钥不进入浏览器");
+    setStatus("可以提问");
   }
   renderSessionList();
   pollPortal();
-  setInterval(pollPortal, 2000);
-  el.input.focus();
+  setInterval(() => { if (!document.hidden) pollPortal(); }, 3000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pollPortal(); });
 })();

@@ -273,6 +273,7 @@ class GatewayFlowTest(unittest.TestCase):
 
         gateway_mod.load_config = _cfg
         self.tmp = tempfile.TemporaryDirectory()
+        self._previous_data = os.environ.get("DATA_DIR")
         os.environ["DATA_DIR"] = self.tmp.name
         store.reconnect()
         store.save_probe(True, [{"name": "probe", "ok": True, "detail": "测试探针"}])
@@ -283,6 +284,11 @@ class GatewayFlowTest(unittest.TestCase):
         import gateway as gateway_mod
         gateway_mod.load_config = self._load_config
         set_client(DifyClient())
+        if self._previous_data is None:
+            os.environ.pop("DATA_DIR", None)
+        else:
+            os.environ["DATA_DIR"] = self._previous_data
+        store.reconnect()
         self.tmp.cleanup()
 
     def test_cited_answer_merges_segments(self) -> None:

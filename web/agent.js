@@ -15,10 +15,20 @@
   const badMessage = document.getElementById("badMessage");
   const closeDialog = document.getElementById("closeDialog");
   const closeError = document.getElementById("closeError");
+  const btnTake = document.getElementById("btnTake");
+  const btnClose = document.getElementById("btnClose");
+  const queueStatus = document.getElementById("queueStatus");
+  const writeForm = document.getElementById("writeForm");
+  const badForm = document.getElementById("badForm");
   let me = null;
   let status = "waiting";
   let current = null;
-  let selectedMessage = null;
+  let queueRequest = 0;
+  let queueMarkup = "";
+  let detailRequest = 0;
+  let opening = false;
+  let actionPending = false;
+  let polling = false;
 
   const sourceClass = { user: "", refusal: "bad", maintenance: "warn" };
 
@@ -69,26 +79,44 @@
     }
   }
 
-  async function refreshQueue() {
-    const data = await api("/api/agent/tickets?status=" + status);
-    document.getElementById("tab-waiting").textContent = "待接入 " + (data.counts.waiting || 0);
-    document.getElementById("tab-active").textContent = "处理中 " + (data.counts.active || 0);
-    document.getElementById("tab-closed").textContent = "已结束 " + (data.counts.closed || 0);
-    if (!data.tickets.length) {
-      queueEl.innerHTML = emptyDesk("这一栏还没有工单。");
-      return;
+  function markSelectedTicket() {
+    for (const button of queueEl.querySelectorAll(".ticket")) {
+      if (button.dataset.id === current?.ticket.public_id) button.setAttribute("aria-current", "true");
+      else button.removeAttribute("aria-current");
     }
-    queueEl.innerHTML = data.tickets.map((ticket) => {
-      const currentMark = current && current.ticket.public_id === ticket.public_id ? ' aria-current="true"' : "";
-      const closed = ticket.status === "closed";
-      const cls = closed ? "ok" : (sourceClass[ticket.source] || "");
-      const label = closed ? "已结束" : ticket.source_label;
-      return `<button type="button" class="ticket" data-id="${ticket.public_id}"${currentMark}>
-        <span class="row"><span>${ticket.public_id}</span><span class="badge ${cls}">${label}</span></span>
-        <span class="q">${escapeHtml(ticket.first_question)}</span>
-        <span class="row"><span>${waitLabel(ticket)}</span><span>访客 ${escapeHtml(ticket.visitor || "")}</span></span>
-      </button>`;
-    }).join("");
+  }
+
+  async function refreshQueue() {
+    const requested = ++queueRequest;
+    try {
+      const data = await api("/api/agent/tickets?status=" + status);
+      if (requested !== queueRequest) return;
+      queueStatus.textContent = "每 5 秒刷新";
+      document.getElementById("tab-waiting").textContent = "待接入 " + (data.counts.waiting || 0);
+      document.getElementById("tab-active").textContent = "处理中 " + (data.counts.active || 0);
+      document.getElementById("tab-closed").textContent = "已结束 " + (data.counts.closed || 0);
+      const markup = data.tickets.map((ticket) => {
+        const id = escapeHtml(ticket.public_id);
+        const closed = ticket.status === "closed";
+        const cls = closed ? "ok" : (sourceClass[ticket.source] || "");
+        const label = closed ? "已结束" : ticket.source_label;
+        return `<button type="button" class="ticket" data-id="${id}">
+          <span class="row"><span>${id}</span><span class="badge ${cls}">${escapeHtml(label)}</span></span>
+          <span class="q">${escapeHtml(ticket.first_question)}</span>
+          <span class="row"><span>${escapeHtml(waitLabel(ticket))}</span><span>访客 ${escapeHtml(ticket.visitor)}</span></span>
+        </button>`;
+      }).join("") || emptyDesk("这一栏还没有工单。");
+      if (markup === queueMarkup) return;
+      const focusedId = queueEl.contains(document.activeElement) ? document.activeElement.dataset.id : "";
+      queueEl.innerHTML = queueMarkup = markup;
+      markSelectedTicket();
+      if (focusedId) {
+        const previous = [...queueEl.querySelectorAll(".ticket")].find((button) => button.dataset.id === focusedId);
+        (previous || document.getElementById("tab-" + status)).focus({ preventScroll: true });
+      }
+    } catch {
+      if (requested === queueRequest) queueStatus.textContent = "刷新失败，稍后重试";
+    }
   }
 
   function escapeHtml(text) {
@@ -132,7 +160,7 @@
   }
 
   function inlineCites(meta) {
-    const groups = groupStaffCites(meta && meta.citations);
+    const groups = groupStaffCites(meta && meta.citations).filter((group) => group.segments.length > 0);
     if (!groups.length) return "";
     return `<div class="hits">${groups.map((group) => {
       const top = group.segments[0];
@@ -159,18 +187,43 @@
     }).join("");
   }
 
+  function syncActions() {
+    const ticket = current?.ticket;
+    const mine = ticket?.assignee_id === me?.user_id;
+    const canReply = ticket?.status === "active" && mine;
+    btnTake.hidden = ticket?.status !== "waiting";
+    btnClose.hidden = !canReply;
+    replyForm.hidden = !canReply;
+    for (const button of [btnTake, btnClose, replyForm.querySelector('button[type="submit"]')]) {
+      button.disabled = opening || actionPending;
+    }
+  }
+
   function renderThread(detail) {
     const ticket = detail.ticket;
-    current = detail;
+    const changedTicket = ticket.public_id !== current?.ticket.public_id;
+    const atBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 60;
+    if (changedTicket) {
+      replyForm.reset();
+      writeForm.reset();
+      badForm.reset();
+      badMessage.value = "";
+      badTarget.textContent = "先从对话里选择一条助手回答。";
+      writeStatus.hidden = badStatus.hidden = replyStatus.hidden = true;
+      writeForm.elements.question.value = ticket.first_question.slice(0, 120);
+      selectTab(document.getElementById("tab-trace"));
+    }
+    current = { ...current, ...detail };
     title.textContent = ticket.public_id + " · " + ticket.first_question;
     const created = fmt(ticket.created_at);
     sub.textContent = "访客 " + (ticket.visitor || "") + " · " + ticket.source_label + (created ? " · " + created + " 创建" : "");
     badge.hidden = false;
-    const mine = Number(ticket.assignee_id) === Number(me && me.user_id);
+    const mine = ticket.assignee_id === me?.user_id;
     badge.textContent = ticket.status === "waiting" ? "待接入" : ticket.status === "active" ? (mine ? "处理中 · 你已接入" : "处理中") : "已结束";
-    badge.className = "badge " + (ticket.status === "closed" ? "ok" : ticket.status === "active" ? "info" : "");
-    document.getElementById("btnClose").hidden = ticket.status === "closed" || !mine;
-    replyForm.hidden = ticket.status !== "active" || !mine;
+    badge.className = "badge " + (ticket.status === "closed" ? "ok" : ticket.status === "active" ? "info" : "warn");
+    syncActions();
+    markSelectedTicket();
+    if (!detail.messages) return;
     const byMessage = new Map((detail.judgments || []).filter((item) => item.message_id).map((item) => [item.message_id, item]));
     thread.innerHTML = detail.messages.map((msg) => {
       if (msg.role === "system") return `<p class="sys-line">${escapeHtml(msg.body)}</p>`;
@@ -186,75 +239,112 @@
       return `<div class="msg ${klass}${refused}"><div class="meta">${escapeHtml(who)} · ${fmt(msg.created_at)} ${badge}</div><div class="bubble">${escapeHtml(msg.body)}</div>${cites}${tools}</div>`;
     }).join("") || emptyDesk("还没有消息。");
     renderTrace(detail.judgments);
-    const question = document.querySelector("#writeForm [name=question]");
-    if (question && !question.value) question.value = ticket.first_question;
+    if (changedTicket || atBottom) thread.scrollTop = thread.scrollHeight;
+  }
+
+  function showReplyStatus(text) {
+    replyStatus.hidden = !text;
+    replyStatus.textContent = text;
+  }
+
+  function ticketPath(id = current.ticket.public_id) {
+    return "/api/agent/tickets/" + encodeURIComponent(id);
   }
 
   async function openTicket(publicId) {
-    let detail = await api("/api/agent/tickets/" + encodeURIComponent(publicId));
-    if (detail.ticket.status === "waiting") {
-      try {
-        detail = await api("/api/agent/tickets/" + encodeURIComponent(publicId) + "/take", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-        });
-      } catch (err) {
-        if (!String(err.message || "").includes("已被")) throw err;
+    if (actionPending) return;
+    const requested = ++detailRequest;
+    opening = true;
+    syncActions();
+    showReplyStatus("正在加载工单…");
+    try {
+      const detail = await api(ticketPath(publicId));
+      if (requested !== detailRequest) return;
+      renderThread(detail);
+      showReplyStatus("");
+      if (matchMedia("(max-width: 660px)").matches) title.focus();
+    } catch (err) {
+      if (requested === detailRequest) showReplyStatus(err.message);
+    } finally {
+      if (requested === detailRequest) {
+        opening = false;
+        syncActions();
       }
     }
-    renderThread(detail);
-    await refreshQueue();
   }
 
-  document.getElementById("queue").addEventListener("click", (event) => {
+  async function submitAction(action, body) {
+    if (!current || opening || actionPending) return null;
+    actionPending = true;
+    detailRequest++;
+    syncActions();
+    try {
+      const detail = await api(ticketPath() + "/" + action, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      renderThread(detail);
+      if (action !== "reply") showQueue(detail.ticket.status);
+      return detail;
+    } finally {
+      actionPending = false;
+      syncActions();
+    }
+  }
+
+  queueEl.addEventListener("click", (event) => {
     const button = event.target.closest(".ticket");
-    if (!button) return;
-    openTicket(button.dataset.id).catch((err) => alert(err.message));
+    if (button) openTicket(button.dataset.id);
   });
 
+  btnTake.addEventListener("click", async () => {
+    showReplyStatus("");
+    try {
+      if (await submitAction("take", {})) replyBox.focus();
+    } catch (err) {
+      showReplyStatus(err.message);
+    }
+  });
+
+  function showQueue(nextStatus) {
+    const tab = document.getElementById("tab-" + nextStatus);
+    selectTab(tab);
+    if (status !== nextStatus) {
+      status = nextStatus;
+      queueEl.setAttribute("aria-labelledby", tab.id);
+      queueEl.innerHTML = queueMarkup = emptyDesk("正在加载工单…");
+    }
+    refreshQueue();
+  }
+
   for (const tab of document.querySelectorAll(".queue [role=tab]")) {
-    tab.addEventListener("click", () => {
-      status = tab.dataset.status;
-      for (const item of document.querySelectorAll(".queue [role=tab]")) {
-        const on = item === tab;
-        item.setAttribute("aria-selected", String(on));
-        item.tabIndex = on ? 0 : -1;
-      }
-      refreshQueue().catch(() => {});
-    });
+    tab.addEventListener("click", () => showQueue(tab.dataset.status));
   }
   for (const tab of document.querySelectorAll(".ctx [role=tab]")) {
     tab.addEventListener("click", () => selectTab(tab));
   }
 
   replyBox.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
       event.preventDefault();
       replyForm.requestSubmit();
     }
   });
   replyForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    replyStatus.hidden = true;
-    if (!current) return;
+    if (!current || opening || actionPending || replyForm.hidden) return;
+    showReplyStatus("");
     const text = replyBox.value.trim();
     if (!text) {
-      replyStatus.hidden = false;
-      replyStatus.textContent = "回复内容不能为空";
+      showReplyStatus("回复内容不能为空");
       return;
     }
     try {
-      const detail = await api("/api/agent/tickets/" + current.ticket.public_id + "/reply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      replyBox.value = "";
-      renderThread(detail);
+      if (await submitAction("reply", { text }) && replyBox.value.trim() === text) replyBox.value = "";
+      thread.scrollTop = thread.scrollHeight;
     } catch (err) {
-      replyStatus.hidden = false;
-      replyStatus.textContent = err.message;
+      showReplyStatus(err.message);
     }
   });
 
@@ -286,7 +376,7 @@
     }
     const button = event.target.closest("[data-pick]");
     if (!button || !current) return;
-    selectedMessage = Number(button.dataset.pick);
+    const selectedMessage = Number(button.dataset.pick);
     badMessage.value = String(selectedMessage);
     const message = current.messages.find((item) => item.id === selectedMessage);
     badTarget.textContent = "针对：" + ((message && message.body) || "").slice(0, 80);
@@ -372,7 +462,7 @@
     }
   });
 
-  document.getElementById("btnClose").addEventListener("click", () => {
+  btnClose.addEventListener("click", () => {
     closeError.hidden = true;
     closeDialog.showModal();
   });
@@ -380,25 +470,28 @@
   document.getElementById("closeDismiss").addEventListener("click", () => closeDialog.close());
   document.getElementById("closeForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const note = event.target.note.value.trim();
+    if (opening || actionPending) return;
+    const form = event.currentTarget;
+    const note = form.elements.note.value.trim();
     if (!note) {
       closeError.hidden = false;
       closeError.textContent = "请写一句处理说明";
       return;
     }
+    const submit = form.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    closeError.hidden = true;
     try {
-      const detail = await api("/api/agent/tickets/" + current.ticket.public_id + "/close", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note }),
-      });
-      closeDialog.close();
-      event.target.reset();
-      renderThread(detail);
-      await refreshQueue();
+      if (await submitAction("close", { note })) {
+        closeDialog.close();
+        form.reset();
+        title.focus({ preventScroll: true });
+      }
     } catch (err) {
       closeError.hidden = false;
       closeError.textContent = err.message;
+    } finally {
+      submit.disabled = false;
     }
   });
 
@@ -427,12 +520,29 @@
         pill.className = "pill ok";
       }
     }
-    await refreshPill();
-    await refreshQueue();
-    setInterval(() => {
-      refreshQueue().catch(() => {});
-      refreshPill().catch(() => {});
-    }, 5000);
+    async function refreshOpenTicket() {
+      if (!current || opening || actionPending || current.ticket.status === "closed" || thread.contains(document.activeElement)) return;
+      const requested = ++detailRequest;
+      const params = new URLSearchParams({
+        after: current.messages.at(-1)?.id || 0,
+        trace_after: current.judgments.at(-1)?.id || 0,
+      });
+      const detail = await api(`${ticketPath()}?${params}`);
+      if (requested === detailRequest) renderThread(detail);
+    }
+
+    async function refreshDesk() {
+      if (document.hidden || polling) return;
+      polling = true;
+      try {
+        await Promise.allSettled([refreshQueue(), refreshPill(), refreshOpenTicket()]);
+      } finally {
+        polling = false;
+      }
+    }
+    await refreshDesk();
+    setInterval(refreshDesk, 5000);
+    document.addEventListener("visibilitychange", refreshDesk);
   }
 
   boot().catch((err) => {

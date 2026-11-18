@@ -29,23 +29,22 @@ Chroma 只做向量近邻。没有把 BM25 换成 Chroma 自带的全文索引�
 
 ## 本机启动（默认）
 
-需要 Python 3.11+。不需要 Docker、Ollama 或 Dify。浏览器窗口宽至少 1280px。
+需要 Python 3.11+。默认用 Python 和 SQLite 运行，支持桌面和手机浏览器。
+
+如需配置外部模型，可以将 `.env.example` 复制为 `.env`。在仓库根目录用 Git Bash 启动：
 
 ```bash
-cp .env.example .env          # 可先不填密钥。不要提交 .env
-# 只有要用远程向量时才装 Chroma。不装也能答。
-# pip install -r requirements-campus.txt
-bash scripts/up-campus.sh     # http://127.0.0.1:8080/
-# 等价于：
-# ENGINE=campus python3 server/proxy.py
+ENGINE=campus python server/proxy.py
 ```
+
+在 Linux 上可以使用 `bash scripts/up-campus.sh`。需要启用远程向量检索时，再安装 `requirements-campus.txt` 中的依赖。
 
 - 门户 `http://127.0.0.1:8080/`
 - 坐席 `http://127.0.0.1:8080/agent`（`agent1` / `agent123`）
 - 后台 `http://127.0.0.1:8080/admin`（`admin` / `admin123`）
 - 登录 `http://127.0.0.1:8080/login`
 - 样例库在第一次启动时从 `sample-kb/客服样例FAQ.md` 导入（一个文件、144 条）
-- 测试：`python3 -m unittest discover -s tests`
+- 测试：`python -m unittest discover -s tests`
 
 没有 `DEEPSEEK_API_KEY` 时，办事问答用知识库原文（先一句，再细节和出处）。闲聊和写作会说明需要配置模型。配上密钥后，办事回答仍必须能对上检索片段，对不上的数字会退回原文。
 
@@ -129,17 +128,13 @@ Chroma（DATA_DIR/chroma，仅在配置了远程嵌入且加载成功时）
 
 应用进程即使把 Chroma 客户端算进去，仍然远小于 2 GiB。整机是否从容，取决于系统和其他服务，不能只凭这 27 MiB 或 97 MiB 宣称「已经在 Flexus 上稳跑」。没有把 Dify、FastGPT、RAGFlow、MaxKB、Postgres、Milvus 或 Ollama 算进去；那些才是会把 2 GiB 吃满的部分。Chroma 自带的本地嵌入模型没有接上，不要在这台机器上打开。
 
-## 演示 UI（已定稿 · E5）
+## 界面与工作流程
 
-生产门户视觉已确认落地为 **E5 贵宾席 · 苹果 R 角**（原 E 黑金 + 连续柔和圆角）：
-
-- 演示地址：**http://127.0.0.1:8080/**（`LITE_MODE=1` 时仍是 8787，那是旧规则引擎）
-- 设计说明：`docs/DESIGN.md`（confirmed）· 计划：`docs/PLAN.md` · 进度：`docs/STATUS.md`
-- 截图证据：`docs/design/shots/prod-e5-1280.png` · UX：`docs/design/shots/ux-upgrade-1280.png` · Agent：`docs/design/shots/agent-upgrade-1280.png`
-- 选款归档（静态原型仍可对照）：**http://127.0.0.1:8787/design/**
-- UX（E5 交互升级，不做窄屏精修）：**SSE 流式 + 停止生成** · 空态主题 chips · 可展开出处卡 · `conversation_id` 多轮 / 本机会话历史 /「新对话」
-- 门户在原有流式、停止、引用卡、本机会话之上，增加澄清选项、坐席回复和知识库维护提示。
-- API：`POST /api/chat`（默认 SSE）· `POST /api/chat/stop` · `POST /api/ticket` · 坐席 `/api/agent/*` · 后台 `/api/admin/*`（后两者要登录）
+- **访客门户**提供常用办事入口、流式问答、可展开的回答出处和本机会话。转人工后，可在原对话或「我的工单」查看处理状态和坐席回复。「我的工单」使用提交时的浏览器身份读取，可打开本机保留的原对话。
+- **坐席工作台**将队列、对话和答复判定并排展示。坐席主动接入工单后可回复和结单，另有知识库回写及坏例标记入口。
+- **管理后台**的服务总览显示实际工单数、近七日有帮助率、知识库规模和自检状态，可进入明细。
+- 查看[新版截图和本机测试记录](docs/evidence/modern-campus/README.md)。此前确认的 E5 / S1 原型归档在 [`/design/`](http://127.0.0.1:8080/design/)，设计记录见 [DESIGN.md](docs/DESIGN.md)。
+- 门户使用 `POST /api/chat`（默认 SSE）、`POST /api/chat/stop`、`POST /api/ticket` 和 `GET /api/portal/state`。「我的工单」使用 `GET /api/portal/tickets` 和 `GET /api/portal/tickets/{public_id}`，按访客 Cookie 限定范围并分页。坐席 `/api/agent/*` 和后台 `/api/admin/*` 需要对应角色登录。
 
 ## 目录
 
@@ -161,7 +156,7 @@ Chroma（DATA_DIR/chroma，仅在配置了远程嵌入且加载成功时）
 │       ├── index.html
 │       ├── options/
 │       └── shots/
-├── web/                  # 生产客服门户（E5 已落地）
+├── web/                  # 访客门户、坐席工作台、后台和登录
 │   ├── index.html
 │   ├── styles.css
 │   └── app.js
@@ -204,13 +199,13 @@ LITE_MODE=1 PORTAL_PORT=8787 python3 server/proxy.py
 1. **有依据**：「在读证明如何办理？」→ 流式回答，右侧一张引用卡（同一篇文档的多段会折在一起）。  
 2. **库外**：「怎么请病假？」→ 说明知识库里没有，不编规定，可以转人工。  
 3. **含糊**：「证明怎么开？」→ 两三个选项，点一个再答。  
-4. **转人工**：门户登记工单，坐席在 `/agent` 接入、回复；门户几秒内出现，并标「人工客服」。  
+4. **转人工**：门户登记工单，坐席在 `/agent` 接入、回复。访客可在原对话查看「人工客服」回复，切到新对话后也可从「我的工单」打开这张工单。
 5. **闲聊**：「帮我写一首短诗」→ 不附校规出处。没有模型密钥时会说明。  
 6. **安全**：浏览器里只有本站接口，看不到 DeepSeek 密钥。手机号和证件号在出站前打码。
 
 ## 技术要点（答辩）
 
-- 前端：纯 HTML/CSS/JS；**E5** 近黑+香槟金、苹果 R 角；Cormorant / Manrope 放在 `web/fonts/`，页面不请求外部字体。中文用系统字体。  
+- 前端使用原生 HTML、CSS 和 JavaScript。图标和字体随站点提供，中文使用系统字体。
 - 代理：Python 3 `http.server`；默认 SSE；去掉模型 thinking 标签。  
 - 样例库：`sample-kb/客服样例FAQ.md` 一个文件、144 条，第一次启动写入 SQLite。  
 - 检索：BM25 一直可用；远程嵌入写进嵌入式 Chroma，和词法一起排序。加载失败就只用词法。

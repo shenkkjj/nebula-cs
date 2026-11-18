@@ -5,7 +5,9 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,6 +78,35 @@ class AgentApiTest(unittest.TestCase):
         self.assertEqual(closed["ticket"]["status"], "closed")
         waiting = agent_api.queue("waiting")
         self.assertEqual(waiting["counts"]["closed"], 1)
+
+    def test_concurrent_take_has_one_owner(self) -> None:
+        public_id = self.ticket["public_id"]
+        users = [_user("agent1"), _user("agent2")]
+        barrier = threading.Barrier(len(users))
+
+        def take(user):
+            barrier.wait(timeout=5)
+            return agent_api.take(public_id, user)[0]
+
+        with ThreadPoolExecutor(max_workers=len(users)) as pool:
+            statuses = list(pool.map(take, users))
+        self.assertEqual(sorted(statuses), [200, 409])
+        self.assertEqual(store.get_ticket(public_id)["assignee_id"], users[statuses.index(200)]["user_id"])
+        self.assertEqual(len(store.list_messages(ticket_id=self.ticket["id"])), 1)
+
+    def test_detail_detects_a_judgment_saved_after_its_message(self) -> None:
+        public_id = self.ticket["public_id"]
+        message_id = store.add_message("visitor-a", "bot", "需要确认事项。", "session-a", self.ticket["id"])
+        _, unchanged = agent_api.detail(public_id, after=message_id, trace_after=0)
+        self.assertNotIn("messages", unchanged)
+        self.assertEqual(unchanged["ticket"]["status"], "waiting")
+
+        trace_id = store.add_judgment("visitor-a", "session-a", "怎么请病假？", "", "拒答", "无条目", [], 5, message_id=message_id)
+        _, updated = agent_api.detail(public_id, after=message_id, trace_after=0)
+        self.assertEqual([row["id"] for row in updated["messages"]], [message_id])
+        self.assertEqual([row["id"] for row in updated["judgments"]], [trace_id])
+        _, unchanged = agent_api.detail(public_id, after=message_id, trace_after=trace_id)
+        self.assertNotIn("judgments", unchanged)
 
     def test_writeback_keeps_a_draft_without_dify(self) -> None:
         previous = os.environ.get("ENGINE")

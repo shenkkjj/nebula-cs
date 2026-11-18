@@ -30,6 +30,13 @@ def try_get(handler, raw: str) -> bool:
     if raw in ("/api/portal/state", "/api/portal/state/"):
         _portal_state(handler)
         return True
+    if raw in ("/api/portal/tickets", "/api/portal/tickets/"):
+        _portal_tickets(handler)
+        return True
+    match = re.fullmatch(r"/api/portal/tickets/([^/]{1,80})", raw)
+    if match:
+        _portal_ticket(handler, match.group(1))
+        return True
     if raw in ("/api/health", "/api/health/"):
         return False
     if raw.startswith("/api/agent/"):
@@ -142,17 +149,26 @@ def create_portal_ticket(handler, subject: str, detail: str, contact: str, porta
     masked_contact, _c = mask_text(contact)
     question = masked_subject or masked_detail or "转人工"
     source = _handoff_source(visitor, portal_session)
-    ticket = store.create_ticket(visitor, portal_session, source, question)
-    if masked_detail:
-        store.add_message(visitor, "user", masked_detail, portal_session, ticket["id"], meta={"contact": masked_contact})
-    store.add_audit("ticket", actor="访客", session_ref=ticket["public_id"], decision="登记", question=question)
+    with store.exclusive():
+        if portal_session:
+            ticket, created = store.open_or_create_ticket(visitor, portal_session, source, question)
+        else:
+            ticket, created = store.create_ticket(visitor, portal_session, source, question), True
+        body = masked_detail if created else " · ".join(filter(None, (masked_subject, masked_detail)))
+        if body:
+            store.add_message(visitor, "user", body, portal_session, ticket["id"], meta={"contact": masked_contact})
+        action = "登记" if created else "补充"
+        store.add_audit("ticket", actor="访客", session_ref=ticket["public_id"], decision=action, question=question)
+    public_id = ticket["public_id"]
+    next_step = "坐席上线后会在这个窗口回复。" if ticket["status"] == "waiting" else "坐席会在这个窗口回复。"
     handler._json_response(
         200,
         {
             "ok": True,
-            "ticket_id": ticket["public_id"],
+            "ticket_id": public_id,
+            "ticket": {"public_id": public_id, "status": ticket["status"], "assignee_name": ticket["assignee_name"] or ""},
             "queue": True,
-            "message": f"已登记工单 {ticket['public_id']}。坐席上线后会在这个窗口回复，不承诺具体时间。",
+            "message": f"已{action}工单 {public_id}。{next_step}",
         },
     )
 
@@ -179,42 +195,37 @@ def _login(handler) -> None:
 
 def _portal_state(handler) -> None:
     visitor = ensure_visitor(handler)
-    session = ""
-    if "?" in handler.path:
-        query = handler.path.split("?", 1)[1]
-        for part in query.split("&"):
-            if part.startswith("session="):
-                session = part.split("=", 1)[1][:80]
-    probe = store.latest_probe()
-    maintenance = bool(probe and not probe.get("ok"))
-    ticket = store.open_ticket(visitor, session) if session else None
-    rows = store.list_messages(visitor=visitor, portal_session=session) if session else []
-    visible = [row for row in rows if row["role"] in ("agent", "system")]
+    session = _query_value(handler, "session")[:80]
+    after = _query_cursor(handler) or 0
+    probe = store.latest_probe_status()
+    ticket = store.latest_portal_ticket(visitor, session) if session else None
+    if ticket:
+        ticket["assignee_name"] = ticket["assignee_name"] or ""
     handler._json_response(
         200,
         {
             "ok": True,
-            "maintenance": maintenance,
-            "probe_ok": None if probe is None else bool(probe.get("ok")),
-            "ticket": None
-            if not ticket
-            else {
-                "public_id": ticket["public_id"],
-                "status": ticket["status"],
-                "assignee_name": ticket.get("assignee_name") or "",
-            },
-            "messages": [
-                {
-                    "id": row["id"],
-                    "role": row["role"],
-                    "author": row.get("author") or "",
-                    "body": row.get("body") or "",
-                    "created_at": row.get("created_at") or "",
-                }
-                for row in visible[-40:]
-            ],
+            "maintenance": bool(probe and not probe["ok"]),
+            "probe_ok": probe["ok"] if probe else None,
+            "ticket": ticket,
+            "messages": store.portal_updates(visitor, session, after) if session else [],
         },
     )
+
+
+def _portal_tickets(handler) -> None:
+    visitor = auth.current_visitor(handler)
+    tickets, next_before = store.list_portal_tickets(visitor, _query_cursor(handler, "before")) if visitor else ([], None)
+    handler._json_response(200, {"ok": True, "tickets": tickets, "next_before": next_before})
+
+
+def _portal_ticket(handler, public_id: str) -> None:
+    visitor = auth.current_visitor(handler)
+    detail = store.portal_ticket_detail(visitor, public_id, _query_cursor(handler, "before")) if visitor else None
+    if detail is None:
+        handler._json_response(404, {"ok": False, "error": "没有找到这张工单"})
+        return
+    handler._json_response(200, {"ok": True, **detail})
 
 
 def _agent_get(handler, raw: str, user: dict) -> bool:
@@ -228,7 +239,9 @@ def _agent_get(handler, raw: str, user: dict) -> bool:
         return True
     match = re.fullmatch(r"/api/agent/tickets/([^/]+)", raw)
     if match:
-        status, payload = agent_api.detail(match.group(1))
+        status, payload = agent_api.detail(
+            match.group(1), after=_query_cursor(handler), trace_after=_query_cursor(handler, "trace_after")
+        )
         handler._json_response(status, payload)
         return True
     match = re.fullmatch(r"/api/agent/writebacks/(\d+)", raw)
@@ -274,6 +287,9 @@ def _agent_post(handler, path: str, user: dict) -> bool:
 
 def _admin_get(handler, raw: str, user: dict) -> bool:
     del user
+    if raw in ("/api/admin/overview", "/api/admin/overview/"):
+        handler._json_response(200, admin_api.overview())
+        return True
     if raw in ("/api/admin/documents", "/api/admin/documents/"):
         handler._json_response(200, admin_api.document_list())
         return True
@@ -480,6 +496,13 @@ def _query_value(handler, name: str) -> str:
         if part.startswith(name + "="):
             return unquote(part.split("=", 1)[1])
     return ""
+
+
+def _query_cursor(handler, name: str = "after") -> int | None:
+    try:
+        return max(0, min(int(_query_value(handler, name)), 2**63 - 1))
+    except ValueError:
+        return None
 
 
 def _filters(handler) -> tuple[str, str, str]:
