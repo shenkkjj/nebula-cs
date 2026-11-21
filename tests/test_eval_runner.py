@@ -168,9 +168,11 @@ class DatasetAndGroupATest(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         prev_data = os.environ.get("DATA_DIR")
         prev_engine = os.environ.get("ENGINE")
+        prev_profile = os.environ.get("CAMPUS_PROFILE")
         prev_key = os.environ.get("DIFY_APP_API_KEY")
         os.environ["DATA_DIR"] = tmp.name
         os.environ["ENGINE"] = "campus"
+        os.environ["CAMPUS_PROFILE"] = "demo"
         os.environ["DIFY_APP_API_KEY"] = ""
         store.reconnect()
         dataset = Path(tmp.name) / "b-smoke.json"
@@ -211,6 +213,10 @@ class DatasetAndGroupATest(unittest.TestCase):
                 os.environ.pop("ENGINE", None)
             else:
                 os.environ["ENGINE"] = prev_engine
+            if prev_profile is None:
+                os.environ.pop("CAMPUS_PROFILE", None)
+            else:
+                os.environ["CAMPUS_PROFILE"] = prev_profile
             if prev_key is None:
                 os.environ.pop("DIFY_APP_API_KEY", None)
             else:
@@ -232,8 +238,12 @@ class DatasetAndGroupATest(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         prev_data = os.environ.get("DATA_DIR")
         prev_engine = os.environ.get("ENGINE")
+        prev_profile = os.environ.get("CAMPUS_PROFILE")
+        prev_key = os.environ.get("DEEPSEEK_API_KEY")
         os.environ["DATA_DIR"] = tmp.name
         os.environ["ENGINE"] = "campus"
+        os.environ["CAMPUS_PROFILE"] = "demo"
+        os.environ["DEEPSEEK_API_KEY"] = ""
         store.reconnect()
         import campus_engine
 
@@ -270,6 +280,14 @@ class DatasetAndGroupATest(unittest.TestCase):
                 os.environ.pop("ENGINE", None)
             else:
                 os.environ["ENGINE"] = prev_engine
+            if prev_profile is None:
+                os.environ.pop("CAMPUS_PROFILE", None)
+            else:
+                os.environ["CAMPUS_PROFILE"] = prev_profile
+            if prev_key is None:
+                os.environ.pop("DEEPSEEK_API_KEY", None)
+            else:
+                os.environ["DEEPSEEK_API_KEY"] = prev_key
             store.reconnect()
 
         self.addCleanup(restore)

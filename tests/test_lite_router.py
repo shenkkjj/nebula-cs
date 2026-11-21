@@ -10,6 +10,7 @@ import unittest
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "server"))
@@ -332,6 +333,7 @@ class RouterTest(unittest.TestCase):
 class HttpRouteTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        cls.enterClassContext(patch.dict(os.environ, {"ENGINE": "lite", "DEEPSEEK_API_KEY": ""}))
         PortalHandler.api_key = ""
         cls.httpd = ThreadingHTTPServer(("127.0.0.1", 0), PortalHandler)
         cls.port = cls.httpd.server_address[1]

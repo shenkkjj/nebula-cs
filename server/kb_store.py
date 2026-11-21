@@ -1,6 +1,6 @@
 """SQLite knowledge base: documents, FAQ segments, and optional vectors.
 
-The sample FAQ is imported once into an empty database. Later edits, uploads,
+The active preset is imported once into the database. Later edits, uploads,
 and deletions stay. Vector rows, when remote embeddings are configured, live
 in an embedded Chroma index under the same DATA_DIR. There is no second
 database server. The lexical index does not read Chroma.
@@ -15,6 +15,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import chroma_store
+from campus_profile import ARTICLES, ARTICLE_BY_TITLE, AUDIENCES, profile, scope
 from lite_engine import Chunk, load_chunks
 import store
 
@@ -43,16 +44,56 @@ def _now() -> str:
 
 
 def ensure_seeded() -> None:
-    """Import the sample FAQ the first time this database is opened."""
+    """Seed only the selected profile, preserving existing documents and edits."""
+    demo = profile() == "demo"
+    key = "seeded" if demo else "seeded_qut_v1"
     with store.exclusive() as conn:
-        row = conn.execute("SELECT value FROM kb_meta WHERE key = 'seeded'").fetchone()
-        if row:
+        if conn.execute("SELECT 1 FROM kb_meta WHERE key = ?", (key,)).fetchone():
             return
-        _insert_sample(conn)
-        conn.execute(
-            "INSERT INTO kb_meta (key, value) VALUES ('seeded', '1')",
-        )
+        if demo:
+            _insert_sample(conn)
+        else:
+            _insert_presets(conn)
+        conn.execute("INSERT INTO kb_meta (key, value) VALUES (?, '1')", (key,))
     _bump()
+
+
+def _insert_presets(conn) -> int:
+    stamp = _now()
+    added = 0
+    for item in ARTICLES:
+        doc = conn.execute(
+            "SELECT id FROM kb_documents WHERE source = 'preset' AND name = ? AND audience = ? AND source_url = ?",
+            (item.source, item.audience, item.url),
+        ).fetchone()
+        if doc is None:
+            cur = conn.execute(
+                """
+                INSERT INTO kb_documents (name, source, audience, source_url, status, created_at, updated_at)
+                VALUES (?, 'preset', ?, ?, '已索引', ?, ?)
+                """,
+                (item.source, item.audience, item.url, stamp, stamp),
+            )
+            document_id = int(cur.lastrowid)
+        else:
+            document_id = int(doc["id"])
+        if conn.execute(
+            "SELECT id FROM kb_segments WHERE document_id = ? AND title = ? AND enabled = 1",
+            (document_id, item.title),
+        ).fetchone():
+            continue
+        position = conn.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM kb_segments WHERE document_id = ?", (document_id,),
+        ).fetchone()[0]
+        conn.execute(
+            """
+            INSERT INTO kb_segments (document_id, title, body, position, enabled, updated_at)
+            VALUES (?, ?, ?, ?, 1, ?)
+            """,
+            (document_id, item.title, item.answer, position, stamp),
+        )
+        added += 1
+    return added
 
 
 def _insert_sample(conn) -> int:
@@ -77,8 +118,14 @@ def _insert_sample(conn) -> int:
 
 
 def reimport_sample() -> dict:
-    """Put the sample FAQ back when that seed document is missing or empty."""
+    """Restore missing entries from the current preset."""
     ensure_seeded()
+    if profile() != "demo":
+        with store.exclusive() as conn:
+            count = _insert_presets(conn)
+        if count:
+            _bump()
+        return {"ok": True, "already": count == 0, "count": count}
     with store.exclusive() as conn:
         row = conn.execute(
             "SELECT id FROM kb_documents WHERE name = ? AND source = 'seed' ORDER BY id ASC LIMIT 1",
@@ -106,12 +153,23 @@ def reimport_sample() -> dict:
     return {"ok": True, "already": False, "id": str(document_id)}
 
 
+def _profile_audiences() -> tuple[str, ...]:
+    return ("demo",) * 3 if profile() == "demo" else AUDIENCES
+
+
 def stats() -> dict:
     ensure_seeded()
+    audiences = _profile_audiences()
     with store.exclusive() as conn:
-        documents = conn.execute("SELECT COUNT(*) AS n FROM kb_documents").fetchone()["n"]
+        documents = conn.execute(
+            "SELECT COUNT(*) AS n FROM kb_documents WHERE audience IN (?, ?, ?)", audiences,
+        ).fetchone()["n"]
         segments = conn.execute(
-            "SELECT COUNT(*) AS n FROM kb_segments WHERE enabled = 1"
+            """
+            SELECT COUNT(*) AS n FROM kb_segments s JOIN kb_documents d ON d.id = s.document_id
+            WHERE s.enabled = 1 AND d.audience IN (?, ?, ?)
+            """,
+            audiences,
         ).fetchone()["n"]
         vectors = conn.execute("SELECT COUNT(*) AS n FROM kb_vectors").fetchone()["n"]
     return {
@@ -126,7 +184,7 @@ def list_documents() -> list[dict]:
     with store.exclusive() as conn:
         rows = conn.execute(
             """
-            SELECT d.id, d.name, d.source, d.status, d.created_at, d.updated_at,
+            SELECT d.id, d.name, d.source, d.audience, d.source_url, d.status, d.created_at, d.updated_at,
                    COUNT(s.id) AS segment_count
             FROM kb_documents d
             LEFT JOIN kb_segments s ON s.document_id = d.id AND s.enabled = 1
@@ -160,7 +218,7 @@ def get_document(document_id: str | int) -> dict | None:
     return payload
 
 
-def add_upload(filename: str, data: bytes, source: str = "upload") -> dict:
+def add_upload(filename: str, data: bytes, source: str = "upload", audience: str = "student") -> dict:
     name = Path(filename or "").name
     suffix = Path(name).suffix.lower()
     if suffix in (".md", ".txt"):
@@ -174,10 +232,14 @@ def add_upload(filename: str, data: bytes, source: str = "upload") -> dict:
         text = _pdf_text(data)
     else:
         raise ValueError("只接受 md、txt、pdf、docx")
-    return add_text_document(name, text, source=source)
+    return add_text_document(name, text, source=source, audience=audience)
 
 
-def add_text_document(name: str, text: str, source: str = "upload") -> dict:
+def add_text_document(name: str, text: str, source: str = "upload", audience: str = "student") -> dict:
+    if profile() == "demo":
+        audience = "demo"
+    elif audience not in AUDIENCES:
+        raise ValueError("请选择适用对象：学生、教职工或通用")
     ensure_seeded()
     segments = split_segments(name, text)
     if not segments:
@@ -187,10 +249,10 @@ def add_text_document(name: str, text: str, source: str = "upload") -> dict:
     with store.exclusive() as conn:
         cur = conn.execute(
             """
-            INSERT INTO kb_documents (name, source, status, created_at, updated_at)
-            VALUES (?, ?, '已索引', ?, ?)
+            INSERT INTO kb_documents (name, source, audience, status, created_at, updated_at)
+            VALUES (?, ?, ?, '已索引', ?, ?)
             """,
-            (clean_name, source, stamp, stamp),
+            (clean_name, source, audience, stamp, stamp),
         )
         document_id = int(cur.lastrowid)
         for position, (title, body) in enumerate(segments):
@@ -298,23 +360,29 @@ def delete_segment(segment_id: str | int) -> bool:
     return True
 
 
-def chunks() -> list[Chunk]:
+def chunks(audience: str = "") -> list[Chunk]:
     ensure_seeded()
+    selected = scope(audience)
+    shared = "demo" if selected == "demo" else "shared"
     with store.exclusive() as conn:
         rows = conn.execute(
             """
-            SELECT s.id, s.title, s.body, d.name
+            SELECT s.id, s.title, s.body, d.name, d.source, d.source_url, d.audience
             FROM kb_segments s
             JOIN kb_documents d ON d.id = s.document_id
-            WHERE s.enabled = 1
+            WHERE s.enabled = 1 AND d.audience IN (?, ?)
             ORDER BY d.id ASC, s.position ASC, s.id ASC
-            """
+            """,
+            (selected, shared),
         ).fetchall()
     built: list[Chunk] = []
     for row in rows:
         title = row["title"]
         question = title if str(title).endswith(("？", "?")) else f"{title}？"
         body = row["body"] or ""
+        preset = ARTICLE_BY_TITLE.get(title) if row["source"] == "preset" else None
+        if preset and (preset.url != row["source_url"] or preset.audience != row["audience"]):
+            preset = None
         built.append(
             Chunk(
                 id=str(row["id"]),
@@ -323,7 +391,12 @@ def chunks() -> list[Chunk]:
                 answer=body,
                 content=f"问：{question}\n答：{body}",
                 document_name=row["name"] or SAMPLE_NAME,
-                dataset_name="校园知识库",
+                dataset_name="校园知识库" if selected == "demo" else "青岛理工大学公开资料",
+                source_url=row["source_url"],
+                audience=row["audience"],
+                category=preset.group if preset else "",
+                aliases=preset.aliases if preset else (),
+                curated=row["source"] == "preset",
             )
         )
     return built
@@ -404,10 +477,11 @@ def segment_rows() -> list[dict]:
         rows = conn.execute(
             """
             SELECT s.id, s.title, s.body
-            FROM kb_segments s
-            WHERE s.enabled = 1
+            FROM kb_segments s JOIN kb_documents d ON d.id = s.document_id
+            WHERE s.enabled = 1 AND d.audience IN (?, ?, ?)
             ORDER BY s.id ASC
-            """
+            """,
+            _profile_audiences(),
         ).fetchall()
     return [{"id": int(row["id"]), "title": row["title"], "body": row["body"]} for row in rows]
 
@@ -485,12 +559,14 @@ def _pdf_text(data: bytes) -> str:
 
 def _public_document(row) -> dict:
     source = row["source"]
-    labels = {"seed": "样例库", "upload": "上传", "writeback": "坐席回写"}
+    labels = {"seed": "样例库", "preset": "学校公开资料", "upload": "上传", "writeback": "坐席回写"}
     return {
         "id": str(row["id"]),
         "name": row["name"],
         "source": labels.get(source, source),
         "source_key": source,
+        "audience": row["audience"],
+        "source_url": row["source_url"],
         "indexing_status": row["status"] or "已索引",
         "segment_count": int(row["segment_count"]) if "segment_count" in row.keys() else None,
         "created_at": row["created_at"],

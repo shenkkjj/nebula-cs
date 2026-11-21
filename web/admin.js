@@ -34,9 +34,8 @@
     const time = (value) => value ? new Date(value).toLocaleString("zh-CN", { hour12: false }) : "暂无记录";
     try {
       const data = await api("/api/admin/overview");
-      put("metricWaiting", number.format(data.tickets.waiting));
-      put("metricActive", number.format(data.tickets.active));
-      put("metricClosed", number.format(data.tickets.closed));
+      put("metricDocs", data.local_knowledge ? number.format(data.local_knowledge.documents) : "—");
+      put("metricSegments", data.local_knowledge ? number.format(data.local_knowledge.segments) : "—");
       put("metricHelpful", data.feedback.total ? `${(100 * data.feedback.helpful / data.feedback.total).toFixed(1)}%` : "—");
       put("metricFeedbackCount", data.feedback.total ? `共 ${number.format(data.feedback.total)} 条评价` : "近七日暂无评价");
       const probe = document.getElementById("overviewProbe");
@@ -69,7 +68,6 @@
     if (page === "overview") loadOverview();
     if (page === "docs") loadDocs();
     if (page === "segments") loadSegments();
-    if (page === "handoffs") loadHandoffs();
     if (page === "feedback") loadFeedback();
     if (page === "probe") loadProbe();
     if (page === "audit") loadAudit();
@@ -77,28 +75,9 @@
     if (page === "eval") loadEval();
   }
 
-  function renderFaqCheck(data) {
-    const box = document.getElementById("faqCheck");
-    if (!box) return;
-    const segments = data.segment_count == null ? "还不知道" : String(data.segment_count);
-    const hits = (data.title_hits || []).map((item) => {
-      const mark = item.seen == null ? "未核对" : item.seen ? "片段里能看到" : "片段里没看到";
-      return `<li>${escapeHtml(item.title)} · ${mark}</li>`;
-    }).join("");
-    const sample = (data.title_sample || []).map((title) => `<li>${escapeHtml(title)}</li>`).join("");
-    box.innerHTML = `<div class="panel-body">
-      <p>本地 FAQ <strong>${data.local_count || 0}</strong> 条（${escapeHtml(data.document || "")}）· 知识库分段 <strong>${escapeHtml(segments)}</strong></p>
-      ${data.warning ? `<p class="form-status pending">${escapeHtml(data.warning)}</p>` : ""}
-      <p class="small muted">标题抽查</p>
-      <ul class="small">${hits || sample || "<li>没有标题</li>"}</ul>
-    </div>`;
-  }
+  const audienceLabels = { student: "学生", staff: "教职工", shared: "通用", demo: "历史归档" };
 
   async function loadDocs() {
-    api("/api/admin/faq-check").then(renderFaqCheck).catch(() => {
-      const box = document.getElementById("faqCheck");
-      if (box) box.innerHTML = '<p class="empty">条数核对暂时失败，文档列表仍可查看。</p>';
-    });
     const data = await api("/api/admin/documents");
     document.getElementById("docsHint").textContent = data.hint || data.error || "";
     const body = document.getElementById("docsBody");
@@ -112,7 +91,7 @@
         : "";
       const count = doc.segment_count == null ? "" : ` · ${doc.segment_count} 段`;
       return `<tr>
-      <td>${escapeHtml(doc.name)}</td><td>${escapeHtml(doc.source)}</td><td>${escapeHtml(doc.indexing_status || "")}${escapeHtml(count)}</td>
+      <td>${escapeHtml(doc.name)}</td><td>${escapeHtml(audienceLabels[doc.audience] || doc.source)}</td><td>${escapeHtml(doc.indexing_status || "")}${escapeHtml(count)}</td>
       <td>${segments}<button type="button" class="btn btn-quiet btn-sm" data-del="${escapeHtml(doc.id)}">删除</button></td>
     </tr>`;
     }).join("");
@@ -177,41 +156,6 @@
         form.body.value = row.body;
       });
     });
-  }
-
-  async function loadHandoffs() {
-    const data = await api("/api/admin/handoffs");
-    const tickets = document.getElementById("handoffBody");
-    const sessions = document.getElementById("sessionBody");
-    if (!data.tickets.length) {
-      tickets.innerHTML = '<tr><td colspan="6">还没有转人工。</td></tr>';
-    } else {
-      tickets.innerHTML = data.tickets.map((row) => {
-        const steps = (row.traces || []).map((item) => {
-          const inner = (item.trace || []).map((step) => `<li>${escapeHtml(step.step)} · ${escapeHtml(step.detail || "")}</li>`).join("");
-          return `<div><p>${escapeHtml(item.created_at)} · ${escapeHtml(item.decision)} · ${escapeHtml(item.question)}</p><ul>${inner}</ul></div>`;
-        }).join("");
-        return `<tr>
-          <td>${escapeHtml(row.created_at)}</td>
-          <td>${escapeHtml(row.public_id)}</td>
-          <td>${escapeHtml(row.status)}</td>
-          <td>${escapeHtml(row.source)}</td>
-          <td class="clip">${escapeHtml(row.first_question)}</td>
-          <td>${escapeHtml(row.assignee_name || "—")}</td>
-        </tr>${steps ? `<tr><td colspan="6">${steps}</td></tr>` : ""}`;
-      }).join("");
-    }
-    if (!data.sessions.length) {
-      sessions.innerHTML = '<tr><td colspan="5">还没有问答记录。</td></tr>';
-      return;
-    }
-    sessions.innerHTML = data.sessions.map((row) => `<tr>
-      <td>${escapeHtml(row.created_at)}</td>
-      <td>${escapeHtml(row.session)}</td>
-      <td class="clip">${escapeHtml(row.question)}</td>
-      <td class="clip">${escapeHtml(row.rewritten)}</td>
-      <td>${escapeHtml(row.decision)}</td>
-    </tr>`).join("");
   }
 
   async function loadFeedback() {
@@ -280,12 +224,11 @@
     const cfg = data.config || {};
     form.score_threshold.value = cfg.score_threshold;
     form.max_citations.value = cfg.max_citations;
-    form.refusal_text.value = cfg.refusal_text || "";
     form.probe_question.value = cfg.probe_question || "";
     form.probe_expect.value = cfg.probe_expect || "";
-    form.auto_ticket_on_refusal.checked = !!cfg.auto_ticket_on_refusal;
-    form.faq_shortcut.checked = !!cfg.faq_shortcut;
-    document.getElementById("configNote").textContent = data.note || "";
+    const note = document.getElementById("configNote");
+    note.textContent = data.note || "";
+    note.hidden = !note.textContent;
   }
 
   function metricCell(key, metrics, targets, item) {
@@ -307,7 +250,7 @@
       if (!byGroup[item.group]) byGroup[item.group] = item;
     }
     if (!latest || !latest.length) {
-      box.innerHTML = '<div class="empty"><span class="mark" aria-hidden="true">云</span><p>还没有实测结果。选数据集和组别后运行。B、C 需要连上知识库，没跑就不填数。</p></div>';
+      box.innerHTML = '<p class="empty">暂无历史评测。</p>';
       document.getElementById("evalExport").hidden = true;
       return;
     }
@@ -353,25 +296,8 @@
   }
 
   async function loadEval() {
-    const sets = await api("/api/admin/datasets");
-    const select = document.getElementById("evalSet");
-    if (!select.options.length) {
-      select.innerHTML = (sets.datasets || []).map((item) => `<option value="${item.id}">${item.file} · ${item.count} 题</option>`).join("");
-    }
     const status = await api("/api/admin/eval");
-    const job = status.job || {};
-    const line = document.getElementById("evalStatus");
-    if (job.running) {
-      line.hidden = false;
-      line.textContent = `运行中 ${job.progress || 0} / ${job.total || "?"} ${job.message || ""}`;
-    } else if (job.error) {
-      line.hidden = false;
-      line.textContent = job.error;
-    } else {
-      line.hidden = true;
-    }
     renderEval(status.latest || []);
-    if (job.running) setTimeout(loadEval, 1500);
   }
 
   window.addEventListener("hashchange", () => {
@@ -399,10 +325,10 @@
   document.getElementById("btnReseed").addEventListener("click", async () => {
     const status = document.getElementById("uploadStatus");
     status.hidden = false;
-    status.textContent = "正在导入样例…";
+    status.textContent = "恢复中…";
     try {
       const data = await api("/api/admin/documents/reseed", { method: "POST" });
-      status.textContent = data.already ? "样例文档还在，没有重复导入。" : "已重新导入样例 FAQ。";
+      status.textContent = data.already ? "预置资料已在库中。" : "已恢复预置资料。";
       loadDocs();
     } catch (err) {
       status.textContent = err.message;
@@ -517,29 +443,16 @@
     const payload = {
       score_threshold: Number(form.score_threshold.value),
       max_citations: Number(form.max_citations.value),
-      refusal_text: form.refusal_text.value,
       probe_question: form.probe_question.value,
       probe_expect: form.probe_expect.value,
-      auto_ticket_on_refusal: form.auto_ticket_on_refusal.checked,
-      faq_shortcut: form.faq_shortcut.checked,
     };
-    await api("/api/admin/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     status.hidden = false;
-    status.textContent = "已保存。下一次问答会用这个引用阈值。";
-  });
-  document.getElementById("btnEval").addEventListener("click", async () => {
-    const line = document.getElementById("evalStatus");
-    line.hidden = false;
-    line.textContent = "已提交…";
+    status.textContent = "正在保存…";
     try {
-      await api("/api/admin/eval/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataset: document.getElementById("evalSet").value, group: document.getElementById("evalGroup").value }),
-      });
-      loadEval();
+      await api("/api/admin/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      status.textContent = "已保存。";
     } catch (err) {
-      line.textContent = err.message;
+      status.textContent = err.message;
     }
   });
   document.getElementById("btnLogout").addEventListener("click", async () => {
@@ -554,7 +467,7 @@
     }
     const data = await res.json();
     if (data.user.role !== "admin") {
-      location.href = "/agent";
+      location.href = "/login";
       return;
     }
     document.getElementById("who").textContent = data.user.display_name + " · 管理员";

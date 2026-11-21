@@ -3,143 +3,101 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f7f8f3" />
-  <title>校园客服 · 星云大学示例</title>
-  <meta name="description" content="查询校园办事指南、查看答复出处或联系人工坐席。星云大学为虚构示例。" />
+  <meta name="theme-color" content="#f5f7fb" />
+  <title>青岛理工大学 · 校园办事助手</title>
+  <meta name="description" content="基于青岛理工大学公开资料的非官方校园办事助手。" />
   <link rel="stylesheet" href="/fonts/fonts.css?v=20261117b" />
-  <link rel="stylesheet" href="/campus.css?v=20261118" />
-  <link rel="stylesheet" href="/portal.css?v=20261118b" />
+  <link rel="stylesheet" href="/campus.css?v=20261121" />
+  <link rel="stylesheet" href="/portal.css?v=20261121" />
 </head>
 <body class="portal">
-  <a class="skip-link" href="#assistant">跳到校园助手</a>
+  <a class="skip-link" href="#assistant">跳到校园问答</a>
   <header class="site-header">
-    <div class="site-width header-inner">
-      <a class="brandmark" href="/" aria-label="校园客服首页">
+    <div class="header-inner">
+      <a class="brandmark" href="/" aria-label="青岛理工大学校园办事助手首页">
         <span class="brandmark-icon"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#school" /></svg></span>
-        <span><strong>校园客服</strong><small>星云大学 · 模拟校园</small></span>
+        <strong>青岛理工大学</strong>
       </a>
       <nav class="site-nav" aria-label="服务入口">
-        <button type="button" id="btnNav" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#book" /></svg>办事导航</button>
-        <button type="button" id="btnTicketTop" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#headset" /></svg>人工服务</button>
-        <button type="button" id="btnMyTickets" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#file" /></svg>我的工单</button>
-        <a href="/login"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#lock" /></svg>工作台登录</a>
+        <button type="button" class="btn btn-quiet" id="btnNav" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#book" /></svg>办事指南</button>
+        <a class="btn btn-quiet" href="/login" title="管理后台"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#lock" /></svg><span>管理后台</span></a>
       </nav>
     </div>
   </header>
 
-  <main class="site-width" id="main">
-    <section class="campus-hero" aria-labelledby="welcomeTitle">
-      <h1 id="welcomeTitle">校园办事，从这里开始。</h1>
-      <p>查办理流程、找校园资源，有需要也能联系人工坐席。</p>
+  <main class="workspace" id="main">
+    <aside class="history-rail" aria-labelledby="historyTitle">
+      <button class="btn new-chat" type="button" data-command="new"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#plus" /></svg>新对话</button>
+      <h2 id="historyTitle">本机对话</h2>
+      <div class="session-list" id="sessionList"></div>
+    </aside>
+
+    <section class="chat-panel" id="assistant" aria-labelledby="assistantTitle" tabindex="-1">
+      <header class="chat-head">
+        <h1 id="assistantTitle">校园办事助手</h1>
+        <div class="chat-actions">
+          <div class="audience" role="group" aria-label="办事对象">
+            <button type="button" data-audience="student" aria-pressed="true">学生</button>
+            <button type="button" data-audience="staff" aria-pressed="false">教职工</button>
+          </div>
+          <button class="icon-btn mobile-history" type="button" id="btnHistory" aria-label="本机对话" title="本机对话" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#history" /></svg></button>
+          <button class="icon-btn" type="button" id="btnExport" aria-label="导出当前对话" title="导出当前对话" hidden><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#download" /></svg></button>
+        </div>
+      </header>
+      <p id="noticeBar" class="notice-bar" role="status" hidden></p>
+      <div class="chat-content" id="chatContent">
+        <section class="empty-state" id="emptyState" aria-labelledby="welcomeTitle">
+          <span class="ask-icon" aria-hidden="true"><svg class="icon"><use href="/assets/icons.svg#chat" /></svg></span>
+          <h2 id="welcomeTitle">今天想办什么？</h2>
+          <div class="quick-questions" id="quickQuestions" aria-label="常见问题"></div>
+        </section>
+        <div class="messages" id="messages" role="log" aria-label="对话消息" hidden></div>
+      </div>
+      <form class="composer" id="composer">
+        <label class="sr-only" for="queryInput">输入校园办事问题</label>
+        <div class="compose-field">
+          <textarea id="queryInput" rows="1" maxlength="2000" placeholder="输入校园办事问题" autocomplete="off" aria-keyshortcuts="Enter Shift+Enter"></textarea>
+          <button type="button" class="btn" id="btnStop" hidden>停止</button>
+          <button type="submit" class="icon-btn btn-solid" id="btnSend" aria-label="发送" title="发送" disabled><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#arrow-up" /></svg></button>
+        </div>
+        <p id="statusText" class="sr-only" role="status"></p>
+      </form>
     </section>
 
-    <div class="workspace">
-      <section class="chat-panel" id="assistant" aria-labelledby="assistantTitle" tabindex="-1">
-        <div class="chat-head">
-          <div class="section-label">
-            <span class="tile-icon"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#chat" /></svg></span>
-            <div><h2 id="assistantTitle">校园助手</h2><span class="meta" id="onlinePill">正在连接</span></div>
-          </div>
-          <button type="button" class="btn btn-sm" id="btnNewChat"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#plus" /></svg>新对话</button>
-        </div>
-        <div id="noticeBar" class="notice-bar" role="status" hidden></div>
-        <div id="ticketProgress" class="ticket-progress" role="status" hidden></div>
-        <div class="messages" id="messages" role="log" aria-label="对话消息" aria-live="polite"></div>
-        <template id="emptyTemplate">
-          <div class="empty-state">
-            <h3>你好，想办理什么？</h3>
-            <p>可以直接提问，或试试下面的常见问题。</p>
-            <div class="empty-chips" role="group" aria-label="快捷提问">
-              <button type="button" class="chip" data-q="在读证明如何办理？">在读证明</button>
-              <button type="button" class="chip" data-q="图书馆开放时间是什么？">图书馆开放时间</button>
-              <button type="button" class="chip" data-q="校园卡如何充值和挂失？">校园卡挂失</button>
-            </div>
-          </div>
-        </template>
-        <form class="composer" id="composer">
-          <label class="sr-only" for="queryInput">输入校园办事问题</label>
-          <div class="compose-field">
-            <textarea id="queryInput" rows="1" maxlength="2000" placeholder="输入校园办事问题" autocomplete="off"></textarea>
-            <button type="button" class="btn btn-sm" id="btnStop" hidden>停止</button>
-            <button type="submit" class="btn btn-solid" id="btnSend"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#send" /></svg>发送</button>
-          </div>
-          <div class="compose-foot">
-            <p id="statusText" role="status">请勿输入证件号、银行卡号或病历。</p>
-            <span>Enter 发送 · Shift+Enter 换行</span>
-          </div>
-        </form>
-      </section>
-
-      <aside class="portal-sidebar" aria-label="办事入口、回答出处与历史会话">
-        <section class="side-panel source-panel" id="sourcePanel" aria-labelledby="sourceTitle" hidden>
-          <div class="side-head"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#book" /></svg><h2 id="sourceTitle">回答出处</h2><span class="source-count" id="sourceCount" hidden></span></div>
-          <p id="sourceQuestion" class="source-question" hidden></p>
-          <div class="cite-list" id="citeList"></div>
-        </section>
-        <section class="side-panel" aria-labelledby="quickTitle">
-          <div class="side-head"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#grid" /></svg><h2 id="quickTitle">常用服务</h2></div>
-          <div class="service-list">
-            <button type="button" class="service-entry" data-q="宿舍报修怎么提交？">
-              <span class="tile-icon"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#tools" /></svg></span><span><strong>宿舍报修</strong><small>提交维修申请</small></span><svg class="icon chevron" aria-hidden="true"><use href="/assets/icons.svg#chevron" /></svg>
-            </button>
-            <button type="button" class="service-entry" data-q="校园网如何认证登录？">
-              <span class="tile-icon blue"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#wifi" /></svg></span><span><strong>校园网络</strong><small>认证与连接</small></span><svg class="icon chevron" aria-hidden="true"><use href="/assets/icons.svg#chevron" /></svg>
-            </button>
-            <button type="button" class="service-entry" data-q="办事进度如何查询？">
-              <span class="tile-icon amber"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#clock" /></svg></span><span><strong>办事进度</strong><small>查询方式与状态说明</small></span><svg class="icon chevron" aria-hidden="true"><use href="/assets/icons.svg#chevron" /></svg>
-            </button>
-          </div>
-        </section>
-        <section class="side-panel" aria-labelledby="historyTitle">
-          <div class="side-head"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#history" /></svg><h2 id="historyTitle">本机历史</h2><button type="button" class="btn btn-quiet btn-sm" id="btnExport" aria-label="导出当前对话"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#download" /></svg>导出</button></div>
-          <div class="session-list" id="sessionList" aria-label="历史会话"></div>
-        </section>
-      </aside>
-    </div>
+    <aside class="guide-rail" aria-labelledby="serviceTitle">
+      <h2 id="serviceTitle">办事入口</h2>
+      <div class="official-links">
+        <a href="https://www.qut.edu.cn/" target="_blank" rel="noopener noreferrer"><span class="guide-icon"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#school" /></svg></span>学校官网<svg class="icon outgoing" aria-hidden="true"><use href="/assets/icons.svg#arrow-up-right" /></svg></a>
+        <a href="https://www.qut.edu.cn/zzjg.htm" target="_blank" rel="noopener noreferrer"><span class="guide-icon teal"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#grid" /></svg></span>部门目录<svg class="icon outgoing" aria-hidden="true"><use href="/assets/icons.svg#arrow-up-right" /></svg></a>
+        <a href="https://cwc.qut.edu.cn/sfgs.htm" target="_blank" rel="noopener noreferrer"><span class="guide-icon amber"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#file" /></svg></span>收费公示<svg class="icon outgoing" aria-hidden="true"><use href="/assets/icons.svg#arrow-up-right" /></svg></a>
+      </div>
+      <p class="site-note">非校方官方平台</p>
+    </aside>
   </main>
 
-  <footer class="site-width site-footer"><span>校园客服 · 校园办事演示</span><span>答复依据示例知识库。实际办理以学校发布的信息为准。</span></footer>
-
   <dialog id="navModal" aria-labelledby="navTitle">
-    <header class="dialog-head"><h2 id="navTitle">办事导航</h2><button type="button" class="icon-btn" id="btnCloseNav" aria-label="关闭"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#close" /></svg></button></header>
+    <header class="dialog-head"><h2 id="navTitle">办事指南</h2><button type="button" class="icon-btn" data-close aria-label="关闭"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#close" /></svg></button></header>
     <div class="dialog-body">
-      <label class="sr-only" for="navSearch">搜索办事主题</label>
-      <input class="input" id="navSearch" type="search" placeholder="搜索证明、宿舍、校园网…" autocomplete="off" autofocus />
+      <label class="sr-only" for="navSearch">搜索办事指南</label>
+      <input class="input" id="navSearch" type="search" placeholder="搜索办事指南" autocomplete="off" autofocus />
       <div class="nav-cats" id="navCats" role="group" aria-label="办事分类"></div>
       <div class="nav-list" id="navList"></div>
     </div>
   </dialog>
 
-  <dialog id="ticketModal" aria-labelledby="ticketTitle">
-    <header class="dialog-head"><h2 id="ticketTitle">联系人工坐席</h2><button type="button" class="icon-btn" id="btnCloseTicket" aria-label="关闭"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#close" /></svg></button></header>
-    <form id="ticketForm" class="dialog-body">
-      <p class="muted">提交后可在当前对话或「我的工单」查看进度和回复。请勿填写证件号、银行卡号或病历。</p>
-      <label>主题<input type="text" name="subject" required maxlength="80" placeholder="例如：在读证明领取时间" autofocus /></label>
-      <label>问题描述<textarea name="detail" rows="4" maxlength="800" placeholder="补充办事单号或遇到的问题"></textarea></label>
-      <label>联系方式（选填）<input type="text" name="contact" maxlength="80" placeholder="手机 / 邮箱" /></label>
-      <p class="ticket-result" id="ticketResult" role="status" hidden></p>
-      <div class="modal-actions"><button type="button" class="ghost" id="btnCancelTicket">取消</button><button type="submit" class="solid">提交工单</button></div>
-    </form>
+  <dialog id="sourcePanel" aria-labelledby="sourceTitle">
+    <header class="dialog-head"><h2 id="sourceTitle">答复出处</h2><button type="button" class="icon-btn" data-close aria-label="关闭" autofocus><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#close" /></svg></button></header>
+    <div class="dialog-body cite-list" id="citeList"></div>
   </dialog>
 
-  <dialog id="myTicketsModal" aria-labelledby="myTicketsTitle">
-    <header class="dialog-head">
-      <h2 id="myTicketsTitle">我的工单</h2>
-      <div class="ticket-dialog-actions">
-        <button type="button" class="btn btn-sm btn-quiet" id="btnRefreshMyTickets">刷新</button>
-        <button type="button" class="icon-btn" id="btnCloseMyTickets" aria-label="关闭" autofocus><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#close" /></svg></button>
-      </div>
-    </header>
+  <dialog id="historyModal" aria-labelledby="mobileHistoryTitle">
+    <header class="dialog-head"><h2 id="mobileHistoryTitle">本机对话</h2><button type="button" class="icon-btn" data-close aria-label="关闭" autofocus><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#close" /></svg></button></header>
     <div class="dialog-body">
-      <p class="muted" id="myTicketsHint">请使用提交工单时的浏览器查看。</p>
-      <button type="button" class="btn btn-sm btn-quiet" id="btnBackMyTickets" hidden>返回工单列表</button>
-      <p id="myTicketsStatus" class="my-tickets-status muted" role="status" hidden></p>
-      <div id="myTicketsContent" tabindex="-1"></div>
-      <button type="button" class="btn btn-sm" id="btnMoreMyTickets" hidden>加载更多</button>
+      <button type="button" class="btn new-chat" data-command="new"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#plus" /></svg>新对话</button>
+      <div class="session-list" id="mobileSessions"></div>
     </div>
   </dialog>
-
   <script src="/mask.js?v=20261117b" defer></script>
-  <script src="/app.js?v=20261118b" defer></script>
+  <script src="/app.js?v=20261121" defer></script>
 </body>
 </html>

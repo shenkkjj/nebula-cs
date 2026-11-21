@@ -3,34 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#f7f8f3" />
-  <title>工作台登录 · 校园客服</title>
+  <meta name="theme-color" content="#f5f7fb" />
+  <title>管理登录 · 青岛理工大学校园办事助手</title>
   <link rel="stylesheet" href="/fonts/fonts.css?v=20261117b" />
-  <link rel="stylesheet" href="/campus.css?v=20261118" />
-  <link rel="stylesheet" href="/staff.css?v=20261118" />
+  <link rel="stylesheet" href="/campus.css?v=20261121" />
+  <link rel="stylesheet" href="/staff.css?v=20261121" />
 </head>
-<body class="login-page">
+<body class="login-page qut-staff">
   <header class="topbar">
-    <a class="brandmark" href="/" aria-label="校园客服首页">
+    <a class="brandmark" href="/" aria-label="校园办事助手首页">
       <span class="brandmark-icon"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#school" /></svg></span>
-      <span><strong>校园客服</strong><small>星云大学 · 模拟校园</small></span>
+      <strong>青岛理工大学</strong>
     </a>
-    <a class="btn btn-quiet btn-sm" href="/">返回访客门户</a>
+    <a class="btn btn-quiet btn-sm" href="/">校园问答</a>
   </header>
   <main class="login-wrap">
-    <h1 class="page-title">工作台登录</h1>
-    <div class="seg" role="tablist" aria-label="登录身份">
-      <button type="button" role="tab" id="roleAgent" data-role="agent" aria-controls="loginForm" aria-selected="true">坐席</button>
-      <button type="button" role="tab" id="roleAdmin" data-role="admin" aria-controls="loginForm" aria-selected="false" tabindex="-1">管理员</button>
-    </div>
-    <form id="loginForm" role="tabpanel" aria-labelledby="roleAgent">
-      <input type="hidden" name="role" value="agent" />
+    <h1 class="page-title">管理登录</h1>
+    <form id="loginForm">
       <label class="field"><span>账号</span><input class="input" name="username" autocomplete="username" required maxlength="40" /></label>
       <label class="field"><span>密码</span><input class="input" name="password" type="password" autocomplete="current-password" required maxlength="80" /></label>
       <p class="err" id="loginError" role="alert" hidden></p>
-      <button class="btn btn-solid" type="submit" id="roleLabel">登录坐席工作台</button>
+      <button class="btn btn-solid" type="submit">登录</button>
     </form>
   </main>
-  <script src="/login.js?v=20261118" defer></script>
+  <script src="/login.js?v=20261121" defer></script>
 </body>
 </html>

@@ -29,34 +29,33 @@ class DesignSurfaceTest(unittest.TestCase):
         for banned in ("沈凯杰", "王瑞康", "美团", "腾讯", "阿里巴巴", "淘宝"):
             self.assertNotIn(banned, blob)
 
-    def test_portal_states_and_staff_desk_are_in_the_pages(self) -> None:
+    def test_qut_portal_has_scoped_guides_and_citations_without_ticket_ui(self) -> None:
         portal = _text("web/app.js", "web/index.html")
-        for state in ("澄清选项", "人工客服", "等待坐席接入", "人工已接入", "知识库维护中"):
-            self.assertIn(state, portal)
+        for label in ("青岛理工大学", "校园办事助手", "办事指南", "查看出处", "打开学校原文", "非校方官方平台"):
+            self.assertIn(label, portal)
+        self.assertIn('data-audience="student" aria-pressed="true"', portal)
+        self.assertIn('data-audience="staff" aria-pressed="false"', portal)
         self.assertIn('id="sourcePanel"', portal)
-        self.assertIn('id="ticketProgress"', portal)
-        self.assertIn('aria-labelledby="ticketTitle"', portal)
-        staff = _text("web/agent.html", "web/agent.js")
-        for label in ("待接入", "处理中", "已结束", "处理详情", "写入知识库", "标记坏例", "索引中", "索引完成", "请写一句处理说明"):
-            self.assertIn(label, staff)
-        self.assertIn('setAttribute("aria-current", "true")', staff)
-        self.assertIn('role="tablist"', staff)
+        for retired in ("/api/agent/", "/api/portal/tickets", "/api/ticket", "ticketProgress", "转人工"):
+            self.assertNotIn(retired, portal)
         shared = _text("web/campus.css")
         self.assertIn(":focus-visible", shared)
         self.assertIn("prefers-reduced-motion", shared)
 
     def test_admin_nav_and_eval_stay_honest(self) -> None:
         admin = _text("web/admin.html", "web/admin.js")
-        panels = ("overview", "handoffs", "feedback", "docs", "segments", "probe", "audit", "config", "eval")
+        panels = ("overview", "feedback", "docs", "segments", "probe", "audit", "config", "eval")
         positions = [admin.index(f'data-nav="{panel}"') for panel in panels]
         self.assertEqual(positions, sorted(positions))
         self.assertIn('/api/admin/overview', admin)
-        self.assertIn("未运行", admin)
-        self.assertIn("知识库直出", admin)
+        self.assertIn("历史评测", admin)
+        self.assertNotIn('data-nav="handoffs"', admin)
+        self.assertNotIn("/api/admin/eval/run", admin)
+        self.assertNotIn("auto_ticket_on_refusal", admin)
         login = _text("web/login.html", "web/login.js")
-        self.assertIn("坐席", login)
-        self.assertIn("管理员", login)
-        self.assertIn('name="role"', login)
+        self.assertIn("管理登录", login)
+        self.assertNotIn("坐席", login)
+        self.assertNotIn('name="role"', login)
         self.assertNotIn("admin123", login)
         self.assertNotIn("agent123", login)
         self.assertNotIn("演示账号", login)

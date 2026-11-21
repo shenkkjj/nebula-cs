@@ -131,6 +131,8 @@ CREATE TABLE IF NOT EXISTS kb_documents (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
   source TEXT NOT NULL,
+  audience TEXT NOT NULL DEFAULT 'demo',
+  source_url TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -207,6 +209,11 @@ def connection() -> sqlite3.Connection:
         conn = sqlite3.connect(path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.executescript(_SCHEMA)
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(kb_documents)")}
+        if "audience" not in columns:
+            conn.execute("ALTER TABLE kb_documents ADD COLUMN audience TEXT NOT NULL DEFAULT 'demo'")
+        if "source_url" not in columns:
+            conn.execute("ALTER TABLE kb_documents ADD COLUMN source_url TEXT NOT NULL DEFAULT ''")
         _seed(conn)
         _CONN = conn
         _PATH = path
@@ -642,6 +649,27 @@ def has_ticket_updates(ticket: dict, after: int, trace_after: int | None = None)
             "UNION ALL SELECT 1 FROM judgments WHERE visitor_token = ? AND portal_session = ? AND id > ? LIMIT 1",
             (ticket["id"], trace_after, ticket["visitor_token"], ticket["portal_session"], trace_after),
         ).fetchone())
+
+
+def latest_campus_topics(visitor: str, portal_session: str, audience: str) -> list[str]:
+    """Read only the server-established topics for the last turn of this visitor."""
+    if not portal_session:
+        return []
+    with _LOCK:
+        row = connection().execute(
+            "SELECT m.meta_json FROM judgments j JOIN messages m ON m.id = j.message_id "
+            "WHERE j.visitor_token = ? AND j.portal_session = ? ORDER BY j.id DESC LIMIT 1",
+            (visitor, portal_session),
+        ).fetchone()
+    if not row:
+        return []
+    try:
+        meta = json.loads(row["meta_json"] or "{}")
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(meta, dict) or meta.get("audience") != audience or not isinstance(meta.get("topics"), list):
+        return []
+    return [title for title in meta["topics"][:2] if isinstance(title, str)]
 
 
 def list_messages(

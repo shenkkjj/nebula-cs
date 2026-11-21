@@ -19,11 +19,12 @@ import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Iterator
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import http_api
 from dify_client import DifyClient
-from engine_mode import engine_mode
+from engine_mode import engine_mode, uses_qut
+from kb_retrieve import catalog as campus_catalog
 from followup import (
     is_back,
     is_handoff_intent,
@@ -443,8 +444,17 @@ class PortalHandler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
+    def do_HEAD(self) -> None:
+        if http_api.retired_page(self, self.path.split("?", 1)[0]):
+            self.send_error(404)
+            return
+        super().do_HEAD()
+
     def do_GET(self) -> None:
         raw = self.path.split("?", 1)[0]
+        if http_api.retired_page(self, raw):
+            self.send_error(404)
+            return
         if raw in ("/api/health", "/api/health/"):
             if not use_lite_mode():
                 body = json.dumps(http_api.health_payload(), ensure_ascii=False).encode("utf-8")
@@ -477,7 +487,8 @@ class PortalHandler(SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
         if raw in ("/api/faq-nav", "/api/faq-nav/"):
-            self._json_response(200, faq_catalog())
+            audience = parse_qs(urlparse(self.path).query).get("audience", [""])[0]
+            self._json_response(200, campus_catalog(audience) if uses_qut() else faq_catalog())
             return
         if http_api.try_get(self, raw):
             return
@@ -533,7 +544,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             return self._handle_chat()
         if path == "/api/chat/stop":
             return self._handle_stop()
-        if path == "/api/ticket":
+        if path == "/api/ticket" and not uses_qut():
             return self._handle_ticket()
         self._json_error(404, "unknown endpoint")
 
@@ -870,7 +881,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
         stream = data.get("stream")
         stream = True if stream is None else bool(stream)
         conversation_id = (data.get("conversation_id") or "").strip()
-        if classify_portal_intent(query) == "ticket":
+        if not uses_qut() and classify_portal_intent(query) == "ticket":
             shaped = lookup_mock_order(query) or {}
             shaped["conversation_id"] = conversation_id
             shaped["engine"] = "campus"
@@ -882,6 +893,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             "user": (data.get("user") or visitor)[:64],
             "visitor": visitor,
             "portal_session": str(data.get("portal_session") or "")[:80],
+            "audience": "staff" if data.get("audience") == "staff" else "student",
             "history": history[-12:],
             "conversation_id": conversation_id,
         }
@@ -1267,7 +1279,7 @@ def main() -> None:
         threading.Thread(target=_probe_loop, name="kb-probe", daemon=True).start()
     else:
         print("引擎：自建知识库（词法检索 + 可选 DeepSeek）", flush=True)
-        print("坐席 /agent · 后台 /admin · 登录 /login", flush=True)
+        print("后台 /admin · 登录 /login" if uses_qut() else "坐席 /agent · 后台 /admin · 登录 /login", flush=True)
 
         def _campus_probe_loop() -> None:
             while True:

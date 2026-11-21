@@ -30,6 +30,7 @@ class ChromaRetrieveTest(unittest.TestCase):
         self.prev = {
             "DATA_DIR": os.environ.get("DATA_DIR"),
             "ENGINE": os.environ.get("ENGINE"),
+            "CAMPUS_PROFILE": os.environ.get("CAMPUS_PROFILE"),
             "DEEPSEEK_API_KEY": os.environ.get("DEEPSEEK_API_KEY"),
             "EMBEDDING_API_KEY": os.environ.get("EMBEDDING_API_KEY"),
             "EMBEDDING_BASE_URL": os.environ.get("EMBEDDING_BASE_URL"),
@@ -37,6 +38,7 @@ class ChromaRetrieveTest(unittest.TestCase):
         }
         os.environ["DATA_DIR"] = self.tmp.name
         os.environ["ENGINE"] = "campus"
+        os.environ["CAMPUS_PROFILE"] = "demo"
         os.environ["DEEPSEEK_API_KEY"] = ""
         os.environ["EMBEDDING_API_KEY"] = ""
         os.environ["EMBEDDING_BASE_URL"] = ""

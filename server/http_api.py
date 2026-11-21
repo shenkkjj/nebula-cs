@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from urllib.parse import unquote
 from urllib.request import Request, urlopen
 
@@ -12,17 +13,27 @@ import campus_engine
 from feedback import submit_feedback
 from auth import SESSION_COOKIE, cookie_header, current_user, ensure_visitor, require_user, safe_next
 from dify_client import dataset_configured
-from engine_mode import engine_mode
+from engine_mode import engine_mode, uses_qut
 from gateway import _handoff_source
 from masking import mask_text
 from settings import dify_app_key, ollama_host
 import store
 
 
+def _retired_route(path: str) -> bool:
+    return uses_qut() and (
+        path.rstrip("/") in ("/api/ticket", "/api/portal/state", "/api/portal/tickets", "/api/admin/handoffs")
+        or path.startswith(("/api/agent/", "/api/portal/tickets/"))
+    )
+
+
 def try_get(handler, raw: str) -> bool:
+    if _retired_route(raw):
+        handler._json_error(404, "unknown endpoint")
+        return True
     if raw in ("/api/me", "/api/me/"):
         user = current_user(handler)
-        if not user:
+        if not user or (uses_qut() and user["role"] != "admin"):
             handler._json_response(401, {"ok": False, "error": "请先登录"})
             return True
         handler._json_response(200, {"ok": True, "user": _public_user(user)})
@@ -53,6 +64,9 @@ def try_get(handler, raw: str) -> bool:
 
 
 def try_post(handler, path: str) -> bool:
+    if _retired_route(path):
+        handler._json_error(404, "unknown endpoint")
+        return True
     if path == "/api/login":
         _login(handler)
         return True
@@ -179,14 +193,15 @@ def _login(handler) -> None:
     except ValueError as exc:
         handler._json_error(400, str(exc))
         return
+    qut = uses_qut()
     result = auth.login(
         str(data.get("username") or ""),
         str(data.get("password") or ""),
-        str(data.get("role") or ""),
+        "admin" if qut else str(data.get("role") or ""),
     )
     status = result.pop("status")
     if result.get("ok"):
-        target = safe_next(str(data.get("next") or ""), result["role"])
+        target = "/admin" if qut else safe_next(str(data.get("next") or ""), result["role"])
         result["redirect"] = target
         handler._set_cookies = getattr(handler, "_set_cookies", [])
         handler._set_cookies.append(cookie_header(SESSION_COOKIE, result.pop("token"), 60 * 60 * 12))
@@ -319,7 +334,7 @@ def _admin_get(handler, raw: str, user: dict) -> bool:
         handler.wfile.write(body)
         return True
     if raw in ("/api/admin/probe", "/api/admin/probe/"):
-        probe = store.latest_probe()
+        probe = campus_engine.current_probe() if uses_qut() else store.latest_probe()
         handler._json_response(200, {"ok": True, "probe": probe})
         return True
     if raw in ("/api/admin/audit", "/api/admin/audit/"):
@@ -462,7 +477,7 @@ def _upload(handler, user: dict) -> None:
     if not upload:
         handler._json_error(400, "没有收到文件")
         return
-    status, payload = admin_api.add_document(upload["filename"], upload["data"], user)
+    status, payload = admin_api.add_document(upload["filename"], upload["data"], user, parsed.get("audience", "student"))
     handler._json_response(status, payload)
 
 
@@ -486,6 +501,8 @@ def _multipart(content_type: str, body: bytes) -> dict:
             continue
         if file_match and file_match.group(1):
             found[name_match.group(1)] = {"filename": file_match.group(1), "data": data}
+        elif name_match.group(1) == "audience":
+            found["audience"] = data.decode("utf-8", "replace").strip()[:20]
     return found
 
 
@@ -538,6 +555,10 @@ def _ollama_status() -> str:
             return "up" if resp.status == 200 else "down"
     except Exception:  # noqa: BLE001
         return "down"
+
+
+def retired_page(handler, raw: str) -> bool:
+    return uses_qut() and Path(handler.translate_path(raw)).name.lower() in ("agent", "agent.html", "agent.js")
 
 
 def page_guard(handler, raw: str) -> bool:

@@ -25,6 +25,22 @@
   --serif: "Songti SC", "Source Han Serif SC", SimSun, "Noto Serif CJK SC", serif;
 }
 
+.portal, .qut-staff {
+  --canvas: #f5f7fb;
+  --surface-alt: #f2f5fb;
+  --text: #19263c;
+  --muted: #526077;
+  --subtle: #5f6f85;
+  --line: #dde5ef;
+  --primary: #214ca8;
+  --primary-dark: #18397f;
+  --mint: #e8effd;
+  --focus: #305cbb;
+  --ok: #236449;
+  --ok-bg: #e9f5ed;
+  --radius: 8px;
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { min-height: 100%; }

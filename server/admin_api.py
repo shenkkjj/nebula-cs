@@ -18,7 +18,8 @@ from dify_client import (
 from datetime import datetime, timedelta, timezone
 
 from agent_api import SOURCE_LABEL, mark_bad_case
-from engine_mode import engine_mode
+from campus_profile import probe_config
+from engine_mode import engine_mode, uses_qut
 from faq_meta import load_entries
 from eval_runner import RESULTS_DIR, load_dataset, render_csv, render_markdown, result_is_current, run_group
 from gateway import run_probe as probe_dify
@@ -70,15 +71,18 @@ def feedback_summary(days: int = 7) -> dict:
 
 def overview() -> dict:
     mode = engine_mode()
-    return {
+    qut = uses_qut()
+    data = {
         "ok": True,
         "engine": mode,
         "updated_at": store.now(),
-        "tickets": store.ticket_counts(),
         "feedback": feedback_summary(),
-        "probe": store.latest_probe_status(),
-        "local_knowledge": store.local_kb_counts() if mode == "campus" else None,
+        "probe": campus_engine.current_probe() if qut else store.latest_probe_status(),
+        "local_knowledge": kb_store.stats() if qut else store.local_kb_counts() if mode == "campus" else None,
     }
+    if not qut:
+        data["tickets"] = store.ticket_counts()
+    return data
 
 
 def feedback_csv(kind: str = "") -> str:
@@ -211,7 +215,8 @@ def document_list() -> dict:
             "configured": True,
             "engine": "campus",
             "documents": kb_store.list_documents(),
-            "hint": FAQ_HINT + " 当前是自建知识库，文档和分段在本机数据库里。",
+            "profile": "qut" if uses_qut() else "demo",
+            "hint": "" if uses_qut() else FAQ_HINT + " 当前是自建知识库，文档和分段在本机数据库里。",
         }
     if not dataset_configured():
         return {
@@ -245,7 +250,7 @@ def remove_document(document_id: str, user: dict) -> tuple[int, dict]:
     return 200, {"ok": True}
 
 
-def add_document(filename: str, data: bytes, user: dict) -> tuple[int, dict]:
+def add_document(filename: str, data: bytes, user: dict, audience: str = "student") -> tuple[int, dict]:
     name = Path(filename or "").name
     suffix = Path(name).suffix.lower()
     if suffix not in _UPLOAD_TYPES:
@@ -256,7 +261,7 @@ def add_document(filename: str, data: bytes, user: dict) -> tuple[int, dict]:
         return 400, {"ok": False, "error": "单个文件不能超过 15MB"}
     if engine_mode() == "campus":
         try:
-            created = kb_store.add_upload(name, data)
+            created = kb_store.add_upload(name, data, audience=audience)
         except ValueError as exc:
             return 400, {"ok": False, "error": str(exc)}
         store.add_audit(
@@ -334,7 +339,11 @@ def audit_csv(kind: str = "", decision: str = "", query: str = "") -> str:
 
 def current_config() -> dict:
     cfg = load_config()
-    if engine_mode() == "campus":
+    if uses_qut():
+        cfg = probe_config(cfg)
+        note = ""
+    elif engine_mode() == "campus":
+        cfg = probe_config(cfg)
         note = (
             "自建知识库用词法检索，保存后下一次问答会按引用阈值过滤。"
             "词法分数先折到大约 0.78–0.96，余弦相似度按 0–1 原值比较。"
@@ -361,6 +370,8 @@ def update_config(updates: dict, user: dict) -> tuple[int, dict]:
 
 
 def dataset_cards() -> dict:
+    if uses_qut():
+        return {"ok": True, "datasets": []}
     cards = []
     for key, path in _DATASETS.items():
         count = 0
@@ -376,6 +387,8 @@ def dataset_cards() -> dict:
 
 
 def start_eval(dataset_id: str, group: str, limit: int = 0) -> tuple[int, dict]:
+    if uses_qut():
+        return 409, {"ok": False, "error": "当前知识库未配置评测集。"}
     path = _DATASETS.get(dataset_id)
     if path is None or not path.is_file():
         return 404, {"ok": False, "error": "数据集还没有准备好"}
@@ -483,8 +496,8 @@ def reimport_sample(user: dict) -> tuple[int, dict]:
     store.add_audit(
         "reseed",
         actor=user["username"],
-        decision="已在库中" if result.get("already") else "重新导入样例",
-        source=kb_store.SAMPLE_NAME,
+        decision="已在库中" if result.get("already") else "恢复预置资料",
+        source="青岛理工大学公开资料" if uses_qut() else kb_store.SAMPLE_NAME,
         detail={"document_id": result.get("id") or ""},
     )
     return 200, result

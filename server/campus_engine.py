@@ -1,7 +1,7 @@
-"""Self-built campus assistant: intent, retrieval, grounded answers, handoff.
+"""Self-built campus assistant, with optional DeepSeek over public QUT sources.
 
-DeepSeek is optional. Campus rules are answered from the SQLite knowledge base.
-Everyday chat can use the model, and is not allowed to invent school rules.
+SQLite stays the source of answers. The QUT model selects evidence; only the
+archived demo uses free-form generation or human handoff.
 """
 from __future__ import annotations
 
@@ -11,9 +11,10 @@ import re
 import secrets
 import threading
 import time
-import urllib.error
 import urllib.request
+from http.client import HTTPException
 
+from campus_profile import probe_config, profile, scope
 from constraints import merge_citations
 from followup import (
     is_back,
@@ -40,6 +41,7 @@ from masking import is_medical_dump, mask_text, notice_line
 from ratelimit import allow as allow_rate
 from settings import env, load_config
 import kb_store
+import qut_ai
 import store
 
 _GUARD = threading.Lock()
@@ -98,6 +100,7 @@ INTRO = (
     "闲聊、写东西、把一段话写顺，也可以，语气不用那么正式。\n\n"
     "校规和办事步骤我只按知识库说。库里没有的，我会说明原因；你可以把话说具体一点，或转人工。"
 )
+QUT_INTRO = "你好，我是青岛理工大学校园助手。想查哪项办事指南？"
 HANDOFF_TEXT = "已登记，坐席上线后回复。不承诺具体时间。回复会出现在这个窗口，标为人工客服。"
 HOLD_TEXT = "人工客服还在这张工单上。你的话已转给坐席，机器人先不插话。"
 MAINTENANCE_TEXT = "知识库维护中，机器人暂时不能回答办事问题。已为你登记人工，坐席上线后回复。"
@@ -227,7 +230,7 @@ def iter_events(req: dict):
 def run_probe() -> dict:
     kb_store.ensure_seeded()
     info = kb_store.stats()
-    cfg = load_config()
+    cfg = probe_config(load_config())
     question = str(cfg.get("probe_question") or "")
     expect = str(cfg.get("probe_expect") or "")
     found = search(question) if question else {"action": "none", "chunks": []}
@@ -236,6 +239,7 @@ def run_probe() -> dict:
     checks = [
         {
             "name": "dataset",
+            "profile": profile(),
             "ok": info["segments"] > 0,
             "detail": f"自建知识库 {info['documents']} 篇、{info['segments']} 段。",
         },
@@ -253,14 +257,24 @@ def run_probe() -> dict:
     return store.save_probe(all(item["ok"] for item in checks), checks)
 
 
+def current_probe() -> dict | None:
+    probe = store.latest_probe()
+    if profile() == "qut" and probe and not any(
+        item.get("profile") == "qut" for item in probe.get("checks", []) if isinstance(item, dict)
+    ):
+        return None
+    return probe
+
+
 def health_payload() -> dict:
+    qut = profile() == "qut"
     embed = embedding_config()
     if embed["enabled"]:
         kb_store.migrate_legacy_vectors()
         if not chroma_store.describe()["fallback"]:
             chroma_store.ensure()
     info = kb_store.stats()
-    probe = store.latest_probe()
+    probe = current_probe()
     backend = chroma_store.describe()
     if not embed["enabled"]:
         embeddings = "off"
@@ -280,19 +294,22 @@ def health_payload() -> dict:
         "kb",
         "bm25",
         "query_rewrite",
-        "human_handoff",
         "streaming",
         "citations",
-        "everyday_chat",
     ]
+    if qut and env("DEEPSEEK_API_KEY"):
+        features.append("public_source_ai")
+    if not qut:
+        features.extend(("human_handoff", "everyday_chat"))
     if chroma_state == "open":
         features.append("chroma")
     return {
         "ok": True,
         "service": "nebula-cs",
         "engine": "campus",
+        "profile": profile(),
         "streaming": True,
-        "agent": True,
+        "agent": not qut,
         "maintenance": bool(probe and not probe.get("ok")),
         "probe": probe,
         "lite_mode": False,
@@ -316,6 +333,10 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
     user = (req.get("user") or visitor)[:64]
     portal_session = str(req.get("portal_session") or "")[:80]
     masked, notices = mask_text(raw)
+    qut = profile() == "qut"
+    audience = scope(req.get("audience"))
+    intro = QUT_INTRO if qut else INTRO
+    chips = [] if qut else list(_CHIPS)
     cfg = load_config()
     if _stopped(task_id):
         return _stopped_payload(conversation_id)
@@ -327,7 +348,7 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
             action="safety",
             intent="safety",
             conversation_id=conversation_id,
-            suggestions=list(spec.get("suggestions") or []),
+            suggestions=[] if qut else list(spec.get("suggestions") or []),
             generator="safety",
             notices=notices,
             reason="敏感信息未进入检索",
@@ -335,32 +356,37 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
 
     if is_restart(masked):
         payload = _base(
-            "好，之前的话题先放下。\n\n" + INTRO,
+            "好，之前的话题先放下。\n\n" + intro,
             action="restart",
             intent="restart",
             conversation_id="",
-            suggestions=list(_CHIPS),
+            suggestions=chips,
             generator="intro",
             notices=notices,
         )
         return payload
 
     if is_handoff_intent(masked):
+        if qut:
+            return _base("这里不提供人工接入。", action="refuse", intent="unknown_policy",
+                         conversation_id=conversation_id, refuse=True, generator="refuse", notices=notices)
         ticket, _ = store.open_or_create_ticket(visitor, portal_session, "user", masked)
         return _ticket_payload(ticket, HANDOFF_TEXT, "human_handoff", conversation_id, notices, reason="访客要求转人工")
 
     if _is_social(masked):
         return _base(
-            INTRO,
+            intro,
             action="assistant_intro",
             intent="intro",
             conversation_id=conversation_id,
-            suggestions=list(_CHIPS),
+            suggestions=chips,
             generator="intro",
             notices=notices,
         )
 
-    if is_back(masked):
+    if qut:
+        rewritten, rewrite = masked, None
+    elif is_back(masked):
         rewritten, rewrite = rewrite_query_for_retrieval(masked, history)
         if rewrite and rewrite.get("missing"):
             return _base(
@@ -376,7 +402,7 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
         rewritten, rewrite = rewrite_query_for_retrieval(masked, history)
 
     target = rewritten or masked
-    skill = try_skill(target)
+    skill = None if qut else try_skill(target)
     if skill is not None:
         return _base(
             skill.get("answer") or "",
@@ -403,11 +429,11 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
     if _stopped(task_id):
         return _stopped_payload(conversation_id)
 
-    writing = _creative(target)
+    writing = not qut and _creative(target)
     if writing and not _mentions_admin(target):
         return _everyday(target, history, task_id, conversation_id, notices, rewrite, cfg)
 
-    open_ticket = store.open_ticket(visitor, portal_session)
+    open_ticket = None if qut else store.open_ticket(visitor, portal_session)
     if open_ticket:
         store.add_message(visitor, "user", masked, portal_session, open_ticket["id"])
         return _base(
@@ -423,8 +449,8 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
         )
 
     lookup = _without_writing_lead(target) if writing else target
-    found = search(lookup)
-    if not _outside_campus(lookup):
+    found = search(lookup, audience)
+    if not qut and not _outside_campus(lookup):
         found = _with_history(lookup, history, found)
     if found.get("action") == "answer" and found.get("chunks") and not _clears_threshold(found, cfg):
         found = {
@@ -435,7 +461,11 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
             "method": found.get("method") or "",
         }
     maintenance = _maintenance_on()
-    if maintenance and _needs_kb(target, found):
+    if maintenance and (qut or _needs_kb(target, found)):
+        if qut:
+            return _base("资料暂时无法查询，请稍后再试。", action="maintenance", intent="maintenance",
+                         conversation_id=conversation_id, maintenance=True, refuse=True,
+                         generator="maintenance", notices=notices)
         ticket, _ = store.open_or_create_ticket(visitor, portal_session, "maintenance", masked)
         return _ticket_payload(
             ticket,
@@ -447,9 +477,17 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
             maintenance=True,
         )
 
+    if (qut and found.get("reason") != "below-threshold" and env("DEEPSEEK_API_KEY")
+            and not notices and qut_ai.can_send(masked) and not _stopped(task_id)):
+        matched = found["chunks"][0] if found["action"] == "answer" and found["chunks"] else None
+        if matched is None or matched.curated:
+            assisted = _qut_model_answer(masked, audience, matched, visitor, portal_session, task_id, conversation_id, cfg)
+            if assisted is not None:
+                return assisted
+
     if found["action"] == "answer" and found["chunks"]:
         chunk = found["chunks"][0]
-        if not _query_fits_chunk(lookup, chunk):
+        if not chunk.curated and not _query_fits_chunk(lookup, chunk):
             return _clarify(
                 [chunk],
                 conversation_id,
@@ -457,13 +495,17 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
                 rewrite,
                 "问句里有这条标题没有写到的字，先确认是不是这一件。",
             )
-        payload = _policy(found, lookup, history, task_id, conversation_id, notices, rewrite, cfg)
+        payload = _policy(found, lookup, history, task_id, conversation_id, notices, rewrite, cfg, audience)
         if writing:
             payload["answer"] = "这件办事我按知识库说，不另写一份正式文书。\n\n" + payload["answer"]
             payload["reason"] = "写作请求里点到了办事条目，改按知识库回答"
         return payload
     if found["action"] == "clarify" and found["chunks"]:
         return _clarify(found["chunks"], conversation_id, notices, rewrite, "有几条都像，先选一条。")
+    if qut:
+        return _base("没查到能回答这个问题的校方资料。", action="refuse", intent="unknown_policy",
+                     conversation_id=conversation_id, refuse=True, generator="refuse", notices=notices,
+                     reason=found.get("reason") or "无匹配资料")
     if found.get("reason") == "below-threshold":
         if writing:
             return _everyday(target, history, task_id, conversation_id, notices, rewrite, cfg)
@@ -505,33 +547,37 @@ def _decide(req: dict, task_id: str, conversation_id: str) -> dict:
 def cards_for_chunks(pairs: list, max_cards: int = 3) -> list[dict]:
     """One card per document. The highest score stays open; the rest fold."""
     resources = []
-    titles: dict[str, str] = {}
+    metadata: dict[str, tuple[str, str]] = {}
     for chunk, score in pairs:
-        shown = _display_score(float(score or 0))
+        shown = _display_score(float(score)) if score is not None else None
         resources.append(
             {
                 "document_name": chunk.document_name,
+                "document_id": chunk.source_url,
                 "dataset_name": chunk.dataset_name,
                 "segment_id": str(chunk.id),
                 "score": shown,
                 "content": (chunk.content or "")[:480],
             }
         )
-        titles[str(chunk.id)] = chunk.title
+        metadata[str(chunk.id)] = (chunk.title, chunk.source_url)
     limit = max_cards if max_cards > 0 else 3
     cards = merge_citations(resources, max_cards=limit)
     for index, card in enumerate(cards, start=1):
         card["mark"] = index
-        card["title"] = titles.get(str(card.get("segment_id") or ""), "")
+        title, source_url = metadata.get(str(card.get("segment_id") or ""), ("", ""))
+        card["title"] = title
+        if source_url:
+            card["source_url"] = source_url
     return cards
 
 
-def _policy(found: dict, query: str, history: list, task_id: str, conversation_id: str, notices: list, rewrite, cfg: dict) -> dict:
+def _policy(found: dict, query: str, history: list, task_id: str, conversation_id: str, notices: list, rewrite, cfg: dict, audience: str) -> dict:
     chunk = found["chunks"][0]
-    template = _policy_text(chunk)
+    template = f"{chunk.answer.strip()} [1]" if chunk.curated else _policy_text(chunk)
     text = template
     generator = "template"
-    if env("DEEPSEEK_API_KEY") and not _stopped(task_id):
+    if audience == "demo" and env("DEEPSEEK_API_KEY") and not _stopped(task_id):
         model = _complete(
             POLICY_SYSTEM,
             query,
@@ -550,7 +596,8 @@ def _policy(found: dict, query: str, history: list, task_id: str, conversation_i
         pairs.append((item, scores[index] if index < len(scores) else 1.0))
     limit = int(cfg.get("max_citations") or 3)
     citations = cards_for_chunks(pairs, max_cards=limit)
-    _attach_related(citations, chunk)
+    if not chunk.curated:
+        _attach_related(citations, chunk, audience)
     return _base(
         text,
         action="knowledge_qa",
@@ -564,6 +611,43 @@ def _policy(found: dict, query: str, history: list, task_id: str, conversation_i
         reason=f"{found['method']} · {found['reason']}",
         retrieval=citations,
     )
+
+
+def _qut_model_answer(query: str, audience: str, fixed, visitor: str, portal_session: str, task_id: str,
+                      conversation_id: str, cfg: dict) -> dict | None:
+    def complete(system: str, data: str) -> str | None:
+        return _complete(system, data, [], context="", temperature=0.0, task_id=task_id, timeout=6, max_tokens=240)
+
+    recent = store.latest_campus_topics(visitor, portal_session, audience)
+    selection = qut_ai.select(query, get_index(audience).chunks, recent, fixed, complete)
+    if selection is None:
+        return None
+    if selection.choices:
+        payload = _clarify(list(selection.choices), conversation_id, [], None, "DeepSeek 选出需澄清的公开指南")
+        payload["generator"] = "deepseek"
+        return payload
+
+    rows = selection.answers
+    limit = int(cfg.get("max_citations") or 3)
+    cards = cards_for_chunks([(chunk, None) for chunk, _ in rows], max_cards=len(rows))
+    marks = {card["source_url"]: card["mark"] for card in cards if card.get("source_url")}
+    if len(cards) > limit or any(chunk.source_url not in marks for chunk, _ in rows):
+        return None
+    sections = []
+    for chunk, facts in rows:
+        text = "\n".join(facts)
+        if len(rows) > 1:
+            text = f"**{chunk.title}**\n{text}"
+        sections.append(f"{text} [{marks[chunk.source_url]}]")
+    if selection.partial:
+        sections.append("其余细节，现有资料没有说明。")
+    result = _base(
+        "\n\n".join(sections), action="knowledge_qa", intent="campus_faq", conversation_id=conversation_id,
+        citations=cards, generator="deepseek", title=rows[0][0].title,
+        reason="DeepSeek 选择资料及要点 · 服务端输出已核对的指南内容",
+    )
+    result["matched_topics"] = [chunk.title for chunk, _ in rows]
+    return result
 
 
 def _clarify(chunks: list, conversation_id: str, notices: list, rewrite, detail: str) -> dict:
@@ -673,7 +757,8 @@ def _accept_policy(answer: str, source: str) -> bool:
     return True
 
 
-def _complete(system: str, query: str, history: list, context: str, temperature: float, task_id: str) -> str | None:
+def _complete(system: str, query: str, history: list, context: str, temperature: float, task_id: str,
+              *, timeout: float = 45, max_tokens: int = 700) -> str | None:
     key = env("DEEPSEEK_API_KEY")
     if not key or _stopped(task_id):
         return None
@@ -688,23 +773,23 @@ def _complete(system: str, query: str, history: list, context: str, temperature:
         "model": env("DEEPSEEK_MODEL", "deepseek-chat") or "deepseek-chat",
         "messages": messages,
         "temperature": temperature,
-        "max_tokens": 700,
+        "max_tokens": max_tokens,
         "stream": False,
     }
     url = env("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-    )
     try:
-        response = urllib.request.urlopen(request, timeout=45)
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError):
+        request = urllib.request.Request(
+            url,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+        )
+        response = urllib.request.urlopen(request, timeout=timeout)
+    except (ValueError, OSError, HTTPException):
         return None
     with _GUARD:
         _RESPONSES[task_id] = response
@@ -713,8 +798,10 @@ def _complete(system: str, query: str, history: list, context: str, temperature:
         _close_response(task_id)
         return None
     try:
-        raw = response.read().decode("utf-8", errors="replace")
-    except (OSError, TimeoutError):
+        raw = response.read(128 * 1024 + 1).decode("utf-8", errors="replace")
+        if len(raw) > 128 * 1024:
+            return None
+    except (OSError, HTTPException):
         return None
     finally:
         _close_response(task_id)
@@ -726,7 +813,7 @@ def _complete(system: str, query: str, history: list, context: str, temperature:
         if not choices:
             return None
         content = ((choices[0].get("message") or {}).get("content") or "").strip()
-    except (json.JSONDecodeError, AttributeError, IndexError, TypeError):
+    except (ValueError, AttributeError, IndexError, TypeError, RecursionError):
         return None
     return _clean(content) or None
 
@@ -751,7 +838,7 @@ def _emit(req: dict, payload: dict, task_id: str, started: float):
     if _stopped(task_id) and body.get("agent_action") not in ("safety",):
         body["answer"] = "（已停止生成）"
         body["stopped"] = True
-    body["server_message_id"] = _persist(visitor, portal_session, question, body, elapsed)
+    body["server_message_id"] = _persist(visitor, portal_session, question, body, elapsed, scope(req.get("audience")))
     answer = body.get("answer") or ""
     step = 48
     for index in range(0, len(answer), step):
@@ -763,8 +850,11 @@ def _emit(req: dict, payload: dict, task_id: str, started: float):
     yield done
 
 
-def _persist(visitor: str, portal_session: str, question: str, payload: dict, latency_ms: int) -> int:
-    ticket = store.open_ticket(visitor, portal_session)
+def _persist(visitor: str, portal_session: str, question: str, payload: dict, latency_ms: int, audience: str) -> int:
+    ticket = store.open_ticket(visitor, portal_session) if audience == "demo" else None
+    topics = []
+    if audience != "demo" and not payload.get("stopped") and payload.get("agent_action") == "knowledge_qa":
+        topics = payload.get("matched_topics") or [payload.get("matched_title")]
     ticket_id = ticket["id"] if ticket else None
     if payload.get("agent_action") != "agent_hold":
         store.add_message(visitor, "user", question, portal_session, ticket_id)
@@ -782,6 +872,8 @@ def _persist(visitor: str, portal_session: str, question: str, payload: dict, la
             "suggestions": payload.get("suggestions") or [],
             "ticket_id": payload.get("ticket_id") or "",
             "engine": "campus",
+            "audience": audience,
+            "topics": [title for title in topics if isinstance(title, str)],
         },
     )
     rewrite = payload.get("rewrite") if isinstance(payload.get("rewrite"), dict) else {}
@@ -881,7 +973,7 @@ def _base(
         "rewrite": rewrite,
         "retrieval": list(retrieval or citations or []),
         "maintenance": maintenance,
-        "queue": bool(ticket) or action in ("human_handoff", "maintenance"),
+        "queue": bool(ticket) or action == "human_handoff",
         "masked_notice": notice,
     }
     if ticket:
@@ -923,7 +1015,7 @@ def _stopped_payload(conversation_id: str) -> dict:
 
 
 def _maintenance_on() -> bool:
-    probe = store.latest_probe()
+    probe = current_probe()
     return bool(probe and not probe.get("ok"))
 
 
@@ -1001,7 +1093,7 @@ def _outside_campus(query: str) -> bool:
     return bool(_OUTSIDE_CAMPUS_RE.search(query or ""))
 
 
-def _attach_related(citations: list, chunk) -> None:
+def _attach_related(citations: list, chunk, audience: str) -> None:
     if not citations:
         return
     card = citations[0]
@@ -1011,7 +1103,7 @@ def _attach_related(citations: list, chunk) -> None:
     for segment in card.get("segments") or []:
         if isinstance(segment, dict):
             seen.add((segment.get("content") or "").strip())
-    for extra in related_segments(chunk, limit=2):
+    for extra in related_segments(chunk, limit=2, audience=audience):
         text = (extra.answer or "").strip()
         if not text or text in seen:
             continue

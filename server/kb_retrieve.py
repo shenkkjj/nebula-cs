@@ -14,6 +14,7 @@ import urllib.error
 import urllib.request
 
 import chroma_store
+from campus_profile import query_key, scope
 from lite_engine import (
     Chunk,
     FaqIndex,
@@ -26,20 +27,36 @@ from lite_engine import (
 from settings import env
 import kb_store
 
-_CACHE: dict = {"token": None, "index": None}
+_CACHE: dict[str, tuple[tuple[str, int], FaqIndex]] = {}
 _EMBEDDER = None
 _FUNC_CHARS = set("的了吗呢吧啊呀我你他她它和与或及在对把被给让向从到是有就也都还很又这那个")
 
 
-def get_index() -> FaqIndex:
+def get_index(audience: str = "") -> FaqIndex:
+    selected = scope(audience)
     token = kb_store.revision()
-    cached = _CACHE.get("index")
-    if _CACHE.get("token") == token and cached is not None:
-        return cached
-    index = FaqIndex(kb_store.chunks())
-    _CACHE["token"] = token
-    _CACHE["index"] = index
+    cached = _CACHE.get(selected)
+    if cached and cached[0] == token:
+        return cached[1]
+    index = FaqIndex(kb_store.chunks(audience))
+    _CACHE[selected] = (token, index)
     return index
+
+
+def catalog(audience: str = "") -> dict:
+    chunks = get_index(audience).chunks
+    groups: dict[str, list[dict]] = {}
+    shortcuts: list[dict] = []
+    for chunk in chunks:
+        entry = {"id": chunk.id, "title": chunk.title, "query": chunk.question, "keywords": list(chunk.aliases)}
+        groups.setdefault(chunk.category or "其他办事", []).append(entry)
+        if chunk.category and (not shortcuts or all(item["group"] != chunk.category for item in shortcuts)):
+            shortcuts.append({"group": chunk.category, "label": chunk.title, "query": chunk.question})
+    return {
+        "categories": [{"name": name, "items": items} for name, items in groups.items()],
+        "shortcuts": shortcuts[:4],
+        "count": len(chunks),
+    }
 
 
 def embedding_config() -> dict:
@@ -87,22 +104,27 @@ _PARAPHRASES = (
 )
 
 
-def search(query: str) -> dict:
-    lexical = _lexical(query)
-    repaired = _repair_wording(query)
+def search(query: str, audience: str = "") -> dict:
+    index = get_index(audience)
+    key = query_key(query)
+    for chunk in index.chunks:
+        if chunk.curated and any(key == query_key(form) for form in (chunk.title, *chunk.aliases)):
+            return _pack("answer", [chunk], "contained-title", [99.0], "lexical")
+    lexical = _lexical(query, index)
+    repaired = _repair_wording(query, index)
     if repaired is not None:
         lexical = repaired
-    alt, alt_query = _contained_paraphrase(query, lexical)
+    alt, alt_query = _contained_paraphrase(query, lexical, index)
     if alt is not None:
-        return _apply_chroma(alt_query, alt)
+        return _apply_chroma(alt_query, alt, index)
     if lexical["action"] in ("answer", "clarify"):
-        return _apply_chroma(query, lexical)
+        return _apply_chroma(query, lexical, index)
     if lexical["reason"] == "oov-leftover":
         return lexical
-    rescued = _char_rescue(query)
+    rescued = _char_rescue(query, index)
     if rescued["action"] != "none":
-        return _apply_chroma(query, rescued)
-    return _apply_chroma(query, lexical)
+        return _apply_chroma(query, rescued, index)
+    return _apply_chroma(query, lexical, index)
 
 
 def confidence(score: float, method: str, reason: str) -> float:
@@ -153,7 +175,7 @@ def topic_terms(text: str) -> list[str]:
     return present
 
 
-def related_segments(chunk: Chunk, limit: int = 2) -> list[Chunk]:
+def related_segments(chunk: Chunk, limit: int = 2, audience: str = "") -> list[Chunk]:
     """Other paragraphs of the same document that share this article's topic.
 
     An empty list means there is nothing to fold. Callers must not invent a
@@ -161,13 +183,13 @@ def related_segments(chunk: Chunk, limit: int = 2) -> list[Chunk]:
     """
     if chunk is None or limit <= 0:
         return []
-    index = get_index()
+    index = get_index(audience)
     core = _core_term(chunk.title, index)
     if len(core) < 3:
         return []
     found: list[Chunk] = []
     for other in index.chunks:
-        if other.id == chunk.id or other.document_name != chunk.document_name:
+        if other.id == chunk.id or other.document_name != chunk.document_name or other.source_url != chunk.source_url:
             continue
         title = other.title or ""
         if core in title or core in (other.question or ""):
@@ -265,12 +287,11 @@ def embed_texts(texts: list[str]) -> list[list[float]] | None:
     return [item for item in ordered if item is not None]
 
 
-def _lexical(query: str) -> dict:
-    index = get_index()
+def _lexical(query: str, index: FaqIndex) -> dict:
     if not index.chunks:
         return _empty("empty")
     contained = _contained_chunk(query, index)
-    if contained is not None:
+    if contained is not None and not contained.curated:
         return _pack("answer", [contained], "contained-title", [99.0], "lexical")
     concepts = index.concepts(query)
     if not concepts:
@@ -278,6 +299,8 @@ def _lexical(query: str) -> dict:
     leftovers = index.leftovers(query, concepts)
     ranked: list[_Hit] = []
     for chunk, doc in zip(index.chunks, index.docs):
+        if chunk.curated:
+            continue
         levels = tuple(index.level(concept, doc) or "" for concept in concepts)
         title_n = sum(level == "title" for level in levels)
         body_n = sum(level in ("title", "body") for level in levels)
@@ -326,13 +349,15 @@ def _lexical(query: str) -> dict:
     )
 
 
-def _char_rescue(query: str) -> dict:
+def _char_rescue(query: str, index: FaqIndex) -> dict:
     """Rescue a heading whose words are not in the built-in campus lexicon."""
     query_chars = _chars(query)
     if len(query_chars) < 2:
         return _empty("no-char")
     scored: list[tuple[float, Chunk]] = []
-    for chunk in get_index().chunks:
+    for chunk in index.chunks:
+        if chunk.curated:
+            continue
         title_chars = _chars(chunk.title)
         if len(title_chars) < 2:
             continue
@@ -355,16 +380,21 @@ def _char_rescue(query: str) -> dict:
     return _empty("no-char")
 
 
-def _apply_chroma(query: str, lexical: dict) -> dict:
+def _apply_chroma(query: str, lexical: dict, index: FaqIndex) -> dict:
     """Blend Chroma cosine similarity into the lexical decision.
 
     A confident lexical answer is kept. A tie can be broken, and a lexical
     miss can be rescued, only when the embedded index has a clear neighbor.
     """
+    by_id = {chunk.id: chunk for chunk in index.chunks if not chunk.curated}
+    if not by_id:
+        return lexical
     neighbors = _neighbors(query)
     if not neighbors:
         return lexical
-    by_id = {chunk.id: chunk for chunk in get_index().chunks}
+    neighbors = [(segment_id, score) for segment_id, score in neighbors if segment_id in by_id]
+    if not neighbors:
+        return lexical
     if lexical["action"] == "clarify":
         pool = {chunk.id for chunk in lexical["chunks"]}
         ranked = [
@@ -416,11 +446,11 @@ def _neighbors(query: str) -> list[tuple[str, float]] | None:
     return ranked
 
 
-def _repair_wording(query: str) -> dict | None:
+def _repair_wording(query: str, index: FaqIndex) -> dict | None:
     """「东西坏了」means a repair, not every article that mentions the place."""
     if "东西坏了" not in (query or ""):
         return None
-    alt = _lexical((query or "").replace("东西坏了", "报修"))
+    alt = _lexical((query or "").replace("东西坏了", "报修"), index)
     if alt.get("action") not in ("answer", "clarify") or not alt.get("chunks"):
         return None
     if not any("报修" in (chunk.title or "") for chunk in alt["chunks"]):
@@ -445,11 +475,11 @@ def _paraphrases(query: str) -> list[str]:
     return variants
 
 
-def _contained_paraphrase(query: str, lexical: dict) -> tuple[dict | None, str]:
+def _contained_paraphrase(query: str, lexical: dict, index: FaqIndex) -> tuple[dict | None, str]:
     if lexical.get("action") == "answer":
         return None, query
     for variant in _paraphrases(query):
-        alt = _lexical(variant)
+        alt = _lexical(variant, index)
         if alt.get("action") == "answer" and alt.get("reason") == "contained-title" and alt.get("chunks"):
             return alt, variant
     return None, query

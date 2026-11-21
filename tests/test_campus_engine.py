@@ -34,12 +34,14 @@ class CampusEngineTest(unittest.TestCase):
         self.prev = {
             "DATA_DIR": os.environ.get("DATA_DIR"),
             "ENGINE": os.environ.get("ENGINE"),
+            "CAMPUS_PROFILE": os.environ.get("CAMPUS_PROFILE"),
             "DEEPSEEK_API_KEY": os.environ.get("DEEPSEEK_API_KEY"),
             "EMBEDDING_API_KEY": os.environ.get("EMBEDDING_API_KEY"),
             "EMBEDDING_BASE_URL": os.environ.get("EMBEDDING_BASE_URL"),
         }
         os.environ["DATA_DIR"] = self.tmp.name
         os.environ["ENGINE"] = "campus"
+        os.environ["CAMPUS_PROFILE"] = "demo"
         os.environ["DEEPSEEK_API_KEY"] = ""
         os.environ["EMBEDDING_API_KEY"] = ""
         os.environ["EMBEDDING_BASE_URL"] = ""
@@ -465,8 +467,9 @@ class CampusEngineTest(unittest.TestCase):
         text = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         self.assertNotIn("沈凯杰", text)
         self.assertNotIn("王瑞康", text)
-        self.assertIn("校园客服", text)
-        self.assertIn("星云大学", text)
+        self.assertIn("校园办事助手", text)
+        self.assertIn("青岛理工大学", text)
+        self.assertNotIn("星云大学", text)
 
 
 class CampusHttpTest(unittest.TestCase):
@@ -475,9 +478,11 @@ class CampusHttpTest(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.prev_data = os.environ.get("DATA_DIR")
         cls.prev_engine = os.environ.get("ENGINE")
+        cls.prev_profile = os.environ.get("CAMPUS_PROFILE")
         cls.prev_key = os.environ.get("DEEPSEEK_API_KEY")
         os.environ["DATA_DIR"] = cls.tmp.name
         os.environ["ENGINE"] = "campus"
+        os.environ["CAMPUS_PROFILE"] = "demo"
         os.environ["DEEPSEEK_API_KEY"] = ""
         store.reconnect()
         from proxy import PortalHandler
@@ -500,6 +505,10 @@ class CampusHttpTest(unittest.TestCase):
             os.environ.pop("ENGINE", None)
         else:
             os.environ["ENGINE"] = cls.prev_engine
+        if cls.prev_profile is None:
+            os.environ.pop("CAMPUS_PROFILE", None)
+        else:
+            os.environ["CAMPUS_PROFILE"] = cls.prev_profile
         if cls.prev_key is None:
             os.environ.pop("DEEPSEEK_API_KEY", None)
         else:

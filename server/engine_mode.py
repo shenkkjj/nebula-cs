@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 
+from campus_profile import profile
 from settings import load_dotenv
 
 _TRUTHY = ("1", "true", "yes", "on")
@@ -26,3 +27,7 @@ def engine_mode() -> str:
     if (os.environ.get("LITE_MODE") or "").strip().lower() in _TRUTHY:
         return "lite"
     return "campus"
+
+
+def uses_qut() -> bool:
+    return engine_mode() == "campus" and profile() == "qut"

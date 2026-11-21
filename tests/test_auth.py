@@ -66,7 +66,9 @@ class HttpAuthTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.prev_data = os.environ.get("DATA_DIR")
+        self.prev_profile = os.environ.get("CAMPUS_PROFILE")
         os.environ["DATA_DIR"] = self.tmp.name
+        os.environ["CAMPUS_PROFILE"] = "demo"
         store.reconnect()
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), PortalHandler)
         self.port = self.httpd.server_address[1]
@@ -80,6 +82,10 @@ class HttpAuthTest(unittest.TestCase):
             os.environ.pop("DATA_DIR", None)
         else:
             os.environ["DATA_DIR"] = self.prev_data
+        if self.prev_profile is None:
+            os.environ.pop("CAMPUS_PROFILE", None)
+        else:
+            os.environ["CAMPUS_PROFILE"] = self.prev_profile
         store.reconnect()
         self.tmp.cleanup()
 

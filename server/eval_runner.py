@@ -10,7 +10,7 @@ import json
 import time
 from pathlib import Path
 
-from engine_mode import engine_mode
+from engine_mode import engine_mode, uses_qut
 from settings import ROOT
 
 RESULTS_DIR = ROOT / "results"
@@ -134,6 +134,8 @@ def result_is_current(payload: dict) -> bool:
     Files left by the old gateway have no engine stamp. Their scores stay as
     written, but they are not a pass for the engine that is running now.
     """
+    if uses_qut():
+        return False  # The legacy A/B/C datasets use the archived demo corpus.
     recorded = str((payload or {}).get("engine") or "")
     if recorded != engine_mode():
         return False

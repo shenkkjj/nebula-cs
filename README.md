@@ -1,216 +1,45 @@
-# 校园客服 · 私有知识库智能客服
+# 青岛理工大学 · 校园办事助手
 
-> 课程项目 · 团队：**沈凯杰、王瑞康**  
-> 演示场景：虚构 **星云大学** 校园办事私有知识库  
-> 演示门户：http://127.0.0.1:8080/（默认是自建知识库。`LITE_MODE=1` 的旧规则入口仍是 8787）
+非校方官方平台。基于学校公开办事指南答复，附学校原文链接。门户默认是学生视图，可切换到教职工视图；没有覆盖的事项可查[学校部门目录](https://www.qut.edu.cn/zzjg.htm)。新版没有坐席、转人工或工单入口。
 
-## 问题
+## 本机运行
 
-企业内部客服文档问答最怕两件事：**大模型幻觉**，以及**答了却说不清依据**。  
-在读证明、图书馆借阅、宿舍报修、校园网认证等口径必须可追溯到私有知识库；库外问题应明确拒答并转人工，而不是静默编造。
-
-## 思路
-
-开题材料对照过 Dify、RAGFlow、FastGPT、MaxKB，向量库从 Chroma 起步、以后可以迁到 Milvus。正式产品**不安装那些重平台**，这次也不迁 Milvus，也不把 LangChain 当成应用框架。检索、知识库和门户都在这一个 Python 进程里：标准库 SQLite 存文档和分段，自写的中文 FAQ 词法索引（BM25）始终负责检索。配了 `EMBEDDING_API_KEY` 和 `EMBEDDING_BASE_URL` 之后，分段向量写进**嵌入式 Chroma**（`chromadb` 的 `PersistentClient`，数据在 `DATA_DIR/chroma`），和词法结果一起排序。不配密钥、或者 Chroma 加载失败，仍然只用词法回答。对话模型是 DeepSeek 的 HTTP 接口，密钥只在服务端。
-
-Chroma 只做向量近邻。没有把 BM25 换成 Chroma 自带的全文索引，也没有换成 SQLite FTS5：现有词表会挡住「办理 / 申请」这类空词把不相干的条目拖进来，FTS5 的默认分词对中文会拆成单字。流水线是「改写 → 词法检索，必要时再查 Chroma → 混合排序 → 只根据命中的分段作答并附出处」。这是开题里说的 LangChain 式 RAG 形状，代码里没有 LangChain。
-
-没有当作运行时底座的重平台：
-
-| 平台 | 不作为运行时的原因 |
-|------|-------------------|
-| Dify | 要 Docker、Postgres、向量服务和工作流 Worker，2 GiB 机器放不下整套 |
-| RAGFlow / FastGPT / MaxKB | 同样是带数据库和模型服务的一体化平台 |
-| Ollama / 本地嵌入模型 | 不安装，默认也不启用。Chroma 自带的 ONNX MiniLM 没有接上，2 GiB 机器不要打开它 |
-| LangChain | 不作为应用框架。路由、检索和约束是普通 Python 函数 |
-| Milvus | 开题里的后续向量库，这次不迁 |
-
-`ENGINE=dify` 仍可把旧的 Dify 网关拉起来，只供对照，不是默认。
-
-## 本机启动（默认）
-
-需要 Python 3.11+。默认用 Python 和 SQLite 运行，支持桌面和手机浏览器。
-
-如需配置外部模型，可以将 `.env.example` 复制为 `.env`。在仓库根目录用 Git Bash 启动：
+需要 Python 3.11+。在仓库根目录运行：
 
 ```bash
-ENGINE=campus python server/proxy.py
+python server/proxy.py
 ```
 
-在 Linux 上可以使用 `bash scripts/up-campus.sh`。需要启用远程向量检索时，再安装 `requirements-campus.txt` 中的依赖。
+- 访客门户：[127.0.0.1:8080](http://127.0.0.1:8080/)
+- 管理入口：[127.0.0.1:8080/login](http://127.0.0.1:8080/login)，本机演示账号 `admin` / `admin123`。不要把带有演示账号的实例暴露到公网。
+- 运行状态：[127.0.0.1:8080/api/health](http://127.0.0.1:8080/api/health)
 
-- 门户 `http://127.0.0.1:8080/`
-- 坐席 `http://127.0.0.1:8080/agent`（`agent1` / `agent123`）
-- 后台 `http://127.0.0.1:8080/admin`（`admin` / `admin123`）
-- 登录 `http://127.0.0.1:8080/login`
-- 样例库在第一次启动时从 `sample-kb/客服样例FAQ.md` 导入（一个文件、144 条）
-- 测试：`python -m unittest discover -s tests`
+`ENGINE=campus`、`CAMPUS_PROFILE=qut` 是默认值。标准库和 SQLite 即可运行，不需要本地模型、Dify 或向量服务。`DATA_DIR` 默认 `./data`；启动会补充预置的公开资料，不会清空之前的知识库。旧版资料保留在历史范围，不参与新版检索。
 
-没有 `DEEPSEEK_API_KEY` 时，办事问答用知识库原文（先一句，再细节和出处）。闲聊和写作会说明需要配置模型。配上密钥后，办事回答仍必须能对上检索片段，对不上的数字会退回原文。
+## DeepSeek 负责什么
 
-旧入口仍在，但不是这套正式产品：
+在服务端 `.env`（参考 [`.env.example`](.env.example)）或进程环境设置 `DEEPSEEK_API_KEY`，然后重启服务。`DEEPSEEK_MODEL` 默认 `deepseek-chat`，`DEEPSEEK_API_URL` 默认 `https://api.deepseek.com/chat/completions`。前端不持有密钥。
+
+- **理解问法**：识别口语、一句话里的两件事，以及同一对话里的「那需要准备什么？」之类的追问；有歧义时给出可选事项。
+- **按依据答复**：模型从当前视图的预置公开指南选主题和要点，服务端校验编号，使用相应段落和原文链接生成回复。知识库没有写的时间、费用、资格，不应当作校方口径。
+- **保底**：模型没配置、不可用，或输出未通过校验时，退回本地检索；库外问题说明缺少资料。模型调用有 I/O 超时和并发上限，不在机器上加载权重。
+
+模型仅接收符合长度及敏感信息过滤条件的当前问题、最近已确认的主题名和预置公开指南，不接收完整聊天记录或后台上传的文档。过滤并不能识别所有隐私信息，不要在问题里提交密码、证件号或其他敏感数据。
+
+可先问「学生证丢了怎么办」，再追问「那需要准备什么？」；也可问「已经连上无线了，怎么验证账号和交网费？」体验多事项答复。首问可用本地预置资料回答；追问和多事项理解需要启用模型。
+
+## 知识库与管理
+
+[预置资料](server/campus_profile.py)逐条登记学校原文，包含学生证补办、设施与网络报修、研究生证明和成绩单、校园网、收费公示及教职工请假。具体规定以学校最新公告为准。
+
+管理员可按学生、教职工或通用范围上传公开资料，维护分段，查看反馈、审计和自检。**适用范围是检索筛选，不是访问权限**，请勿上传仅供内部人员查看的文档。默认使用中文词法检索；可选的远程嵌入和嵌入式 Chroma 用于补充检索，配置见 [`.env.example`](.env.example) 和 [`requirements-campus.txt`](requirements-campus.txt)。
+
+## 验证与历史
 
 ```bash
-LITE_MODE=1 PORTAL_PORT=8787 python3 server/proxy.py   # 旧规则引擎
-ENGINE=dify python3 server/proxy.py                    # 旧 Dify 网关，需自备 Dify
-bash scripts/up-local.sh                               # 可选：本机已有 Dify 时的旧脚本
+python -m unittest discover -s tests
 ```
 
-`render.yaml` 和 `Dockerfile` 仍是 `LITE_MODE=1` 的旧镜像，这次不改线上部署。
-
-## 架构（默认：自建知识库）
-
-```
-门户 / 坐席 / 后台（web/）
-        │  POST /api/chat（浏览器不持有密钥）
-        ▼
-server/proxy.py
-        │  ENGINE=campus（默认）
-        ▼
-意图 → 追问改写 → 词法检索（可选：嵌入式 Chroma）
-        │
-        ├─ 办事：只根据命中的分段作答，附出处；没有条目就说明原因并可转人工
-        ├─ 含糊：只问一个澄清问题
-        └─ 闲聊 / 写作：DeepSeek（可选），不得把校规说成知识库里有
-        │
-        ▼
-SQLite（DATA_DIR/nebula.sqlite）
-  文档、分段、工单、审计、判定
-Chroma（DATA_DIR/chroma，仅在配置了远程嵌入且加载成功时）
-  分段向量。进程内库，没有单独的数据库服务
-```
-
-| 能力 | 位置 |
-|------|------|
-| 文档与分段的增删改 | `server/kb_store.py`，后台「知识库文档 / 分段」 |
-| 词法检索；配了远程嵌入时用 Chroma 做混合排序 | `server/kb_retrieve.py`、`server/chroma_store.py` |
-| 意图、改写、拒答、流式 | `server/campus_engine.py` |
-| 转人工队列、回写进知识库 | `server/agent_api.py`，坐席「回写知识库」 |
-| 会话与工单回看 | 后台「会话与转人工」 |
-| 旧 Dify 约束层 | `ENGINE=dify` 时仍走 `server/gateway.py` |
-| 旧规则引擎 | `LITE_MODE=1` 时仍走 `server/lite_engine.py` |
-
-### 环境变量
-
-| 变量 | 作用 |
-|------|------|
-| `ENGINE` | `campus`（默认）、`dify`、`lite`。显式值优先于 `LITE_MODE` |
-| `DEEPSEEK_API_KEY` | 可选。不填则办事用原文，闲聊会说明缺模型 |
-| `DEEPSEEK_MODEL` | 默认 `deepseek-chat` |
-| `DEEPSEEK_API_URL` | 默认 `https://api.deepseek.com/chat/completions` |
-| `EMBEDDING_API_KEY` / `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL` | 可选。OpenAI 兼容的 `/embeddings`。不填则只用词法。填了则向量写入嵌入式 Chroma |
-| `DATA_DIR` | SQLite 与 Chroma 目录，默认 `./data`，不进仓库。Chroma 文件在 `DATA_DIR/chroma` |
-| `DIFY_*` | 只在 `ENGINE=dify` 时使用 |
-
-后台「生成向量」会调用远程嵌入接口，把结果写入 Chroma。Chroma 没装上、没加载成功，或嵌入接口失败，都不影响词法检索。日志里会有 `lexical-only`。
-
-### 2 GiB 内存（实测的是进程，不是整机）
-
-`python3 scripts/measure_rss.py` 在这台开发机上导入 144 条并回答 8 个问题。嵌入密钥是空的，进程没有 import `chromadb`。
-
-| 读数 | 值 |
-|------|----|
-| 分段 | 144 |
-| SQLite 文件 | 168 KiB（172032 字节） |
-| 词法路径峰值 RSS（`ru_maxrss`） | **26.6 MiB** |
-| 当时 `VmRSS` / `VmHWM` | **26.7 MiB** |
-| 同一进程再打开嵌入式 Chroma（空集合，不加载 ONNX 嵌入模型）之后的峰值 | **96.6 MiB**（`VmRSS` 96.8 MiB） |
-| 单独一个只打开 Chroma 客户端的进程 | 峰值 **96.9 MiB** |
-
-据此做的预算，不是在华为 Flexus 上的整机实测：
-
-| 部分 | 量级 |
-|------|------|
-| 默认进程（解释器 + 144 段词法索引，不加载 Chroma） | 约 27–80 MiB |
-| 打开嵌入式 Chroma、但不加载它自带的 ONNX MiniLM | 这次测到约 100 MiB。分段向量本身很小：144 段 × 1536 维 × 4 字节约 1 MiB |
-| 一次 DeepSeek 或远程嵌入调用 | 只保留请求和回答文本，不在本机加载权重 |
-| 操作系统和其他进程 | 2 GiB 机器上通常要占数百 MiB，这一项没有在 Flexus 上量过 |
-
-应用进程即使把 Chroma 客户端算进去，仍然远小于 2 GiB。整机是否从容，取决于系统和其他服务，不能只凭这 27 MiB 或 97 MiB 宣称「已经在 Flexus 上稳跑」。没有把 Dify、FastGPT、RAGFlow、MaxKB、Postgres、Milvus 或 Ollama 算进去；那些才是会把 2 GiB 吃满的部分。Chroma 自带的本地嵌入模型没有接上，不要在这台机器上打开。
-
-## 界面与工作流程
-
-- **访客门户**提供常用办事入口、流式问答、可展开的回答出处和本机会话。转人工后，可在原对话或「我的工单」查看处理状态和坐席回复。「我的工单」使用提交时的浏览器身份读取，可打开本机保留的原对话。
-- **坐席工作台**将队列、对话和答复判定并排展示。坐席主动接入工单后可回复和结单，另有知识库回写及坏例标记入口。
-- **管理后台**的服务总览显示实际工单数、近七日有帮助率、知识库规模和自检状态，可进入明细。
-- 查看[新版截图和本机测试记录](docs/evidence/modern-campus/README.md)。此前确认的 E5 / S1 原型归档在 [`/design/`](http://127.0.0.1:8080/design/)，设计记录见 [DESIGN.md](docs/DESIGN.md)。
-- 门户使用 `POST /api/chat`（默认 SSE）、`POST /api/chat/stop`、`POST /api/ticket` 和 `GET /api/portal/state`。「我的工单」使用 `GET /api/portal/tickets` 和 `GET /api/portal/tickets/{public_id}`，按访客 Cookie 限定范围并分页。坐席 `/api/agent/*` 和后台 `/api/admin/*` 需要对应角色登录。
-
-## 目录
-
-```
-./
-├── README.md
-├── DEPLOY-RENDER.md      # Render Free（无卡 / LITE）说明
-├── Dockerfile
-├── render.yaml
-├── requirements.txt      # Render / LITE 镜像：不安装 Chroma
-├── requirements-campus.txt  # 可选：pip install 后才有嵌入式 Chroma
-├── sample-kb/            # 启动时导入的 144 条 FAQ
-├── docs/
-│   ├── STATUS.md
-│   ├── PRD.md
-│   ├── DESIGN.md
-│   ├── PLAN.md
-│   └── design/           # 选款归档 + 截图
-│       ├── index.html
-│       ├── options/
-│       └── shots/
-├── web/                  # 访客门户、坐席工作台、后台和登录
-│   ├── index.html
-│   ├── styles.css
-│   └── app.js
-├── server/
-│   ├── proxy.py          # HTTP 入口
-│   ├── campus_engine.py  # 默认：意图、改写、作答
-│   ├── kb_store.py       # SQLite 文档与分段
-│   ├── kb_retrieve.py    # 词法检索；有向量时和 Chroma 混合排序
-│   ├── chroma_store.py   # 嵌入式 Chroma，加载失败则退回词法
-│   ├── chroma_runtime.py # 用到向量时才加载 chromadb，不启用自带 ONNX 嵌入
-│   ├── gateway.py        # 仅 ENGINE=dify
-│   ├── agent_api.py
-│   ├── admin_api.py
-│   └── eval_runner.py
-├── dify/
-│   └── campus-cs.chatflow.yml
-├── tests/eval/           # 测试集 / 开发集 / 冒烟题
-└── scripts/
-    ├── up-campus.sh      # 默认启动
-    ├── up-local.sh       # 可选：本机已有 Dify 时
-    └── measure_rss.py    # 进程内存
-```
-
-## 启动
-
-日常用上面的「本机启动」。健康检查：
-
-```bash
-curl -s http://127.0.0.1:8080/api/health
-```
-
-旧的 Render Free 镜像仍然是 `Dockerfile` + `LITE_MODE=1`，说明在 `DEPLOY-RENDER.md`。那不是这次改造的运行方式。
-
-```bash
-LITE_MODE=1 PORTAL_PORT=8787 python3 server/proxy.py
-```
-
-## 演示话术
-
-1. **有依据**：「在读证明如何办理？」→ 流式回答，右侧一张引用卡（同一篇文档的多段会折在一起）。  
-2. **库外**：「怎么请病假？」→ 说明知识库里没有，不编规定，可以转人工。  
-3. **含糊**：「证明怎么开？」→ 两三个选项，点一个再答。  
-4. **转人工**：门户登记工单，坐席在 `/agent` 接入、回复。访客可在原对话查看「人工客服」回复，切到新对话后也可从「我的工单」打开这张工单。
-5. **闲聊**：「帮我写一首短诗」→ 不附校规出处。没有模型密钥时会说明。  
-6. **安全**：浏览器里只有本站接口，看不到 DeepSeek 密钥。手机号和证件号在出站前打码。
-
-## 技术要点（答辩）
-
-- 前端使用原生 HTML、CSS 和 JavaScript。图标和字体随站点提供，中文使用系统字体。
-- 代理：Python 3 `http.server`；默认 SSE；去掉模型 thinking 标签。  
-- 样例库：`sample-kb/客服样例FAQ.md` 一个文件、144 条，第一次启动写入 SQLite。  
-- 检索：BM25 一直可用；远程嵌入写进嵌入式 Chroma，和词法一起排序。加载失败就只用词法。
-- 硬约束：办事口径不编造、回答可展示来源、密钥仅服务端。
-
-## 声明
-
-校园办事 FAQ 为课程虚构样例，不代表任何真实高校政策。对用户显示的名称是「校园客服 / 校园助手」；「星云大学」只是虚构校园。仓库名、Render 服务名仍是 nebula-cs。办事规定只按知识库回答；库里没有的会说明原因，并可以转人工。日常闲聊和写作可以使用，但不得把校规编造成知识库内容。
+- [新版回归测试](tests/test_qut_campus.py)覆盖角色范围、公开来源、追问、多事项、模型失败回退和已停用的工单接口。模型部分用模拟接口验证，不是对真实 DeepSeek 服务表现的测评。
+- `CAMPUS_PROFILE=demo`、`ENGINE=lite` 和 `ENGINE=dify` 是历史测试入口，不是新版访客流程。旧原型、虚构样例、评测和内存记录见[状态记录](docs/STATUS.md)及[旧版验证记录](docs/evidence/modern-campus/README.md)，其中的数据不代表当前真实校情或新版线上性能。
+- 该变更在本地验证，未发布到线上。旧 Render 配置见 [DEPLOY-RENDER.md](DEPLOY-RENDER.md)。

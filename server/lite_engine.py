@@ -201,6 +201,11 @@ class Chunk:
     content: str
     document_name: str = "客服样例FAQ.md"
     dataset_name: str = "校园办事 FAQ"
+    source_url: str = ""
+    audience: str = "demo"
+    category: str = ""
+    aliases: tuple[str, ...] = ()
+    curated: bool = False
 
 
 @dataclass
